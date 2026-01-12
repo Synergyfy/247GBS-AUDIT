@@ -10,7 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight, Plus, Trash2, Sofa, Fingerprint, PoundSterling, LayoutList } from "lucide-react";
+import { ArrowRight, Plus, Trash2, Sofa, Fingerprint, PoundSterling, LayoutList, Info } from "lucide-react";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // Simple ID generator
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -74,42 +80,84 @@ export const SpareCapacityDetailsStep = () => {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <form onSubmit={form.handleSubmit(onAddService)} className="space-y-4">
-                            <div className="space-y-2">
-                                <Label>Service Type</Label>
-                                <div className="relative">
-                                    <LayoutList className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                    <Input {...form.register("serviceType")} placeholder="e.g. Double Room, 4-Top Table" className="pl-9 bg-white/5" />
-                                </div>
-                                {form.formState.errors.serviceType && <p className="text-red-400 text-xs">{form.formState.errors.serviceType.message}</p>}
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
+                        <TooltipProvider>
+                            <form onSubmit={form.handleSubmit(onAddService)} className="space-y-4">
                                 <div className="space-y-2">
-                                    <Label>Total Capacity</Label>
-                                    <Input type="number" {...form.register("totalCapacity", { valueAsNumber: true })} placeholder="Total seats/rooms" className="bg-white/5" />
-                                    {form.formState.errors.totalCapacity && <p className="text-red-400 text-xs">{form.formState.errors.totalCapacity.message}</p>}
+                                    <Label className="flex items-center gap-2">
+                                        Service Type
+                                        <Tooltip>
+                                            <TooltipTrigger type="button">
+                                                <Info className="h-4 w-4 text-muted-foreground hover:text-pink-400 transition-colors" />
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>What kind of capacity are you selling? (e.g. Standard Room, 2-Top Table)</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </Label>
+                                    <div className="relative">
+                                        <LayoutList className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                                        <Input {...form.register("serviceType")} placeholder="e.g. Double Room, 4-Top Table" className="pl-9 bg-white/5 transition-all focus:border-pink-400/50 input-glow" />
+                                    </div>
+                                    {form.formState.errors.serviceType && <p className="text-red-400 text-xs">{form.formState.errors.serviceType.message}</p>}
                                 </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label className="flex items-center gap-2">
+                                            Total Capacity
+                                            <Tooltip>
+                                                <TooltipTrigger type="button">
+                                                    <Info className="h-4 w-4 text-muted-foreground hover:text-pink-400 transition-colors" />
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>Total number of these units available.</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </Label>
+                                        <Input type="number" {...form.register("totalCapacity", { valueAsNumber: true })} placeholder="Total seats/rooms" className="bg-white/5 transition-all focus:border-pink-400/50 input-glow" />
+                                        {form.formState.errors.totalCapacity && <p className="text-red-400 text-xs">{form.formState.errors.totalCapacity.message}</p>}
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="flex items-center gap-2">
+                                            Used Capacity
+                                            <Tooltip>
+                                                <TooltipTrigger type="button">
+                                                    <Info className="h-4 w-4 text-muted-foreground hover:text-pink-400 transition-colors" />
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>Average number occupied/sold daily.</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </Label>
+                                        <Input type="number" {...form.register("usedCapacity", { valueAsNumber: true })} placeholder="Avg used" className="bg-white/5 transition-all focus:border-pink-400/50 input-glow" />
+                                        {form.formState.errors.usedCapacity && <p className="text-red-400 text-xs">{form.formState.errors.usedCapacity.message}</p>}
+                                    </div>
+                                </div>
+
                                 <div className="space-y-2">
-                                    <Label>Used Capacity</Label>
-                                    <Input type="number" {...form.register("usedCapacity", { valueAsNumber: true })} placeholder="Avg used" className="bg-white/5" />
-                                    {form.formState.errors.usedCapacity && <p className="text-red-400 text-xs">{form.formState.errors.usedCapacity.message}</p>}
+                                    <Label className="flex items-center gap-2">
+                                        Normal Price (£)
+                                        <Tooltip>
+                                            <TooltipTrigger type="button">
+                                                <Info className="h-4 w-4 text-muted-foreground hover:text-pink-400 transition-colors" />
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>Standard full price for one unit.</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </Label>
+                                    <div className="relative">
+                                        <PoundSterling className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                                        <Input type="number" step="0.01" {...form.register("normalPrice", { valueAsNumber: true })} placeholder="0.00" className="pl-9 bg-white/5 transition-all focus:border-pink-400/50 input-glow" />
+                                    </div>
+                                    {form.formState.errors.normalPrice && <p className="text-red-400 text-xs">{form.formState.errors.normalPrice.message}</p>}
                                 </div>
-                            </div>
 
-                            <div className="space-y-2">
-                                <Label>Normal Price (£)</Label>
-                                <div className="relative">
-                                    <PoundSterling className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                    <Input type="number" step="0.01" {...form.register("normalPrice", { valueAsNumber: true })} placeholder="0.00" className="pl-9 bg-white/5" />
-                                </div>
-                                {form.formState.errors.normalPrice && <p className="text-red-400 text-xs">{form.formState.errors.normalPrice.message}</p>}
-                            </div>
-
-                            <Button type="submit" variant="secondary" className="w-full mt-4">
-                                <Plus className="w-4 h-4 mr-2" /> Add Service
-                            </Button>
-                        </form>
+                                <Button type="submit" variant="secondary" className="w-full mt-4">
+                                    <Plus className="w-4 h-4 mr-2" /> Add Service
+                                </Button>
+                            </form>
+                        </TooltipProvider>
                     </CardContent>
                 </Card>
             </motion.div>

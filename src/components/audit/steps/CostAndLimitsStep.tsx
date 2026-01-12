@@ -10,7 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight, Coins, ShieldCheck, PoundSterling } from "lucide-react";
+import { ArrowRight, Coins, ShieldCheck, PoundSterling, Info } from "lucide-react";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export const CostAndLimitsStep = () => {
     const { state, updateData, nextStep } = useAudit();
@@ -46,53 +52,73 @@ export const CostAndLimitsStep = () => {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                    <TooltipProvider>
+                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
 
-                        <div className="space-y-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="unitCost">Cost to Provide One Unit</Label>
-                                <p className="text-xs text-muted-foreground">What does it cost you out of pocket (food cost, laundry, etc.) for one item/service?</p>
-                                <div className="relative">
-                                    <PoundSterling className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                    <Input
-                                        id="unitCost"
-                                        type="number"
-                                        step="0.01"
-                                        placeholder="0.00"
-                                        {...form.register("unitCost", { valueAsNumber: true })}
-                                        className="pl-9 bg-white/5 border-white/10"
-                                    />
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="unitCost" className="flex items-center gap-2">
+                                        Cost to Provide One Unit
+                                        <Tooltip>
+                                            <TooltipTrigger type="button">
+                                                <Info className="h-4 w-4 text-muted-foreground hover:text-yellow-400 transition-colors" />
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>What does it cost you out of pocket (food cost, laundry, etc.) for one item/service?</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </Label>
+                                    <div className="relative">
+                                        <PoundSterling className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                                        <Input
+                                            id="unitCost"
+                                            type="number"
+                                            step="0.01"
+                                            placeholder="0.00"
+                                            {...form.register("unitCost", { valueAsNumber: true })}
+                                            className="pl-9 bg-white/5 border-white/10 transition-all focus:border-yellow-400/50 input-glow"
+                                        />
+                                    </div>
+                                    {form.formState.errors.unitCost && (
+                                        <p className="text-red-400 text-xs">{form.formState.errors.unitCost.message}</p>
+                                    )}
                                 </div>
-                                {form.formState.errors.unitCost && (
-                                    <p className="text-red-400 text-xs">{form.formState.errors.unitCost.message}</p>
-                                )}
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="minPrice" className="flex items-center gap-2">
+                                        Lowest Acceptable Price
+                                        <Tooltip>
+                                            <TooltipTrigger type="button">
+                                                <Info className="h-4 w-4 text-muted-foreground hover:text-yellow-400 transition-colors" />
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>What is the absolute minimum you can accept without losing money?</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </Label>
+                                    <div className="relative">
+                                        <PoundSterling className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                                        <Input
+                                            id="minPrice"
+                                            type="number"
+                                            step="0.01"
+                                            placeholder="0.00"
+                                            {...form.register("minPrice", { valueAsNumber: true })}
+                                            className="pl-9 bg-white/5 border-white/10 transition-all focus:border-yellow-400/50 input-glow"
+                                        />
+                                    </div>
+                                    {form.formState.errors.minPrice && (
+                                        <p className="text-red-400 text-xs">{form.formState.errors.minPrice.message}</p>
+                                    )}
+                                </div>
                             </div>
 
-                            <div className="space-y-2">
-                                <Label htmlFor="minPrice">Lowest Acceptable Price</Label>
-                                <p className="text-xs text-muted-foreground">What is the absolute minimum you can accept without losing money?</p>
-                                <div className="relative">
-                                    <PoundSterling className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                    <Input
-                                        id="minPrice"
-                                        type="number"
-                                        step="0.01"
-                                        placeholder="0.00"
-                                        {...form.register("minPrice", { valueAsNumber: true })}
-                                        className="pl-9 bg-white/5 border-white/10"
-                                    />
-                                </div>
-                                {form.formState.errors.minPrice && (
-                                    <p className="text-red-400 text-xs">{form.formState.errors.minPrice.message}</p>
-                                )}
-                            </div>
-                        </div>
+                            <Button type="submit" className="w-full" size="lg" variant="gradient">
+                                Continue <ArrowRight className="ml-2 w-4 h-4" />
+                            </Button>
 
-                        <Button type="submit" className="w-full" size="lg" variant="gradient">
-                            Continue <ArrowRight className="ml-2 w-4 h-4" />
-                        </Button>
-
-                    </form>
+                        </form>
+                    </TooltipProvider>
                 </CardContent>
             </Card>
         </motion.div>

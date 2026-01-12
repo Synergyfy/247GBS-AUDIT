@@ -10,7 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight, Plus, Trash2, Package, Tag, PoundSterling, BarChart3 } from "lucide-react";
+import { ArrowRight, Plus, Trash2, Package, Tag, PoundSterling, BarChart3, Info } from "lucide-react";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -80,45 +86,87 @@ export const ExcessStockStep = () => {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <form onSubmit={form.handleSubmit(onAddItem)} className="space-y-4">
-                            <div className="space-y-2">
-                                <Label>Item Name</Label>
-                                <div className="relative">
-                                    <Tag className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                    <Input {...form.register("name")} placeholder="e.g. Winter Jacket" className="pl-9 bg-white/5" />
-                                </div>
-                                {form.formState.errors.name && <p className="text-red-400 text-xs">{form.formState.errors.name.message}</p>}
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
+                        <TooltipProvider>
+                            <form onSubmit={form.handleSubmit(onAddItem)} className="space-y-4">
                                 <div className="space-y-2">
-                                    <Label>Normal Price (£)</Label>
+                                    <Label className="flex items-center gap-2">
+                                        Item Name
+                                        <Tooltip>
+                                            <TooltipTrigger type="button">
+                                                <Info className="h-4 w-4 text-muted-foreground hover:text-orange-500 transition-colors" />
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>Enter the specific product or service name.</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </Label>
                                     <div className="relative">
-                                        <PoundSterling className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                        <Input type="number" step="0.01" {...form.register("normalPrice", { valueAsNumber: true })} placeholder="0.00" className="pl-9 bg-white/5" />
+                                        <Tag className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                                        <Input {...form.register("name")} placeholder="e.g. Winter Jacket" className="pl-9 bg-white/5 transition-all focus:border-orange-500/50 focus:bg-white/10 input-glow" />
                                     </div>
-                                    {form.formState.errors.normalPrice && <p className="text-red-400 text-xs">{form.formState.errors.normalPrice.message}</p>}
+                                    {form.formState.errors.name && <p className="text-red-400 text-xs">{form.formState.errors.name.message}</p>}
                                 </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label className="flex items-center gap-2">
+                                            Normal Price (£)
+                                            <Tooltip>
+                                                <TooltipTrigger type="button">
+                                                    <Info className="h-4 w-4 text-muted-foreground hover:text-orange-500 transition-colors" />
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>The standard retail price of the item.</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </Label>
+                                        <div className="relative">
+                                            <PoundSterling className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                                            <Input type="number" step="0.01" {...form.register("normalPrice", { valueAsNumber: true })} placeholder="0.00" className="pl-9 bg-white/5 transition-all focus:border-orange-500/50 focus:bg-white/10 input-glow" />
+                                        </div>
+                                        {form.formState.errors.normalPrice && <p className="text-red-400 text-xs">{form.formState.errors.normalPrice.message}</p>}
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="flex items-center gap-2">
+                                            Quantity
+                                            <Tooltip>
+                                                <TooltipTrigger type="button">
+                                                    <Info className="h-4 w-4 text-muted-foreground hover:text-orange-500 transition-colors" />
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>Total number of units available.</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </Label>
+                                        <Input type="number" {...form.register("quantity", { valueAsNumber: true })} placeholder="0" className="bg-white/5 transition-all focus:border-orange-500/50 focus:bg-white/10 input-glow" />
+                                        {form.formState.errors.quantity && <p className="text-red-400 text-xs">{form.formState.errors.quantity.message}</p>}
+                                    </div>
+                                </div>
+
                                 <div className="space-y-2">
-                                    <Label>Quantity</Label>
-                                    <Input type="number" {...form.register("quantity", { valueAsNumber: true })} placeholder="0" className="bg-white/5" />
-                                    {form.formState.errors.quantity && <p className="text-red-400 text-xs">{form.formState.errors.quantity.message}</p>}
+                                    <Label className="flex items-center gap-2">
+                                        Selling Rate
+                                        <Tooltip>
+                                            <TooltipTrigger type="button">
+                                                <Info className="h-4 w-4 text-muted-foreground hover:text-orange-500 transition-colors" />
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>How fast this item usually sells (e.g., 5 per week).</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </Label>
+                                    <div className="relative">
+                                        <BarChart3 className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                                        <Input {...form.register("sellRate")} placeholder="e.g. 1 per month, Very Slow" className="pl-9 bg-white/5 transition-all focus:border-orange-500/50 focus:bg-white/10 input-glow" />
+                                    </div>
+                                    {form.formState.errors.sellRate && <p className="text-red-400 text-xs">{form.formState.errors.sellRate.message}</p>}
                                 </div>
-                            </div>
 
-                            <div className="space-y-2">
-                                <Label>Selling Rate</Label>
-                                <div className="relative">
-                                    <BarChart3 className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                    <Input {...form.register("sellRate")} placeholder="e.g. 1 per month, Very Slow" className="pl-9 bg-white/5" />
-                                </div>
-                                {form.formState.errors.sellRate && <p className="text-red-400 text-xs">{form.formState.errors.sellRate.message}</p>}
-                            </div>
-
-                            <Button type="submit" variant="secondary" className="w-full mt-4">
-                                <Plus className="w-4 h-4 mr-2" /> Add Item
-                            </Button>
-                        </form>
+                                <Button type="submit" className="w-full mt-4 bg-orange-600 hover:bg-orange-700 text-white">
+                                    <Plus className="w-4 h-4 mr-2" /> Add Item
+                                </Button>
+                            </form>
+                        </TooltipProvider>
                     </CardContent>
                 </Card>
             </motion.div>
