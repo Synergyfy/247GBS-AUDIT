@@ -51,51 +51,51 @@ export function TimeRangePicker({ value = "", onChange, className }: TimeRangePi
     };
 
     return (
-        <div className={cn("flex flex-col sm:flex-row items-center gap-2 sm:gap-4 bg-white/5 border border-white/10 rounded-lg p-3", className)}>
+        <div className={cn("flex flex-col sm:flex-row items-center gap-2 sm:gap-4 bg-white border border-gray-200 shadow-sm rounded-lg p-3", className)}>
 
             {/* Start Time */}
             <div className="flex items-center gap-1">
-                <span className="text-xs text-muted-foreground uppercase tracking-wider mr-1">Open</span>
+                <span className="text-xs text-gray-500 font-medium uppercase tracking-wider mr-1">Open</span>
                 <select
                     value={startHour}
                     onChange={(e) => updateTime("start", "hour", e.target.value)}
-                    className="bg-transparent border border-white/10 rounded px-1 py-0.5 text-sm focus:bg-slate-800 outline-none"
+                    className="bg-transparent border border-gray-200 rounded px-1 py-0.5 text-sm text-gray-900 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition-all cursor-pointer hover:border-gray-300"
                 >
                     {HOURS.map(h => <option key={`s-h-${h}`} value={h}>{h}</option>)}
                 </select>
-                <span className="text-muted-foreground">:</span>
+                <span className="text-gray-400">:</span>
                 <select
                     value={startMinute}
                     onChange={(e) => updateTime("start", "minute", e.target.value)}
-                    className="bg-transparent border border-white/10 rounded px-1 py-0.5 text-sm focus:bg-slate-800 outline-none"
+                    className="bg-transparent border border-gray-200 rounded px-1 py-0.5 text-sm text-gray-900 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition-all cursor-pointer hover:border-gray-300"
                 >
                     {MINUTES.map(m => <option key={`s-m-${m}`} value={m}>{m}</option>)}
                 </select>
             </div>
 
-            <div className="hidden sm:block text-muted-foreground/30">—</div>
+            <div className="hidden sm:block text-gray-300">—</div>
 
             {/* End Time */}
             <div className="flex items-center gap-1">
-                <span className="text-xs text-muted-foreground uppercase tracking-wider mr-1">Close</span>
+                <span className="text-xs text-gray-500 font-medium uppercase tracking-wider mr-1">Close</span>
                 <select
                     value={endHour}
                     onChange={(e) => updateTime("end", "hour", e.target.value)}
-                    className="bg-transparent border border-white/10 rounded px-1 py-0.5 text-sm focus:bg-slate-800 outline-none"
+                    className="bg-transparent border border-gray-200 rounded px-1 py-0.5 text-sm text-gray-900 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition-all cursor-pointer hover:border-gray-300"
                 >
                     {HOURS.map(h => <option key={`e-h-${h}`} value={h}>{h}</option>)}
                 </select>
-                <span className="text-muted-foreground">:</span>
+                <span className="text-gray-400">:</span>
                 <select
                     value={endMinute}
                     onChange={(e) => updateTime("end", "minute", e.target.value)}
-                    className="bg-transparent border border-white/10 rounded px-1 py-0.5 text-sm focus:bg-slate-800 outline-none"
+                    className="bg-transparent border border-gray-200 rounded px-1 py-0.5 text-sm text-gray-900 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition-all cursor-pointer hover:border-gray-300"
                 >
                     {MINUTES.map(m => <option key={`e-m-${m}`} value={m}>{m}</option>)}
                 </select>
             </div>
 
-            <Clock className="w-4 h-4 ml-auto text-orange-500/50 hidden sm:block" />
+            <Clock className="w-4 h-4 ml-auto text-orange-500 hidden sm:block" />
         </div>
     );
 }
