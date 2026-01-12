@@ -38,7 +38,7 @@ export const RewardRulesStep = () => {
             <Card className="w-full max-w-lg glass-card border-white/10">
                 <CardHeader>
                     <CardTitle className="text-2xl flex items-center gap-2">
-                        <Gift className="w-6 h-6 text-purple-400" />
+                        <Gift className="w-6 h-6 text-orange-600" />
                         Reward Rules
                     </CardTitle>
                     <CardDescription>
@@ -60,7 +60,7 @@ export const RewardRulesStep = () => {
                                         step="0.01"
                                         placeholder="e.g. 50.00"
                                         {...form.register("maxRewardValue", { valueAsNumber: true })}
-                                        className="pl-9 bg-white/5 border-white/10"
+                                        className="pl-9 bg-white/50 border-orange-200/30"
                                     />
                                 </div>
                                 {form.formState.errors.maxRewardValue && (
@@ -79,7 +79,7 @@ export const RewardRulesStep = () => {
                                         step="0.01"
                                         placeholder="e.g. 20.00"
                                         {...form.register("minCashComponent", { valueAsNumber: true })}
-                                        className="pl-9 bg-white/5 border-white/10"
+                                        className="pl-9 bg-white/50 border-orange-200/30"
                                     />
                                 </div>
                                 {form.formState.errors.minCashComponent && (

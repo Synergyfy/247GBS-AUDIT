@@ -3,7 +3,7 @@ import { AuditProvider } from "@/context/AuditContext";
 
 export default function Home() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-4 md:p-24 aurora-bg relative overflow-hidden">
+    <main className="flex min-h-screen flex-col items-center justify-center p-4 md:p-24 bg-white relative overflow-hidden">
       <div className="z-10 w-full">
         <AuditProvider>
           <AuditWizard />

@@ -67,7 +67,7 @@ export const RecommendationStep = () => {
             <div className="flex-1 space-y-6">
                 <div className="space-y-2">
                     <h2 className="text-3xl font-bold flex items-center gap-2">
-                        <Sparkles className="w-8 h-8 text-yellow-400" />
+                        <Sparkles className="w-8 h-8 text-amber-500" />
                         We Found Opportunities!
                     </h2>
                     <p className="text-muted-foreground text-lg">
@@ -77,20 +77,20 @@ export const RecommendationStep = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <SummaryCard
-                        icon={<Gift className="w-6 h-6 text-pink-400" />}
+                        icon={<Gift className="w-6 h-6 text-rose-500" />}
                         title="Potential Rewards"
                         value={recommendations.filter(r => r.rewardValue > 0).length.toString()}
                         description="Items ready to be converted"
                     />
                     <SummaryCard
-                        icon={<BadgePercent className="w-6 h-6 text-green-400" />}
+                        icon={<BadgePercent className="w-6 h-6 text-green-600" />}
                         title="Total Reward Value"
                         value={`£${recommendations.reduce((acc, curr) => acc + curr.rewardValue, 0).toFixed(0)}`}
                         description="Customer value generated"
                     />
                 </div>
 
-                <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-200">
+                <div className="p-4 rounded-xl bg-blue-50 border border-blue-100 text-blue-900">
                     <h4 className="font-semibold mb-1">Success Rule Check</h4>
                     <p className="text-sm opacity-80">
                         ✅ No reward causes you to lose money.<br />
@@ -99,8 +99,8 @@ export const RecommendationStep = () => {
                 </div>
             </div>
 
-            <div className="flex-1 flex flex-col glass-card rounded-xl border border-white/10 overflow-hidden max-h-[600px]">
-                <div className="p-6 border-b border-border/10 bg-white/5">
+            <div className="flex-1 flex flex-col glass-card rounded-xl border border-orange-100 overflow-hidden max-h-[600px]">
+                <div className="p-6 border-b border-border/10 bg-white/40">
                     <h3 className="font-semibold text-lg">Recommended Strategy</h3>
                 </div>
                 <div className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -110,21 +110,21 @@ export const RecommendationStep = () => {
                         </div>
                     ) : (
                         recommendations.map((rec) => (
-                            <div key={rec.id} className="p-4 rounded-lg bg-black/40 border border-white/5 hover:bg-white/5 transition-colors">
+                            <div key={rec.id} className="p-4 rounded-lg bg-white border border-gray-100 shadow-sm hover:shadow-md transition-all">
                                 <div className="flex justify-between items-start mb-2">
                                     <div>
                                         <div className="font-medium flex items-center gap-2">
                                             {rec.name}
-                                            <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-muted-foreground">{rec.type}</span>
+                                            <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-800">{rec.type}</span>
                                         </div>
                                         <div className="text-xs text-muted-foreground">{rec.recommendationType}</div>
                                     </div>
                                     <div className="text-right">
-                                        <div className="font-bold text-green-400">£{rec.rewardValue.toFixed(2)} Reward</div>
+                                        <div className="font-bold text-green-600">£{rec.rewardValue.toFixed(2)} Reward</div>
                                         <div className="text-xs text-muted-foreground">Customer pays £{rec.customerPay.toFixed(2)}</div>
                                     </div>
                                 </div>
-                                <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden flex">
+                                <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden flex">
                                     <div className="bg-green-500 h-full" style={{ width: `${(rec.rewardValue / rec.normalPrice) * 100}%` }} title="Reward Portion" />
                                     <div className="bg-blue-500 h-full" style={{ width: `${(rec.customerPay / rec.normalPrice) * 100}%` }} title="Customer Pay Portion" />
                                 </div>

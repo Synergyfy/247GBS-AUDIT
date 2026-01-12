@@ -22,7 +22,7 @@ export const AuditCompleteStep = () => {
             animate={{ opacity: 1, scale: 1 }}
             className="flex justify-center items-center min-h-[600px] p-4 text-center"
         >
-            <Card className="w-full max-w-lg glass-card border-green-500/30 overflow-hidden relative">
+            <Card className="w-full max-w-lg glass-card border-orange-200 overflow-hidden relative">
                 {/* Background Glow */}
                 <div className="absolute inset-0 bg-green-500/5 pointer-events-none" />
 
@@ -31,13 +31,13 @@ export const AuditCompleteStep = () => {
                         initial={{ scale: 0, rotate: -45 }}
                         animate={{ scale: 1, rotate: 0 }}
                         transition={{ type: "spring", stiffness: 200, damping: 15 }}
-                        className="w-24 h-24 bg-gradient-to-br from-green-400 to-emerald-600 rounded-full mx-auto flex items-center justify-center shadow-2xl shadow-green-500/40"
+                        className="w-24 h-24 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full mx-auto flex items-center justify-center shadow-2xl shadow-green-500/20"
                     >
                         <Check className="w-12 h-12 text-white" />
                     </motion.div>
 
                     <div className="space-y-4">
-                        <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-emerald-500">
+                        <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-600 to-emerald-600">
                             Audit Complete!
                         </h2>
                         <p className="text-muted-foreground text-lg max-w-sm mx-auto">
@@ -46,8 +46,8 @@ export const AuditCompleteStep = () => {
                     </div>
 
                     <div className="pt-4 space-y-3">
-                        <div className="p-4 rounded-lg bg-white/5 border border-white/10 text-sm mb-6">
-                            <Rocket className="w-5 h-5 mx-auto mb-2 text-blue-400" />
+                        <div className="p-4 rounded-lg bg-gray-50 border border-gray-200 text-sm mb-6">
+                            <Rocket className="w-5 h-5 mx-auto mb-2 text-blue-600" />
                             <p>Get ready for new customers!</p>
                         </div>
 

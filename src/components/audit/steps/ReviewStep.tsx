@@ -23,17 +23,17 @@ export const ReviewStep = () => {
             animate={{ opacity: 1, y: 0 }}
             className="flex justify-center items-center min-h-[600px] p-4"
         >
-            <Card className="w-full max-w-2xl glass-card border-white/10 max-h-[80vh] flex flex-col">
+            <Card className="w-full max-w-2xl glass-card border-orange-100 max-h-[80vh] flex flex-col">
                 <CardHeader>
                     <CardTitle className="text-2xl flex items-center gap-2">
-                        <CheckCircle2 className="w-6 h-6 text-green-400" />
+                        <CheckCircle2 className="w-6 h-6 text-green-600" />
                         Review Audit
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6 overflow-y-auto flex-1 pr-2 custom-scrollbar">
 
                     {/* Basics Section */}
-                    <Section title="Business Details" icon={<Building2 className="w-4 h-4 text-blue-400" />}>
+                    <Section title="Business Details" icon={<Building2 className="w-4 h-4 text-blue-600" />}>
                         <div className="grid grid-cols-2 gap-4 text-sm">
                             <div>
                                 <span className="text-muted-foreground">Name:</span>
@@ -55,7 +55,7 @@ export const ReviewStep = () => {
                     </Section>
 
                     {/* Financials Section */}
-                    <Section title="Financial Limits" icon={<ShieldCheck className="w-4 h-4 text-yellow-400" />}>
+                    <Section title="Financial Limits" icon={<ShieldCheck className="w-4 h-4 text-amber-600" />}>
                         <div className="grid grid-cols-2 gap-4 text-sm">
                             <div>
                                 <span className="text-muted-foreground">Unit Cost:</span>
@@ -77,11 +77,11 @@ export const ReviewStep = () => {
                     </Section>
 
                     {/* Stock Section */}
-                    <Section title={`Excess Stock (${data.excessStock?.length || 0})`} icon={<Package className="w-4 h-4 text-purple-400" />}>
+                    <Section title={`Excess Stock (${data.excessStock?.length || 0})`} icon={<Package className="w-4 h-4 text-orange-600" />}>
                         {data.excessStock && data.excessStock.length > 0 ? (
                             <ul className="space-y-2">
                                 {data.excessStock.map(item => (
-                                    <li key={item.id} className="text-sm border-b border-white/5 pb-2 last:border-0">
+                                    <li key={item.id} className="text-sm border-b border-gray-200 pb-2 last:border-0">
                                         <div className="flex justify-between">
                                             <span>{item.name}</span>
                                             <span className="text-muted-foreground">{item.quantity} units</span>
@@ -95,11 +95,11 @@ export const ReviewStep = () => {
                     </Section>
 
                     {/* Capacity Section */}
-                    <Section title={`Spare Capacity (${data.capacityServices?.length || 0})`} icon={<Users className="w-4 h-4 text-pink-400" />}>
+                    <Section title={`Spare Capacity (${data.capacityServices?.length || 0})`} icon={<Users className="w-4 h-4 text-rose-600" />}>
                         {data.capacityServices && data.capacityServices.length > 0 ? (
                             <ul className="space-y-2">
                                 {data.capacityServices.map(service => (
-                                    <li key={service.id} className="text-sm border-b border-white/5 pb-2 last:border-0">
+                                    <li key={service.id} className="text-sm border-b border-gray-200 pb-2 last:border-0">
                                         <div className="flex justify-between">
                                             <span>{service.serviceType}</span>
                                             <span className="text-muted-foreground">{service.usedCapacity}/{service.totalCapacity} usage</span>
@@ -123,7 +123,7 @@ export const ReviewStep = () => {
 
 function Section({ title, icon, children }: { title: string, icon: React.ReactNode, children: React.ReactNode }) {
     return (
-        <div className="p-4 rounded-lg bg-black/20 border border-white/5 space-y-3">
+        <div className="p-4 rounded-lg bg-gray-50 border border-gray-200 space-y-3">
             <h4 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                 {icon} {title}
             </h4>

@@ -44,17 +44,17 @@ export const WelcomeStep = () => {
 
             <motion.div variants={item} className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl py-6">
                 <FeatureCard
-                    icon={<PackageOpen className="w-8 h-8 text-blue-400" />}
+                    icon={<PackageOpen className="w-8 h-8 text-blue-600" />}
                     title="Clear Excess Stock"
                     description="Identify products sitting on shelves and turn them into marketing assets."
                 />
                 <FeatureCard
-                    icon={<Clock className="w-8 h-8 text-purple-400" />}
+                    icon={<Clock className="w-8 h-8 text-orange-600" />}
                     title="Fill Spare Capacity"
                     description="Monetize empty tables, rooms, and appointments during quiet hours."
                 />
                 <FeatureCard
-                    icon={<TrendingUp className="w-8 h-8 text-green-400" />}
+                    icon={<TrendingUp className="w-8 h-8 text-green-600" />}
                     title="Grow Revenue"
                     description="Attract new customers without spending cash on advertising."
                 />
@@ -80,8 +80,8 @@ export const WelcomeStep = () => {
 
 function FeatureCard({ icon, title, description }: { icon: React.ReactNode, title: string, description: string }) {
     return (
-        <Card className="p-6 flex flex-col items-center text-center space-y-3 hover:bg-white/5 transition-colors border-white/5">
-            <div className="p-3 rounded-full bg-white/5 mb-2">
+        <Card className="p-6 flex flex-col items-center text-center space-y-3 hover:bg-orange-50 transition-colors border-orange-100 shadow-sm">
+            <div className="p-3 rounded-full bg-orange-100/50 mb-2">
                 {icon}
             </div>
             <h3 className="font-semibold text-lg">{title}</h3>

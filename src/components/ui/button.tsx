@@ -20,8 +20,8 @@ const buttonVariants = cva(
                     "bg-secondary text-secondary-foreground hover:bg-secondary/80",
                 ghost: "hover:bg-accent hover:text-accent-foreground",
                 link: "text-primary underline-offset-4 hover:underline",
-                gradient: "bg-gradient-to-r from-blue-600 via-violet-600 to-indigo-600 text-white shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 border-0",
-                glass: "glass text-foreground hover:bg-white/10 border-white/10",
+                gradient: "bg-gradient-to-r from-orange-600 via-orange-500 to-amber-500 text-white shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 border-0",
+                glass: "glass text-foreground hover:bg-orange-500/10 border-orange-200/50",
             },
             size: {
                 default: "h-10 px-4 py-2",
