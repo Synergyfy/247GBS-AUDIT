@@ -54,13 +54,16 @@ export const AuditWizard = () => {
         <div className="w-full max-w-4xl mx-auto min-h-[600px] flex flex-col relative">
             {/* Progress Bar (hidden on welcome screen maybe? Let's keep it minimal) */}
             {!isFirstStep && (
-                <div className="w-full h-2 bg-secondary rounded-full overflow-hidden mb-8">
+                <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mb-8 backdrop-blur-sm">
                     <motion.div
-                        className="h-full bg-gradient-to-r from-blue-500 to-purple-600"
+                        className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 relative"
                         initial={{ width: 0 }}
                         animate={{ width: `${progress}%` }}
-                        transition={{ duration: 0.5 }}
-                    />
+                        transition={{ duration: 0.5, ease: "circOut" }}
+                    >
+                        <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2 h-full bg-white/50 blur-[2px]" />
+                        <div className="absolute inset-0 bg-white/20 animate-pulse-slow" />
+                    </motion.div>
                 </div>
             )}
 
