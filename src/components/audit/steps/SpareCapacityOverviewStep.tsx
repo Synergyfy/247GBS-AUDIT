@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowRight, Users, Moon, Clock, Info } from "lucide-react";
+import { DaySelector } from "@/components/ui/day-selector";
+import { TimeRangePicker } from "@/components/ui/time-range-picker";
 import {
     Tooltip,
     TooltipContent,
@@ -107,7 +109,7 @@ export const SpareCapacityOverviewStep = () => {
                                 </div>
                             </div>
 
-                            <div className="space-y-2">
+                            <div className="space-y-3">
                                 <Label htmlFor="quietDays" className="flex items-center gap-2">
                                     Quiet Days
                                     <Tooltip>
@@ -119,21 +121,20 @@ export const SpareCapacityOverviewStep = () => {
                                         </TooltipContent>
                                     </Tooltip>
                                 </Label>
-                                <div className="relative">
-                                    <Moon className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                    <Input
-                                        id="quietDays"
-                                        placeholder="e.g. Mondays, Tuesdays"
-                                        className="pl-9 bg-white/5 border-white/10 transition-all focus:border-green-400/50 input-glow"
-                                        {...form.register("quietDays")}
+                                <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                                    <DaySelector
+                                        value={form.watch("quietDays") || ""}
+                                        onChange={(val) => form.setValue("quietDays", val)}
                                     />
+                                    {/* Hidden input for form registration */}
+                                    <input type="hidden" {...form.register("quietDays")} />
                                 </div>
                                 {form.formState.errors.quietDays && (
                                     <p className="text-red-400 text-xs">{form.formState.errors.quietDays.message}</p>
                                 )}
                             </div>
 
-                            <div className="space-y-2">
+                            <div className="space-y-3">
                                 <Label htmlFor="quietTimes" className="flex items-center gap-2">
                                     Quiet Times
                                     <Tooltip>
@@ -145,14 +146,14 @@ export const SpareCapacityOverviewStep = () => {
                                         </TooltipContent>
                                     </Tooltip>
                                 </Label>
-                                <div className="relative">
-                                    <Clock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                    <Input
-                                        id="quietTimes"
-                                        placeholder="e.g. 2pm - 5pm"
-                                        className="pl-9 bg-white/5 border-white/10 transition-all focus:border-green-400/50 input-glow"
-                                        {...form.register("quietTimes")}
+                                <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                                    <TimeRangePicker
+                                        value={form.watch("quietTimes") || ""}
+                                        onChange={(val) => form.setValue("quietTimes", val)}
+                                        className="w-full"
                                     />
+                                    {/* Hidden input for form registration */}
+                                    <input type="hidden" {...form.register("quietTimes")} />
                                 </div>
                                 {form.formState.errors.quietTimes && (
                                     <p className="text-red-400 text-xs">{form.formState.errors.quietTimes.message}</p>

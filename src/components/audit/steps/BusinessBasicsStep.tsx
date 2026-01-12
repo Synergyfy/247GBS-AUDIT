@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowRight, Building2, MapPin, Clock, Info } from "lucide-react";
+import { DaySelector } from "@/components/ui/day-selector";
+import { TimeRangePicker } from "@/components/ui/time-range-picker";
 import {
     Tooltip,
     TooltipContent,
@@ -134,7 +136,7 @@ export const BusinessBasicsStep = () => {
                                 )}
                             </div>
 
-                            <div className="space-y-2">
+                            <div className="space-y-3">
                                 <Label htmlFor="operatingHours" className="flex items-center gap-2">
                                     Days & Hours of Operation
                                     <Tooltip>
@@ -142,19 +144,38 @@ export const BusinessBasicsStep = () => {
                                             <Info className="h-4 w-4 text-muted-foreground hover:text-orange-500 transition-colors" />
                                         </TooltipTrigger>
                                         <TooltipContent>
-                                            <p>When you are open for business (e.g. 9am-5pm Mon-Fri).</p>
+                                            <p>Select your open days and times.</p>
                                         </TooltipContent>
                                     </Tooltip>
                                 </Label>
-                                <div className="relative">
-                                    <Clock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                    <Input
-                                        id="operatingHours"
-                                        placeholder="e.g. Mon-Sun, 9am - 10pm"
-                                        className="pl-9 bg-white/5 border-white/10 transition-all focus:border-blue-400/50 input-glow"
-                                        {...form.register("operatingHours")}
-                                    />
+
+                                <div className="space-y-3 p-4 rounded-xl bg-white/5 border border-white/10">
+                                    <div className="space-y-1">
+                                        <span className="text-xs uppercase text-muted-foreground font-medium tracking-wider">Open Days</span>
+                                        <DaySelector
+                                            value={form.watch("operatingHours")?.split("|")[0] || ""}
+                                            onChange={(val) => {
+                                                const currentTimes = form.getValues("operatingHours")?.split("|")[1] || "09:00 - 17:00";
+                                                form.setValue("operatingHours", `${val}|${currentTimes}`);
+                                            }}
+                                        />
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <span className="text-xs uppercase text-muted-foreground font-medium tracking-wider">Business Hours</span>
+                                        <TimeRangePicker
+                                            value={form.watch("operatingHours")?.split("|")[1] || ""}
+                                            onChange={(val) => {
+                                                const currentDays = form.getValues("operatingHours")?.split("|")[0] || "";
+                                                form.setValue("operatingHours", `${currentDays}|${val}`);
+                                            }}
+                                            className="w-full"
+                                        />
+                                    </div>
+                                    {/* Hidden input to ensure value is registered for submit if needed, though form.setValue handles it */}
+                                    <input type="hidden" {...form.register("operatingHours")} />
                                 </div>
+
                                 {form.formState.errors.operatingHours && (
                                     <p className="text-red-400 text-xs">{form.formState.errors.operatingHours.message}</p>
                                 )}
