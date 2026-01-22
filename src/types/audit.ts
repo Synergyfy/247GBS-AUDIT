@@ -1,95 +1,93 @@
-import { z } from "zod";
+export type AuditCategory = 'SPARE_CAPACITY' | 'EXCESS_STOCK';
 
-export const BusinessTypeSchema = z.enum([
-    "Hotel",
-    "Restaurant",
-    "Shop",
-    "Salon",
-    "Gym",
-    "Service",
-    "Online",
-    "Other",
-]);
+export type AuditType = 'SHORT_FORM' | 'LONG_FORM';
 
-export const BusinessBasicsSchema = z.object({
-    businessName: z.string().min(1, "Business name is required"),
-    businessType: BusinessTypeSchema, // Using the enum directly
-    location: z.string().min(1, "Location is required"),
-    operatingHours: z.string().min(1, "Operating hours are required"),
-});
+export interface VisualConfig {
+    backgroundImage: string;
+    primaryColor: string;
+    accentColor: string;
+    iconName?: string;
+}
 
-export const ExcessStockItemSchema = z.object({
-    id: z.string(),
-    name: z.string().min(1, "Item name is required"),
-    normalPrice: z.number().min(0),
-    quantity: z.number().min(1),
-    sellRate: z.string().min(1, "Selling rate description is required"),
-});
+export interface RecommendationTemplate {
+    id: string;
+    condition: string; // Dynamic expression e.g. "answers.staff_idle > 20"
+    title: string;
+    description: string;
+    actionItem: string;
+}
 
-export const SpareCapacityServiceSchema = z.object({
-    id: z.string(),
-    serviceType: z.string().min(1, "Service type is required"),
-    totalCapacity: z.number().min(1),
-    usedCapacity: z.number().min(0),
-    normalPrice: z.number().min(0),
-});
+export interface BusinessType {
+    id: string;
+    name: string;
+    visuals?: Partial<VisualConfig>;
+    specificQuestions?: string[]; // List of question IDs
+}
 
-export const SpareCapacityOverviewSchema = z.object({
-    dailyCapacity: z.number().min(1),
-    dailyServed: z.number().min(0),
-    quietDays: z.string(),
-    quietTimes: z.string(),
-});
+export interface BusinessGroup {
+    id: string;
+    name: string;
+    types: BusinessType[];
+}
 
-export const CostAndLimitsSchema = z.object({
-    unitCost: z.number().min(0),
-    minPrice: z.number().min(0),
-});
+export interface Sector {
+    id: string;
+    name: string;
+    groups: BusinessGroup[];
+    visuals: VisualConfig;
+    calculationModels: {
+        capacity: string; // Reference to a formula ID
+        stock: string;
+    };
+    recommendationTemplates: RecommendationTemplate[];
+}
 
-export const RewardRulesSchema = z.object({
-    maxRewardValue: z.number().min(0),
-    minCashComponent: z.number().min(0),
-});
+export interface Question {
+    id: string;
+    text: string;
+    type: 'number' | 'percentage' | 'boolean' | 'text' | 'currency';
+    category: AuditCategory;
+    isLongFormOnly?: boolean;
+    helpText?: string;
+    weight?: number; // For weighted calculations in Long Form
+    sectorSpecific?: string[]; // Sector IDs this question applies to
+}
 
-// Complete Audit Data Structure
-export const AuditDataSchema = z.object({
-    basics: BusinessBasicsSchema.optional(),
-    excessStock: z.array(ExcessStockItemSchema).default([]),
-    capacityOverview: SpareCapacityOverviewSchema.optional(),
-    capacityServices: z.array(SpareCapacityServiceSchema).default([]),
-    costs: CostAndLimitsSchema.optional(),
-    rules: RewardRulesSchema.optional(),
-});
+export interface AuditStrategy {
+    type: AuditType;
+    depth: 'surface' | 'forensic';
+    hasAI: boolean;
+    hasBranching: boolean;
+    calculationModel: 'simple_sum' | 'weighted_weighted_opportunity_cost';
+    outputType: 'score_only' | 'strategic_roadmap';
+}
 
-export type AuditData = z.infer<typeof AuditDataSchema>;
-export type BusinessBasics = z.infer<typeof BusinessBasicsSchema>;
-export type ExcessStockItem = z.infer<typeof ExcessStockItemSchema>;
-export type SpareCapacityService = z.infer<typeof SpareCapacityServiceSchema>;
-export type SpareCapacityOverview = z.infer<typeof SpareCapacityOverviewSchema>;
-export type CostAndLimits = z.infer<typeof CostAndLimitsSchema>;
-export type RewardRules = z.infer<typeof RewardRulesSchema>;
+export interface AuditState {
+    auditType: AuditType | null;
+    selectedSector: string | null;
+    selectedGroup: string | null;
+    selectedBusinessType: string | null;
+    answers: Record<string, any>;
+    currentStep: number;
+}
 
-export type StepId =
-    | "welcome"
-    | "basics"
-    | "excess-stock"
-    | "capacity-overview"
-    | "capacity-details"
-    | "costs"
-    | "rules"
-    | "recommendation"
-    | "review"
-    | "complete";
+export const AUDIT_STRATEGIES: Record<AuditType, AuditStrategy> = {
+    SHORT_FORM: {
+        type: 'SHORT_FORM',
+        depth: 'surface',
+        hasAI: false,
+        hasBranching: false,
+        calculationModel: 'simple_sum',
+        outputType: 'score_only'
+    },
+    LONG_FORM: {
+        type: 'LONG_FORM',
+        depth: 'forensic',
+        hasAI: true,
+        hasBranching: true,
+        calculationModel: 'weighted_weighted_opportunity_cost',
+        outputType: 'strategic_roadmap'
+    }
+};
 
-export const STEPS: StepId[] = [
-    "welcome",
-    "basics",
-    "excess-stock",
-    "capacity-overview",
-    "capacity-details",
-    "costs",
-    "rules",
-    "recommendation",
-    "review",
-    "complete",
-];
+export const AUDIT_CATEGORIES: AuditCategory[] = ['SPARE_CAPACITY', 'EXCESS_STOCK'];
