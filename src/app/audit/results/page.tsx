@@ -22,7 +22,24 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 
+import { Suspense } from "react";
+
 export default function AuditResultsPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                    <p className="text-slate-500 font-black uppercase tracking-widest text-xs">Compiling Results...</p>
+                </div>
+            </div>
+        }>
+            <AuditResultsContent />
+        </Suspense>
+    );
+}
+
+function AuditResultsContent() {
     const searchParams = useSearchParams();
     const auditType = (searchParams.get("type") as AuditType) || "SHORT_FORM";
     const sectorId = searchParams.get("sector");

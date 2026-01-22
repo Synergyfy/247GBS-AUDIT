@@ -6,7 +6,24 @@ import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronRight, Globe, Factory, Utensils, Info } from "lucide-react";
 
+import { Suspense } from "react";
+
 export default function SectorSelectionPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                    <p className="text-slate-500 font-black uppercase tracking-widest text-xs">Loading Sector Modules...</p>
+                </div>
+            </div>
+        }>
+            <SectorSelectionContent />
+        </Suspense>
+    );
+}
+
+function SectorSelectionContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const auditType = searchParams.get("type") || "SHORT_FORM";
@@ -96,8 +113,8 @@ export default function SectorSelectionPage() {
                                             setSelectedTypeId(null);
                                         }}
                                         className={`flex items-center gap-4 p-5 rounded-2xl border-2 transition-all text-left ${selectedSectorId === sector.id
-                                                ? "border-orange-500 bg-white shadow-xl shadow-orange-100 scale-[1.02]"
-                                                : "border-slate-100 bg-white hover:border-slate-200"
+                                            ? "border-orange-500 bg-white shadow-xl shadow-orange-100 scale-[1.02]"
+                                            : "border-slate-100 bg-white hover:border-slate-200"
                                             }`}
                                     >
                                         <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selectedSectorId === sector.id ? "bg-orange-500 text-white" : "bg-slate-50 text-slate-400"
@@ -133,8 +150,8 @@ export default function SectorSelectionPage() {
                                                     setSelectedTypeId(null);
                                                 }}
                                                 className={`px-6 py-3 rounded-full border-2 font-bold text-sm transition-all ${selectedGroupId === group.id
-                                                        ? "border-orange-500 bg-orange-500 text-white"
-                                                        : "border-slate-200 text-slate-600 hover:border-slate-300 bg-white"
+                                                    ? "border-orange-500 bg-orange-500 text-white"
+                                                    : "border-slate-200 text-slate-600 hover:border-slate-300 bg-white"
                                                     }`}
                                             >
                                                 {group.name}
@@ -175,8 +192,8 @@ export default function SectorSelectionPage() {
                             onClick={handleComplete}
                             disabled={!selectedTypeId}
                             className={`w-full py-5 rounded-[2rem] font-black text-xl flex items-center justify-center gap-3 transition-all ${selectedTypeId
-                                    ? "bg-slate-900 text-white hover:bg-black shadow-2xl shadow-slate-300 translate-y-0"
-                                    : "bg-slate-100 text-slate-300 cursor-not-allowed translate-y-1"
+                                ? "bg-slate-900 text-white hover:bg-black shadow-2xl shadow-slate-300 translate-y-0"
+                                : "bg-slate-100 text-slate-300 cursor-not-allowed translate-y-1"
                                 }`}
                         >
                             Initialize Audit Flow
