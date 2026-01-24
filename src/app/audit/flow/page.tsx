@@ -586,16 +586,7 @@ function AuditFlowContent() {
                                                     )}
                                                 </div>
 
-                                                {answers[q.id] > 20 && (
-                                                    <motion.div
-                                                        initial={{ opacity: 0, height: 0 }}
-                                                        animate={{ opacity: 1, height: "auto" }}
-                                                        className="mt-4 flex gap-2 text-[11px] font-black text-orange-600 uppercase tracking-widest items-center"
-                                                    >
-                                                        <Zap size={14} fill="currentColor" />
-                                                        High Impact Detected - Recalculating Opportunity
-                                                    </motion.div>
-                                                )}
+
                                             </div>
                                         ))}
                                     </form>
