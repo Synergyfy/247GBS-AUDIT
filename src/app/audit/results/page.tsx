@@ -2,9 +2,9 @@
 
 import { AUDIT_STRATEGIES, AuditType, Sector, RecommendationTemplate } from "@/types/audit";
 import { SECTORS } from "@/data/sectors";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
     BarChart,
     ChevronRight,
@@ -40,10 +40,14 @@ export default function AuditResultsPage() {
 }
 
 function AuditResultsContent() {
+    const router = useRouter();
     const searchParams = useSearchParams();
     const auditType = (searchParams.get("type") as AuditType) || "SHORT_FORM";
     const sectorId = searchParams.get("sector");
     const strategy = AUDIT_STRATEGIES[auditType];
+
+    const [isSaving, setIsSaving] = useState(false);
+    const [saveComplete, setSaveComplete] = useState(false);
 
     const activeSector = useMemo(() => SECTORS.find(s => s.id === sectorId), [sectorId]);
 
@@ -51,6 +55,37 @@ function AuditResultsContent() {
     const capacityDrain = parseInt(searchParams.get("drain") || "0");
     const annualRecovery = parseInt(searchParams.get("recovery") || "0");
     const impactScore = parseInt(searchParams.get("score") || "0");
+
+    const handleSave = () => {
+        setIsSaving(true);
+
+        // Mock saving process
+        setTimeout(() => {
+            const newAudit = {
+                id: Math.random().toString(36).substr(2, 9),
+                date: new Date().toISOString(),
+                type: auditType,
+                sector: activeSector?.name || "General Business",
+                metrics: {
+                    capacityDrain,
+                    annualRecovery,
+                    impactScore
+                },
+                status: 'completed'
+            };
+
+            const existing = JSON.parse(localStorage.getItem("saved_audits") || "[]");
+            localStorage.setItem("saved_audits", JSON.stringify([newAudit, ...existing]));
+
+            setIsSaving(false);
+            setSaveComplete(true);
+
+            // Redirect to dashboard after a short delay
+            setTimeout(() => {
+                router.push("/dashboard");
+            }, 1000);
+        }, 2000);
+    };
 
     // Simple 'Engine' to find matching recommendations from config
     const matches = useMemo(() => {
@@ -95,14 +130,35 @@ function AuditResultsContent() {
                         </p>
                     </motion.div>
 
-                    <motion.div variants={itemVars} className="flex gap-3">
+                    <motion.div variants={itemVars} className="flex flex-wrap gap-3">
+                        <button
+                            onClick={handleSave}
+                            disabled={isSaving || saveComplete}
+                            className={`flex items-center gap-2 px-8 py-3 rounded-2xl font-black transition-all shadow-xl shadow-orange-100 ${saveComplete
+                                ? "bg-green-500 text-white"
+                                : "bg-orange-500 text-white hover:bg-orange-600 active:scale-95"
+                                }`}
+                        >
+                            {isSaving ? (
+                                <>
+                                    <div className="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin" />
+                                    Saving...
+                                </>
+                            ) : saveComplete ? (
+                                <>
+                                    <ShieldCheck size={18} />
+                                    Saved to Vault
+                                </>
+                            ) : (
+                                <>
+                                    <Zap size={18} fill="currentColor" />
+                                    Save to Vault
+                                </>
+                            )}
+                        </button>
                         <button className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 rounded-2xl font-bold text-slate-700 hover:bg-slate-50 transition-all shadow-sm">
                             <Download size={18} />
-                            Export Roadmap
-                        </button>
-                        <button className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-2xl font-bold hover:bg-black transition-all shadow-xl shadow-slate-200 group">
-                            <Briefcase size={18} className="text-orange-500 group-hover:rotate-12 transition-transform" />
-                            Connect specialist
+                            Export PDF
                         </button>
                     </motion.div>
                 </header>

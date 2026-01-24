@@ -16,6 +16,7 @@ import {
   CreditCard,
   Target
 } from "lucide-react";
+import ChatFAB from "@/components/ChatFAB";
 
 export default function LandingPage() {
   const fadeIn = {
@@ -46,8 +47,9 @@ export default function LandingPage() {
           <div className="hidden md:flex items-center gap-8 text-sm font-semibold">
             <a href="#comparison" className="hover:text-orange-500 transition-colors">Compare Audits</a>
             <a href="#why" className="hover:text-orange-500 transition-colors">Why Quarterly?</a>
+            <Link href="/dashboard" className="hover:text-orange-500 transition-colors">Dashboard</Link>
             <Link
-              href="/audit/selection"
+              href="/auth/signin"
               className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2.5 rounded-full shadow-lg shadow-orange-200 transition-all hover:scale-105 active:scale-95"
             >
               Get Started
@@ -77,7 +79,7 @@ export default function LandingPage() {
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link
-                  href="/audit/selection"
+                  href="/auth/signin"
                   className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-4 rounded-2xl font-bold text-lg flex items-center justify-center gap-2 shadow-xl shadow-orange-200 transition-all hover:-translate-y-1 active:translate-y-0"
                 >
                   Start Your Audit
@@ -166,7 +168,7 @@ export default function LandingPage() {
               </ul>
 
               <Link
-                href="/audit/selection"
+                href="/auth/signin"
                 className="w-full py-4 rounded-xl border-2 border-orange-500 text-orange-500 font-bold hover:bg-orange-500 hover:text-white transition-all text-center flex items-center justify-center gap-2"
               >
                 Select Short Form
@@ -205,7 +207,7 @@ export default function LandingPage() {
               </ul>
 
               <Link
-                href="/audit/selection"
+                href="/auth/signin"
                 className="w-full py-4 rounded-xl bg-orange-500 text-white font-bold hover:bg-orange-600 transition-all text-center flex items-center justify-center gap-2 shadow-xl shadow-orange-950/20"
               >
                 Select Long Form
@@ -438,6 +440,7 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+      <ChatFAB />
     </div>
   );
 }

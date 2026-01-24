@@ -53,6 +53,8 @@ export interface Question {
     helpText?: string;
     weight?: number; // For weighted calculations in Long Form
     sectorSpecific?: string[]; // Sector IDs this question applies to
+    groupId?: string; // Optinal Group ID (Category)
+    typeId?: string; // Optional Type ID (Subcategory)
 }
 
 export interface AuditStrategy {
@@ -184,3 +186,58 @@ export const STEPS = [
 ] as const;
 
 export type StepId = (typeof STEPS)[number];
+
+// ============================================================
+// DASHBOARD & SAVED RESULTS
+// ============================================================
+
+export interface SavedAudit {
+    id: string;
+    date: string;
+    type: AuditType;
+    sector: string;
+    metrics: {
+        capacityDrain: number;
+        annualRecovery: number;
+        impactScore: number;
+    };
+    status: 'completed' | 'draft';
+}
+
+export interface DashboardStats {
+    totalAudits: number;
+    activeRecovery: number;
+    efficiencyGain: number;
+    nextAuditDate: string;
+}
+
+// ============================================================
+// AUDIT TRIAGE (ONBOARDING)
+// ============================================================
+
+export type TriageStageId =
+    | 'stock-awareness'
+    | 'stock-extent'
+    | 'stock-impact'
+    | 'capacity-awareness'
+    | 'capacity-extent'
+    | 'capacity-impact'
+    | 'validation'
+    | 'financials'
+    | 'decision'
+    | 'readiness';
+
+export interface TriageData {
+    hasExcessStock?: 'yes' | 'no' | 'not-sure';
+    stockExtent?: number;
+    stockImpact?: 'serious' | 'little' | 'not-yet' | 'not-sure';
+    hasSpareCapacity?: 'yes' | 'no' | 'not-sure';
+    capacityExtent?: number;
+    capacityImpact?: 'serious' | 'little' | 'not-yet' | 'not-sure';
+    confidenceStock?: 'very' | 'fairly' | 'guessing' | 'not-sure';
+    confidenceCapacity?: 'very' | 'fairly' | 'guessing' | 'not-sure';
+    staffCost?: 'under' | 'around' | 'above' | 'not-sure';
+    stockValue?: 'under5k' | '5k-20k' | '20k-50k' | '50k+';
+    monthlyTurnover?: 'under10k' | '10k-50k' | '50k-100k' | '100k+';
+    isReady?: 'yes' | 'maybe' | 'not-yet';
+}

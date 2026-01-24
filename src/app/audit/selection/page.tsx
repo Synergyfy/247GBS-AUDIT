@@ -1,22 +1,44 @@
 "use client";
 
 import { AuditType } from "@/types/audit";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useMemo, Suspense } from "react";
 import {
     ShieldCheck,
     Layers,
     ArrowRight,
     Lock,
     Unlock,
-    AlertCircle
+    AlertCircle,
+    Cpu,
+    Zap,
+    History
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function AuditSelectionPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+                <div className="flex flex-col items-center gap-6">
+                    <div className="w-16 h-16 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                    <p className="text-slate-500 font-black uppercase tracking-widest text-xs">Accessing Vault Protocols...</p>
+                </div>
+            </div>
+        }>
+            <AuditSelectionContent />
+        </Suspense>
+    );
+}
+
+function AuditSelectionContent() {
     const router = useRouter();
-    const [selectedType, setSelectedType] = useState<AuditType | null>(null);
+    const searchParams = useSearchParams();
+
+    const recommendedType = searchParams.get("recommendType") as AuditType | null;
+    const priority = searchParams.get("priority");
+
+    const [selectedType, setSelectedType] = useState<AuditType | null>(recommendedType || null);
     const [isVerifying, setIsVerifying] = useState(false);
     const [accessGranted, setAccessGranted] = useState(false);
 
@@ -39,13 +61,34 @@ export default function AuditSelectionPage() {
         <div className="min-h-screen bg-slate-50 flex flex-col items-center py-20 px-4 selection:bg-orange-100 font-sans">
             <div className="max-w-5xl w-full">
 
-                <header className="text-center mb-16">
+                {priority && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mb-10 bg-slate-900 rounded-[2rem] p-6 text-white flex flex-col md:flex-row items-center justify-between gap-6 border-2 border-orange-500/30 shadow-2xl shadow-orange-500/10"
+                    >
+                        <div className="flex items-center gap-6">
+                            <div className="w-14 h-14 bg-orange-500 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-500/20 shrink-0">
+                                <Cpu size={28} />
+                            </div>
+                            <div>
+                                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-500 mb-1">AI System Diagnosis</div>
+                                <div className="text-xl font-black">Priority Level: <span className="text-orange-500 italic uppercase">{priority}</span></div>
+                            </div>
+                        </div>
+                        <div className="text-sm font-bold text-slate-400 max-w-sm italic md:text-right">
+                            "Based on your triage thresholds, we have unlocked the most effective recovery roadmap for your profile."
+                        </div>
+                    </motion.div>
+                )}
+
+                <header className="text-center mb-16 px-4">
                     <div className="inline-flex items-center gap-2 px-3 py-1 bg-white border border-slate-200 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">
                         <ShieldCheck size={14} className="text-orange-500" />
                         Secure Audit Gateway
                     </div>
                     <h1 className="text-4xl md:text-5xl font-black text-slate-900 mb-4">Select Audit <span className="text-orange-500">Depth</span></h1>
-                    <p className="text-slate-500 font-medium max-w-xl mx-auto">Choose the forensic resolution required for your current business lifecycle.</p>
+                    <p className="text-slate-500 font-medium max-w-xl mx-auto italic">Choose the forensic resolution required for your current business lifecycle.</p>
                 </header>
 
                 <div className="grid md:grid-cols-2 gap-8 mb-16">
@@ -62,9 +105,10 @@ export default function AuditSelectionPage() {
                             <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-colors ${selectedType === "SHORT_FORM" ? "bg-orange-500 text-white" : "bg-slate-50 text-slate-400 group-hover:bg-orange-50 group-hover:text-orange-500"}`}>
                                 <Layers size={28} />
                             </div>
-                            {selectedType === "SHORT_FORM" && (
-                                <div className="bg-orange-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest animate-pulse">
-                                    Active
+                            {recommendedType === "SHORT_FORM" && (
+                                <div className="bg-blue-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                                    <Cpu size={12} />
+                                    AI Recommended
                                 </div>
                             )}
                         </div>
@@ -94,9 +138,10 @@ export default function AuditSelectionPage() {
                             <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-colors ${selectedType === "LONG_FORM" ? "bg-orange-500 text-white" : "bg-slate-50 text-slate-400 group-hover:bg-slate-100 group-hover:text-slate-900"}`}>
                                 <ShieldCheck size={28} />
                             </div>
-                            {selectedType === "LONG_FORM" && (
-                                <div className="bg-orange-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest animate-pulse">
-                                    Forensic
+                            {recommendedType === "LONG_FORM" && (
+                                <div className="bg-orange-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                                    <Cpu size={12} />
+                                    AI Recommended
                                 </div>
                             )}
                         </div>

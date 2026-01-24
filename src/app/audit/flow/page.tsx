@@ -21,7 +21,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import AIInsightCard from "@/components/AIInsightCard";
 import AIFollowUpCard from "@/components/AIFollowUpCard";
-import type { AIInsightResponse, AIAuditState, AIBusinessContext, AIFollowUpQuestion } from "@/types/aiTypes";
+import type { AIInsightResponse, AIAuditState, AIBusinessContext, AIFollowUpQuestion, AIAuditStepData } from "@/types/aiTypes";
 
 import { Suspense } from "react";
 
@@ -62,34 +62,44 @@ function AuditFlowContent() {
     // Metadata
     const auditType = (searchParams.get("type") as AuditType) || "SHORT_FORM";
     const sectorId = searchParams.get("sector");
+    const groupId = searchParams.get("group");
     const businessTypeId = searchParams.get("businessType");
     const strategy = AUDIT_STRATEGIES[auditType];
 
-    // Steps definition — FOLLOW_UP only for Long Form audits
-    const FLOW_STEPS = auditType === "LONG_FORM"
-        ? ["SPARE_CAPACITY", "EXCESS_STOCK", "FOLLOW_UP", "STRATEGY_PREVIEW"]
-        : ["SPARE_CAPACITY", "EXCESS_STOCK", "STRATEGY_PREVIEW"];
+    const hasStockScope = searchParams.get("stock") !== "false";
+    const hasCapacityScope = searchParams.get("capacity") !== "false";
+
+    // Steps definition — EXCESS_STOCK now comes BEFORE SPARE_CAPACITY
+    const FLOW_STEPS = useMemo(() => {
+        const steps: string[] = [];
+        if (hasStockScope) steps.push("EXCESS_STOCK");
+        if (hasCapacityScope) steps.push("SPARE_CAPACITY");
+        if (auditType === "LONG_FORM") steps.push("FOLLOW_UP");
+        steps.push("STRATEGY_PREVIEW");
+        return steps;
+    }, [hasStockScope, hasCapacityScope, auditType]);
+
     const currentCategory = FLOW_STEPS[currentStepIndex];
 
 
     // Filtering Logic
     const filteredQuestions = useMemo(() => {
-        const activeSector = SECTORS.find((s: Sector) => s.id === sectorId);
-        let typeSpecificIds: string[] = [];
-        activeSector?.groups.forEach((g: BusinessGroup) => {
-            const type = g.types.find((t: BusinessType) => t.id === businessTypeId);
-            if (type?.specificQuestions) typeSpecificIds = type.specificQuestions;
-        });
-
         return AUDIT_QUESTIONS.filter((q) => {
-            if (typeSpecificIds.length > 0 && auditType === "LONG_FORM") {
-                return typeSpecificIds.includes(q.id) || (!q.isLongFormOnly);
-            }
+            // 1. Audit Type Filter (Short vs Long)
             if (auditType === "SHORT_FORM" && q.isLongFormOnly) return false;
+
+            // 2. Sector Filter
             if (q.sectorSpecific && sectorId && !q.sectorSpecific.includes(sectorId)) return false;
+
+            // 3. Group Filter (Optional granularity)
+            if (q.groupId && q.groupId !== groupId) return false;
+
+            // 4. Type Filter (Optional granularity)
+            if (q.typeId && q.typeId !== businessTypeId) return false;
+
             return true;
         });
-    }, [auditType, sectorId, businessTypeId]);
+    }, [auditType, sectorId, groupId, businessTypeId]);
 
     const stepQuestions = filteredQuestions.filter(q => q.category === currentCategory);
 
@@ -152,16 +162,17 @@ function AuditFlowContent() {
             }
         });
 
+        const stepsData: AIAuditStepData[] = [];
+        if (hasStockScope) stepsData.push({ step: "EXCESS_STOCK" as const, data: answers });
+        if (hasCapacityScope) stepsData.push({ step: "SPARE_CAPACITY" as const, data: answers });
+
         const aiState: AIAuditState = {
             context: {
                 sector: activeSector?.name || "General",
                 group: groupName,
                 businessType: typeName,
             },
-            steps: [
-                { step: "SPARE_CAPACITY", data: answers },
-                { step: "EXCESS_STOCK", data: answers }
-            ],
+            steps: stepsData,
             engineStats: {
                 capacityDrainPct: engineStats.capacityDrainPct,
                 totalStockImpact: engineStats.totalStockImpact,
@@ -220,16 +231,17 @@ function AuditFlowContent() {
             }
         });
 
+        const stepsData: AIAuditStepData[] = [];
+        if (hasStockScope) stepsData.push({ step: "EXCESS_STOCK" as const, data: answers });
+        if (hasCapacityScope) stepsData.push({ step: "SPARE_CAPACITY" as const, data: answers });
+
         const aiState: AIAuditState = {
             context: {
                 sector: activeSector?.name || "General",
                 group: groupName,
                 businessType: typeName,
             },
-            steps: [
-                { step: "SPARE_CAPACITY", data: answers },
-                { step: "EXCESS_STOCK", data: answers }
-            ],
+            steps: stepsData,
             engineStats: {
                 capacityDrainPct: engineStats.capacityDrainPct,
                 totalStockImpact: engineStats.totalStockImpact,
@@ -326,7 +338,19 @@ function AuditFlowContent() {
 
     return (
         <div className="min-h-screen bg-slate-50 py-12 px-4 selection:bg-orange-100 font-sans">
-            <div className="max-w-6xl mx-auto flex flex-col lg:flex-row gap-8">
+            <nav className="fixed top-0 left-0 w-full z-50 bg-white/80 backdrop-blur-md border-b border-orange-100">
+                <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-lg">A</div>
+                        <span className="font-bold tracking-tight text-slate-900">247GBS Audit Engine</span>
+                    </div>
+                    <a href="/dashboard" className="text-xs font-bold text-slate-500 hover:text-orange-500 uppercase tracking-widest transition-colors">
+                        Exit Audit
+                    </a>
+                </div>
+            </nav>
+
+            <div className="max-w-6xl mx-auto flex flex-col lg:flex-row gap-8 pt-12">
 
                 {/* Main Step Engine */}
                 <div className="flex-1 bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200 border border-slate-100 overflow-hidden">
@@ -350,9 +374,47 @@ function AuditFlowContent() {
                                 {strategy.depth} Audit Workflow
                             </span>
                         </div>
-                        <h1 className="text-4xl font-black relative z-10 capitalize">
-                            {currentCategory === "STRATEGY_PREVIEW" ? "Recommended Solution" : currentCategory === "FOLLOW_UP" ? "Optional Clarifications" : currentCategory.replace("_", " ").toLowerCase()}
+                        <h1 className={`text-4xl font-black relative z-10 ${currentCategory === "FOLLOW_UP" ? "text-red-500 animate-pulse" : "text-white"} capitalize`}>
+                            {currentCategory === "STRATEGY_PREVIEW" ? "Recommended Solution" : currentCategory === "FOLLOW_UP" ? "🔥 Critical Clarifications" : currentCategory.replace("_", " ").toLowerCase()}
                         </h1>
+                    </div>
+
+                    {/* Scope Switcher / Tabs */}
+                    <div className="flex border-b border-slate-100">
+                        <button
+                            onClick={() => {
+                                const idx = FLOW_STEPS.indexOf("EXCESS_STOCK");
+                                if (idx !== -1) setCurrentStepIndex(idx);
+                            }}
+                            disabled={!hasStockScope}
+                            className={`flex-1 py-6 flex items-center justify-center gap-3 transition-all relative ${currentCategory === "EXCESS_STOCK"
+                                ? "text-orange-500 font-black bg-orange-50/30"
+                                : "text-slate-400 font-bold hover:text-slate-600"
+                                } disabled:opacity-30 disabled:grayscale disabled:cursor-not-allowed`}
+                        >
+                            <TrendingUp size={20} />
+                            Excess Stock Audit
+                            {currentCategory === "EXCESS_STOCK" && (
+                                <motion.div layoutId="scope-tab" className="absolute bottom-0 left-0 right-0 h-1 bg-orange-500" />
+                            )}
+                        </button>
+                        <button
+                            onClick={() => {
+                                const idx = FLOW_STEPS.indexOf("SPARE_CAPACITY");
+                                if (idx !== -1) setCurrentStepIndex(idx);
+                            }}
+                            disabled={!hasCapacityScope}
+                            className={`flex-1 py-6 flex items-center justify-center gap-3 transition-all relative ${currentCategory === "SPARE_CAPACITY"
+                                ? "text-orange-500 font-black bg-orange-50/30"
+                                : "text-slate-400 font-bold hover:text-slate-600"
+                                } disabled:opacity-30 disabled:grayscale disabled:cursor-not-allowed`}
+                        >
+                            <Zap size={20} />
+                            Spare Capacity Audit
+                            {currentCategory === "SPARE_CAPACITY" && (
+                                <motion.div layoutId="scope-tab" className="absolute bottom-0 left-0 right-0 h-1 bg-orange-500" />
+                            )}
+                        </button>
                     </div>
 
                     <div className="p-10 md:p-16">
@@ -364,8 +426,12 @@ function AuditFlowContent() {
                                     initial={{ opacity: 0, x: 20 }}
                                     animate={{ opacity: 1, x: 0 }}
                                     exit={{ opacity: 0, x: -20 }}
-                                    className="space-y-8"
+                                    className="space-y-8 p-8 rounded-3xl border-2 border-red-100 bg-red-50/20"
                                 >
+                                    <div className="bg-red-500 text-white px-6 py-3 rounded-2xl flex items-center gap-3 shadow-lg shadow-red-100 mb-4">
+                                        <AlertCircle size={20} className="animate-bounce" />
+                                        <span className="font-black uppercase tracking-widest text-[11px]">Critical Action: Precision Recovery Input Required</span>
+                                    </div>
                                     <AIFollowUpCard
                                         questions={followUpQuestions}
                                         isLoading={followUpLoading}
@@ -470,33 +536,54 @@ function AuditFlowContent() {
                                                 </div>
 
                                                 <div className="flex items-center gap-4">
-                                                    <div className="flex-1 relative">
-                                                        <input
-                                                            type="number"
-                                                            className="w-full text-3xl font-black p-6 bg-slate-50 border-3 border-transparent focus:border-orange-500 focus:bg-white rounded-3xl outline-none transition-all pr-16 appearance-none"
-                                                            value={answers[q.id] || 0}
-                                                            onChange={(e) => setAnswers(prev => ({ ...prev, [q.id]: parseInt(e.target.value) || 0 }))}
-                                                        />
-                                                        <div className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 font-black text-xl">
-                                                            {q.type === "percentage" ? "%" : q.type === "currency" ? "£" : ""}
+                                                    {q.type === "boolean" ? (
+                                                        <div className="flex gap-4 w-full">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setAnswers(prev => ({ ...prev, [q.id]: 1 }))}
+                                                                className={`flex-1 py-6 rounded-[2rem] font-black text-xl transition-all border-3 ${answers[q.id] === 1 ? "bg-orange-500 text-white border-orange-500 shadow-xl shadow-orange-200" : "bg-slate-50 text-slate-400 border-transparent hover:bg-slate-100"}`}
+                                                            >
+                                                                Yes
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setAnswers(prev => ({ ...prev, [q.id]: 0 }))}
+                                                                className={`flex-1 py-6 rounded-[2rem] font-black text-xl transition-all border-3 ${answers[q.id] === 0 ? "bg-slate-900 text-white border-slate-900 shadow-xl shadow-slate-200" : "bg-slate-50 text-slate-400 border-transparent hover:bg-slate-100"}`}
+                                                            >
+                                                                No
+                                                            </button>
                                                         </div>
-                                                    </div>
-                                                    <div className="flex flex-col gap-2">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleAdjust(q.id, 1)}
-                                                            className="p-3 bg-slate-100 hover:bg-orange-500 hover:text-white rounded-xl transition-all"
-                                                        >
-                                                            <Plus size={20} />
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleAdjust(q.id, -1)}
-                                                            className="p-3 bg-slate-100 hover:bg-orange-500 hover:text-white rounded-xl transition-all"
-                                                        >
-                                                            <Minus size={20} />
-                                                        </button>
-                                                    </div>
+                                                    ) : (
+                                                        <>
+                                                            <div className="flex-1 relative">
+                                                                <input
+                                                                    type="number"
+                                                                    className="w-full text-3xl font-black p-6 bg-slate-50 border-3 border-transparent focus:border-orange-500 focus:bg-white rounded-3xl outline-none transition-all pr-16 appearance-none"
+                                                                    value={answers[q.id] || 0}
+                                                                    onChange={(e) => setAnswers(prev => ({ ...prev, [q.id]: parseInt(e.target.value) || 0 }))}
+                                                                />
+                                                                <div className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 font-black text-xl">
+                                                                    {q.type === "percentage" ? "%" : q.type === "currency" ? "£" : ""}
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex flex-col gap-2">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleAdjust(q.id, 1)}
+                                                                    className="p-3 bg-slate-100 hover:bg-orange-500 hover:text-white rounded-xl transition-all"
+                                                                >
+                                                                    <Plus size={20} />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleAdjust(q.id, -1)}
+                                                                    className="p-3 bg-slate-100 hover:bg-orange-500 hover:text-white rounded-xl transition-all"
+                                                                >
+                                                                    <Minus size={20} />
+                                                                </button>
+                                                            </div>
+                                                        </>
+                                                    )}
                                                 </div>
 
                                                 {answers[q.id] > 20 && (
@@ -526,7 +613,7 @@ function AuditFlowContent() {
                             </button>
                             <button
                                 onClick={handleNext}
-                                className="px-16 py-5 bg-orange-500 text-white rounded-[2rem] font-black text-2xl hover:bg-orange-600 shadow-2xl shadow-orange-200 transition-all active:scale-95 flex items-center gap-3"
+                                className={`px-16 py-5 ${currentCategory === "FOLLOW_UP" ? "bg-red-600 hover:bg-red-700 shadow-red-200" : "bg-orange-500 hover:bg-orange-600 shadow-orange-200"} text-white rounded-[2rem] font-black text-2xl shadow-2xl transition-all active:scale-95 flex items-center gap-3`}
                             >
                                 {currentStepIndex === FLOW_STEPS.length - 1 ? "Complete Audit" : "Next Step"}
                                 <ArrowRight size={24} />

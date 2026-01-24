@@ -4,9 +4,46 @@ import { SECTORS } from "@/data/sectors";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronRight, Globe, Factory, Utensils, Info } from "lucide-react";
+import {
+    ChevronRight,
+    Globe,
+    Factory,
+    Utensils,
+    Info,
+    ShoppingBag,
+    Briefcase,
+    HardHat,
+    Heart,
+    GraduationCap,
+    Truck,
+    Cpu,
+    Landmark,
+    Plane,
+    Sprout,
+    Users,
+    Monitor,
+    Search,
+    Filter
+} from "lucide-react";
 
 import { Suspense } from "react";
+
+const ICON_MAP: Record<string, any> = {
+    Utensils,
+    ShoppingBag,
+    Factory,
+    Briefcase,
+    HardHat,
+    Heart,
+    GraduationCap,
+    Truck,
+    Cpu,
+    Landmark,
+    Plane,
+    Sprout,
+    Users,
+    Monitor
+};
 
 export default function SectorSelectionPage() {
     return (
@@ -28,9 +65,17 @@ function SectorSelectionContent() {
     const searchParams = useSearchParams();
     const auditType = searchParams.get("type") || "SHORT_FORM";
 
+    const [searchTerm, setSearchTerm] = useState("");
     const [selectedSectorId, setSelectedSectorId] = useState<string | null>(null);
     const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
     const [selectedTypeId, setSelectedTypeId] = useState<string | null>(null);
+
+    const filteredSectors = useMemo(() => {
+        return SECTORS.filter(s =>
+            s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            s.groups.some(g => g.name.toLowerCase().includes(searchTerm.toLowerCase()))
+        );
+    }, [searchTerm]);
 
     const activeSector = useMemo(() => SECTORS.find((s) => s.id === selectedSectorId), [selectedSectorId]);
     const activeGroup = useMemo(() => activeSector?.groups.find((g) => g.id === selectedGroupId), [activeSector, selectedGroupId]);
@@ -38,8 +83,11 @@ function SectorSelectionContent() {
 
     const handleComplete = () => {
         if (selectedSectorId && selectedGroupId && selectedTypeId) {
+            const stock = searchParams.get("stock") || "true";
+            const capacity = searchParams.get("capacity") || "true";
+
             router.push(
-                `/audit/flow?type=${auditType}&sector=${selectedSectorId}&group=${selectedGroupId}&businessType=${selectedTypeId}`
+                `/audit/flow?type=${auditType}&sector=${selectedSectorId}&group=${selectedGroupId}&businessType=${selectedTypeId}&stock=${stock}&capacity=${capacity}`
             );
         }
     };
@@ -48,6 +96,13 @@ function SectorSelectionContent() {
         <div className="min-h-screen bg-white flex flex-col md:flex-row relative">
             {/* Dynamic Visual Side */}
             <div className="relative w-full md:w-2/5 h-64 md:h-auto bg-slate-900 overflow-hidden">
+                <nav className="absolute top-0 left-0 w-full z-20 p-6 flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-white">
+                        <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center font-bold text-sm shadow-lg">A</div>
+                        <span className="font-bold tracking-tight">247GBS</span>
+                    </div>
+                </nav>
+
                 <AnimatePresence mode="wait">
                     <motion.div
                         key={activeSector?.id || "default"}
@@ -62,7 +117,7 @@ function SectorSelectionContent() {
                                 <img
                                     src={activeSector.visuals.backgroundImage}
                                     alt={activeSector.name}
-                                    className="w-full h-full object-cover opacity-40 mix-blend-luminosity"
+                                    className="w-full h-full object-cover opacity-60 mix-blend-luminosity"
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent" />
                             </>
@@ -93,41 +148,54 @@ function SectorSelectionContent() {
 
             {/* Selection Flow Side */}
             <div className="flex-1 p-8 lg:p-20 overflow-y-auto bg-slate-50/30">
-                <div className="max-w-xl mx-auto">
+                <div className="max-w-2xl mx-auto">
                     <header className="mb-12">
                         <h1 className="text-3xl font-black text-slate-900 mb-2">Classify Your Business</h1>
-                        <p className="text-slate-500 font-medium">Select your sector, group, and specific type to begin.</p>
+                        <p className="text-slate-500 font-medium italic">Select your sector from our 14 business modules.</p>
                     </header>
 
-                    <div className="space-y-8">
+                    {/* Search Bar */}
+                    <div className="relative mb-10 group">
+                        <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-orange-500 transition-colors" size={18} />
+                        <input
+                            type="text"
+                            placeholder="Search sectors or categories..."
+                            className="w-full pl-14 pr-6 py-5 bg-white border-2 border-slate-100 rounded-2xl outline-none focus:border-orange-500 shadow-sm transition-all font-bold text-slate-900"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+
+                    <div className="space-y-10">
                         {/* Step 1: Sector */}
-                        <div className="relative">
-                            <label className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2 block">1. Industry Sector</label>
-                            <div className="grid grid-cols-1 gap-3">
-                                {SECTORS.map((sector) => (
-                                    <button
-                                        key={sector.id}
-                                        onClick={() => {
-                                            setSelectedSectorId(sector.id);
-                                            setSelectedGroupId(null);
-                                            setSelectedTypeId(null);
-                                        }}
-                                        className={`flex items-center gap-4 p-5 rounded-2xl border-2 transition-all text-left ${selectedSectorId === sector.id
-                                            ? "border-orange-500 bg-white shadow-xl shadow-orange-100 scale-[1.02]"
-                                            : "border-slate-100 bg-white hover:border-slate-200"
-                                            }`}
-                                    >
-                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selectedSectorId === sector.id ? "bg-orange-500 text-white" : "bg-slate-50 text-slate-400"
-                                            }`}>
-                                            {sector.id === 'hospitality-food' ? <Utensils size={24} /> : <Factory size={24} />}
-                                        </div>
-                                        <div className="flex-1">
-                                            <div className="font-bold text-slate-900">{sector.name}</div>
-                                            <div className="text-xs text-slate-400">Forensic tools available</div>
-                                        </div>
-                                        {selectedSectorId === sector.id && <ChevronRight size={20} className="text-orange-500" />}
-                                    </button>
-                                ))}
+                        <div className="space-y-4">
+                            <label className="text-xs font-black uppercase tracking-widest text-slate-400 block ml-1">1. Industry Sector</label>
+                            <div className="relative group">
+                                <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-orange-500 transition-colors z-10">
+                                    {selectedSectorId ? (
+                                        (() => {
+                                            const Icon = ICON_MAP[SECTORS.find(s => s.id === selectedSectorId)?.visuals.iconName || "Factory"];
+                                            return <Icon size={20} />;
+                                        })()
+                                    ) : <Filter size={20} />}
+                                </div>
+                                <select
+                                    className="w-full pl-14 pr-12 py-5 bg-white border-2 border-slate-100 rounded-[2rem] font-bold text-slate-900 outline-none focus:border-orange-500 shadow-sm transition-all appearance-none cursor-pointer relative z-0"
+                                    value={selectedSectorId || ""}
+                                    onChange={(e) => {
+                                        setSelectedSectorId(e.target.value);
+                                        setSelectedGroupId(null);
+                                        setSelectedTypeId(null);
+                                    }}
+                                >
+                                    <option value="" disabled>Select major industry sector...</option>
+                                    {SECTORS.map((sector) => (
+                                        <option key={sector.id} value={sector.id}>{sector.name}</option>
+                                    ))}
+                                </select>
+                                <div className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none">
+                                    <ChevronRight size={20} className="rotate-90" />
+                                </div>
                             </div>
                         </div>
 
@@ -135,28 +203,29 @@ function SectorSelectionContent() {
                         <AnimatePresence>
                             {selectedSectorId && (
                                 <motion.div
-                                    initial={{ opacity: 0, height: 0 }}
-                                    animate={{ opacity: 1, height: "auto" }}
-                                    exit={{ opacity: 0, height: 0 }}
+                                    initial={{ opacity: 0, scale: 0.98, y: -10 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.98, y: -10 }}
                                     className="space-y-4"
                                 >
-                                    <label className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2 block">2. Business Group</label>
-                                    <div className="flex flex-wrap gap-2">
-                                        {activeSector?.groups.map((group) => (
-                                            <button
-                                                key={group.id}
-                                                onClick={() => {
-                                                    setSelectedGroupId(group.id);
-                                                    setSelectedTypeId(null);
-                                                }}
-                                                className={`px-6 py-3 rounded-full border-2 font-bold text-sm transition-all ${selectedGroupId === group.id
-                                                    ? "border-orange-500 bg-orange-500 text-white"
-                                                    : "border-slate-200 text-slate-600 hover:border-slate-300 bg-white"
-                                                    }`}
-                                            >
-                                                {group.name}
-                                            </button>
-                                        ))}
+                                    <label className="text-xs font-black uppercase tracking-widest text-slate-400 block ml-1">2. Business Group</label>
+                                    <div className="relative">
+                                        <select
+                                            className="w-full px-6 py-5 bg-white border-2 border-slate-100 rounded-[2rem] font-bold text-slate-900 outline-none focus:border-orange-500 shadow-sm transition-all appearance-none cursor-pointer"
+                                            value={selectedGroupId || ""}
+                                            onChange={(e) => {
+                                                setSelectedGroupId(e.target.value);
+                                                setSelectedTypeId(null);
+                                            }}
+                                        >
+                                            <option value="" disabled>Select category group...</option>
+                                            {activeSector?.groups.map((group) => (
+                                                <option key={group.id} value={group.id}>{group.name}</option>
+                                            ))}
+                                        </select>
+                                        <div className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none">
+                                            <ChevronRight size={20} className="rotate-90" />
+                                        </div>
                                     </div>
                                 </motion.div>
                             )}
@@ -166,42 +235,56 @@ function SectorSelectionContent() {
                         <AnimatePresence>
                             {selectedGroupId && (
                                 <motion.div
-                                    initial={{ opacity: 0, height: 0 }}
-                                    animate={{ opacity: 1, height: "auto" }}
-                                    exit={{ opacity: 0, height: 0 }}
+                                    initial={{ opacity: 0, scale: 0.98, y: -10 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.98, y: -10 }}
                                     className="space-y-4"
                                 >
-                                    <label className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2 block">3. Specific Business Type</label>
-                                    <select
-                                        className="w-full p-4 bg-white border-2 border-slate-100 rounded-2xl font-bold text-slate-900 outline-none focus:border-orange-500 transition-all appearance-none cursor-pointer"
-                                        value={selectedTypeId || ""}
-                                        onChange={(e) => setSelectedTypeId(e.target.value)}
-                                    >
-                                        <option value="" disabled>Select sub-type...</option>
-                                        {activeGroup?.types.map((type) => (
-                                            <option key={type.id} value={type.id}>{type.name}</option>
-                                        ))}
-                                    </select>
+                                    <label className="text-xs font-black uppercase tracking-widest text-slate-400 block ml-1">3. Specific Business Subcategory</label>
+                                    <div className="relative">
+                                        <select
+                                            className="w-full px-6 py-5 bg-white border-2 border-slate-100 rounded-[2rem] font-bold text-slate-900 outline-none focus:border-orange-500 shadow-sm transition-all appearance-none cursor-pointer"
+                                            value={selectedTypeId || ""}
+                                            onChange={(e) => setSelectedTypeId(e.target.value)}
+                                        >
+                                            <option value="" disabled>Select exact business sub-type...</option>
+                                            {activeGroup?.types.map((type) => (
+                                                <option key={type.id} value={type.id}>{type.name}</option>
+                                            ))}
+                                        </select>
+                                        <div className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none">
+                                            <ChevronRight size={20} className="rotate-90" />
+                                        </div>
+                                    </div>
                                 </motion.div>
                             )}
                         </AnimatePresence>
                     </div>
 
-                    <div className="mt-12">
+                    <div className="mt-16">
                         <button
                             onClick={handleComplete}
                             disabled={!selectedTypeId}
-                            className={`w-full py-5 rounded-[2rem] font-black text-xl flex items-center justify-center gap-3 transition-all ${selectedTypeId
-                                ? "bg-slate-900 text-white hover:bg-black shadow-2xl shadow-slate-300 translate-y-0"
-                                : "bg-slate-100 text-slate-300 cursor-not-allowed translate-y-1"
+                            className={`w-full py-6 rounded-[2.5rem] font-black text-xl flex items-center justify-center gap-3 transition-all ${selectedTypeId
+                                ? "bg-slate-900 text-white hover:bg-black shadow-2xl shadow-slate-200"
+                                : "bg-slate-100 text-slate-300 cursor-not-allowed"
                                 }`}
                         >
-                            Initialize Audit Flow
+                            Initialize Audit Engine
                             <ChevronRight size={24} />
                         </button>
-                        <p className="text-center text-[10px] text-slate-400 mt-4 uppercase tracking-[0.2em] font-black">
-                            Step 2 of 4: Profile Classification
-                        </p>
+                        <div className="flex justify-center gap-8 mt-6">
+                            {[1, 2, 3].map((s) => (
+                                <div
+                                    key={s}
+                                    className={`h-1.5 rounded-full transition-all ${s === 1 && selectedSectorId ? "w-8 bg-orange-500" :
+                                        s === 2 && selectedGroupId ? "w-8 bg-orange-500" :
+                                            s === 3 && selectedTypeId ? "w-8 bg-orange-500" :
+                                                "w-4 bg-slate-200"
+                                        }`}
+                                />
+                            ))}
+                        </div>
                     </div>
                 </div>
             </div>
