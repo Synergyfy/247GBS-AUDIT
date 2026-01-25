@@ -117,7 +117,7 @@ export default function SpecialistNetworkPage() {
             </div>
 
             {/* Specialist Cards Grid */}
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {specialists.map((pro, i) => (
                     <motion.div
                         key={i}
@@ -178,7 +178,7 @@ export default function SpecialistNetworkPage() {
             </div>
 
             {/* Global Coordination Feature */}
-            <div className="bg-slate-900 rounded-[3rem] p-12 lg:p-16 text-white relative overflow-hidden group">
+            <div className="bg-slate-900 rounded-[3rem] p-6 md:p-12 lg:p-16 text-white relative overflow-hidden group">
                 <div className="absolute top-0 right-0 p-12 opacity-5 text-orange-500 group-hover:scale-125 transition-transform duration-1000">
                     <Globe size={240} />
                 </div>

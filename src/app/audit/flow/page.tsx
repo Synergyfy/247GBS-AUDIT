@@ -557,10 +557,19 @@ function AuditFlowContent() {
                                                         <>
                                                             <div className="flex-1 relative">
                                                                 <input
-                                                                    type="number"
+                                                                    type="text"
+                                                                    inputMode="numeric"
+                                                                    pattern="[0-9]*"
                                                                     className="w-full text-3xl font-black p-6 bg-slate-50 border-3 border-transparent focus:border-orange-500 focus:bg-white rounded-3xl outline-none transition-all pr-16 appearance-none"
-                                                                    value={answers[q.id] || 0}
-                                                                    onChange={(e) => setAnswers(prev => ({ ...prev, [q.id]: parseInt(e.target.value) || 0 }))}
+                                                                    value={answers[q.id] === undefined ? 0 : (Number.isNaN(answers[q.id]) ? '' : answers[q.id])}
+                                                                    onChange={(e) => {
+                                                                        const val = e.target.value;
+                                                                        if (val === '') {
+                                                                            setAnswers(prev => ({ ...prev, [q.id]: NaN }));
+                                                                        } else if (/^\d*$/.test(val)) {
+                                                                            setAnswers(prev => ({ ...prev, [q.id]: parseInt(val) }));
+                                                                        }
+                                                                    }}
                                                                 />
                                                                 <div className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 font-black text-xl">
                                                                     {q.type === "percentage" ? "%" : q.type === "currency" ? "£" : ""}
@@ -679,6 +688,6 @@ function AuditFlowContent() {
                 </aside>
 
             </div>
-        </div>
+        </div >
     );
 }

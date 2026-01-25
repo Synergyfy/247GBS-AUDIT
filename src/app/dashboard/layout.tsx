@@ -12,7 +12,9 @@ import {
     Settings,
     Zap,
     Bell,
-    Search
+    Search,
+    Menu,
+    X
 } from "lucide-react";
 
 export default function DashboardLayout({
@@ -30,9 +32,11 @@ export default function DashboardLayout({
         { icon: Settings, label: "Protocols", href: "/dashboard/protocols" },
     ];
 
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+
     return (
         <div className="min-h-screen bg-[#F8FAFC] flex font-sans selection:bg-orange-100">
-            {/* Sidebar Navigation */}
+            {/* Sidebar Navigation (Desktop) */}
             <aside className="w-72 bg-slate-900 hidden lg:flex flex-col border-r border-slate-800 fixed h-full z-50">
                 <div className="p-8">
                     <Link href="/" className="flex items-center gap-3 group">
@@ -87,13 +91,90 @@ export default function DashboardLayout({
                 </div>
             </aside>
 
+            {/* Mobile Sidebar Overlay */}
+            <React.Fragment> {/* Use React.Fragment instead of AnimatePresence directly if imports are an issue, but AnimatePresence is imported. */}
+                {/* Re-using AnimatePresence from framer-motion import */}
+                {/* Note: In a real multi-replace, I cannot easily change the import block separately without a separate chunk. 
+                     I will assume AnimatePresence is available as per file read. */}
+            </React.Fragment>
+
+            {/* Mobile Navigation Drawer */}
+            {isMobileMenuOpen && (
+                <div className="fixed inset-0 z-[60] lg:hidden">
+                    {/* Backdrop */}
+                    <div
+                        className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                    />
+
+                    {/* Drawer */}
+                    <motion.aside
+                        initial={{ x: "-100%" }}
+                        animate={{ x: 0 }}
+                        exit={{ x: "-100%" }}
+                        transition={{ type: "spring", bounce: 0, duration: 0.4 }}
+                        className="absolute left-0 top-0 bottom-0 w-72 bg-slate-900 border-r border-slate-800 flex flex-col"
+                    >
+                        <div className="p-8 flex items-center justify-between">
+                            <Link href="/" className="flex items-center gap-3 group" onClick={() => setIsMobileMenuOpen(false)}>
+                                <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                                    A
+                                </div>
+                                <span className="font-bold text-lg tracking-tight text-white">247GBS</span>
+                            </Link>
+                            <button
+                                onClick={() => setIsMobileMenuOpen(false)}
+                                className="p-2 bg-white/5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <nav className="flex-1 px-4 space-y-2 mt-2 overflow-y-auto">
+                            {menuItems.map((item, i) => {
+                                const active = pathname === item.href;
+                                return (
+                                    <Link
+                                        key={i}
+                                        href={item.href}
+                                        onClick={() => setIsMobileMenuOpen(false)}
+                                        className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl font-bold text-sm transition-all ${active
+                                            ? "bg-orange-500 text-white shadow-xl shadow-orange-500/10"
+                                            : "text-slate-400 hover:text-white hover:bg-white/5"
+                                            }`}
+                                    >
+                                        <item.icon size={18} />
+                                        {item.label}
+                                    </Link>
+                                );
+                            })}
+                        </nav>
+
+                        <div className="p-6">
+                            <div className="bg-white/5 rounded-3xl p-6 border border-white/5 text-center">
+                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-2">Logged In As</p>
+                                <div className="text-sm font-black text-white">Demo Account</div>
+                            </div>
+                        </div>
+                    </motion.aside>
+                </div>
+            )}
+
             {/* Main Content Area */}
             <main className="flex-1 lg:ml-72 min-h-screen relative">
                 {/* Dashboard Header */}
-                <header className="h-24 bg-white/80 backdrop-blur-md border-b border-slate-100 flex items-center justify-between px-8 sticky top-0 z-40">
-                    <div>
-                        <h2 className="text-xl font-black text-slate-900 tracking-tight">Intelligence Dashboard</h2>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">System V.2.1.0 • Node: London-5</p>
+                <header className="h-24 bg-white/80 backdrop-blur-md border-b border-slate-100 flex items-center justify-between px-6 lg:px-8 sticky top-0 z-40">
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={() => setIsMobileMenuOpen(true)}
+                            className="lg:hidden p-2 -ml-2 text-slate-500 hover:text-slate-900"
+                        >
+                            <Menu size={24} />
+                        </button>
+                        <div>
+                            <h2 className="text-xl font-black text-slate-900 tracking-tight">Intelligence Dashboard</h2>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">System V.2.1.0 • Node: London-5</p>
+                        </div>
                     </div>
 
                     <div className="flex items-center gap-6">
@@ -121,7 +202,7 @@ export default function DashboardLayout({
                     </div>
                 </header>
 
-                <div className="p-8 lg:p-12 max-w-7xl mx-auto">
+                <div className="p-4 md:p-8 lg:p-12 max-w-7xl mx-auto">
                     {children}
                 </div>
             </main>

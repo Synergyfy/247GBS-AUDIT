@@ -55,12 +55,12 @@ export default function ForensicIntelligencePage() {
             </div>
 
             {/* AI Reasoning Panel (The "Brain") */}
-            <div className="bg-slate-900 rounded-[3rem] p-10 lg:p-14 text-white relative overflow-hidden group">
+            <div className="bg-slate-900 rounded-[3rem] p-6 md:p-10 lg:p-14 text-white relative overflow-hidden group">
                 <div className="absolute top-0 right-0 p-12 opacity-5 text-orange-500 group-hover:scale-125 transition-transform duration-1000">
                     <BrainCircuit size={240} />
                 </div>
 
-                <div className="relative z-10 grid lg:grid-cols-2 gap-12 items-center">
+                <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
                     <div className="space-y-8">
                         <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-orange-500/10 border border-orange-500/20 rounded-full text-orange-500 text-xs font-black uppercase tracking-widest">
                             <Bot size={16} />
@@ -99,9 +99,9 @@ export default function ForensicIntelligencePage() {
             </div>
 
             {/* Visual Analytics Grid */}
-            <div className="grid lg:grid-cols-7 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-7 gap-8">
                 {/* Main Trend Chart (Placeholder) */}
-                <div className="lg:col-span-4 bg-white rounded-[2.5rem] border border-slate-100 p-8 shadow-sm">
+                <div className="lg:col-span-4 bg-white rounded-[2.5rem] border border-slate-100 p-6 md:p-8 shadow-sm">
                     <div className="flex justify-between items-center mb-10 text-slate-400">
                         <h3 className="text-lg font-black text-slate-900 flex items-center gap-3">
                             <TrendingUp className="text-orange-500" size={20} />
@@ -142,7 +142,7 @@ export default function ForensicIntelligencePage() {
 
                 {/* Efficiency Breakdown */}
                 <div className="lg:col-span-3 space-y-8">
-                    <div className="bg-white rounded-[2.5rem] border border-slate-100 p-8 shadow-sm h-full">
+                    <div className="bg-white rounded-[2.5rem] border border-slate-100 p-6 md:p-8 shadow-sm h-full">
                         <h3 className="text-lg font-black text-slate-900 mb-8 flex items-center gap-3 text-slate-400">
                             <Layers className="text-orange-500" size={20} />
                             Efficiency Leak by Category
@@ -175,7 +175,7 @@ export default function ForensicIntelligencePage() {
             </div>
 
             {/* Growth Potential Panel */}
-            <div className="grid md:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="bg-orange-50 rounded-[2.5rem] p-10 border border-orange-100/50 flex flex-col justify-center items-center text-center">
                     <div className="w-20 h-20 bg-white rounded-3xl shadow-xl shadow-orange-200 flex items-center justify-center text-orange-500 mb-6">
                         <Target size={32} />

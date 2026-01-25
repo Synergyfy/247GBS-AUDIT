@@ -80,11 +80,11 @@ export default function AuditVaultPage() {
                         <table className="w-full text-left">
                             <thead className="bg-slate-50/50 border-b border-slate-100">
                                 <tr>
-                                    <th className="px-8 py-6 text-xs font-black uppercase tracking-widest text-slate-400">Resource Protocol</th>
-                                    <th className="px-8 py-6 text-xs font-black uppercase tracking-widest text-slate-400">Date Logged</th>
-                                    <th className="px-8 py-6 text-xs font-black uppercase tracking-widest text-slate-400">Recovery Metrics</th>
-                                    <th className="px-8 py-6 text-xs font-black uppercase tracking-widest text-slate-400">System Status</th>
-                                    <th className="px-8 py-6 text-xs font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
+                                    <th className="px-4 md:px-8 py-6 text-xs font-black uppercase tracking-widest text-slate-400">Resource Protocol</th>
+                                    <th className="px-4 md:px-8 py-6 text-xs font-black uppercase tracking-widest text-slate-400">Date Logged</th>
+                                    <th className="px-4 md:px-8 py-6 text-xs font-black uppercase tracking-widest text-slate-400">Recovery Metrics</th>
+                                    <th className="px-4 md:px-8 py-6 text-xs font-black uppercase tracking-widest text-slate-400">System Status</th>
+                                    <th className="px-4 md:px-8 py-6 text-xs font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">
@@ -97,7 +97,7 @@ export default function AuditVaultPage() {
                                             transition={{ delay: i * 0.05 }}
                                             className="hover:bg-slate-50/50 transition-colors group"
                                         >
-                                            <td className="px-8 py-6">
+                                            <td className="px-4 md:px-8 py-6">
                                                 <div className="flex items-center gap-4">
                                                     <div className="w-10 h-10 bg-orange-100 text-orange-600 rounded-xl flex items-center justify-center shrink-0">
                                                         <FileText size={20} />
@@ -108,25 +108,25 @@ export default function AuditVaultPage() {
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-8 py-6">
+                                            <td className="px-4 md:px-8 py-6">
                                                 <div className="flex items-center gap-2 text-slate-500 font-medium">
                                                     <Calendar size={16} className="text-slate-300" />
                                                     {new Date(audit.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
                                                 </div>
                                             </td>
-                                            <td className="px-8 py-6">
+                                            <td className="px-4 md:px-8 py-6">
                                                 <div>
                                                     <div className="font-black text-slate-900">£{audit.metrics.annualRecovery.toLocaleString()} <span className="text-[10px] text-green-500 ml-1">PA</span></div>
                                                     <div className="text-[10px] text-slate-400 font-bold italic">{audit.metrics.capacityDrain}% Efficiency Leak</div>
                                                 </div>
                                             </td>
-                                            <td className="px-8 py-6">
+                                            <td className="px-4 md:px-8 py-6">
                                                 <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-50 text-green-600 rounded-full text-[10px] font-bold uppercase tracking-widest border border-green-100">
                                                     <ShieldCheck size={12} />
                                                     Verified
                                                 </div>
                                             </td>
-                                            <td className="px-8 py-6 text-right">
+                                            <td className="px-4 md:px-8 py-6 text-right">
                                                 <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                     <button className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-orange-500 hover:text-white transition-all">
                                                         <Eye size={18} />
@@ -156,13 +156,13 @@ export default function AuditVaultPage() {
             </div>
 
             {/* Vault Stats Summary */}
-            <div className="grid md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {[
                     { label: "Total Data Points", value: "2,480", icon: FileText, sub: "Verified metrics" },
                     { label: "Efficiency Trends", value: "+14.2%", icon: Zap, sub: "Vs last quarter" },
                     { label: "Archival Integrity", value: "100%", icon: ShieldCheck, sub: "End-to-end encrypted" },
                 ].map((stat, i) => (
-                    <div key={i} className="bg-slate-900 p-8 rounded-[2.5rem] text-white relative overflow-hidden group">
+                    <div key={i} className="bg-slate-900 p-6 md:p-8 rounded-[2.5rem] text-white relative overflow-hidden group">
                         <div className="absolute top-0 right-0 p-6 opacity-5 text-orange-500 group-hover:scale-110 transition-transform duration-700">
                             <stat.icon size={80} />
                         </div>

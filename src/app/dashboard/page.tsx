@@ -119,11 +119,11 @@ export default function DashboardPage() {
                             <table className="w-full text-left">
                                 <thead>
                                     <tr className="bg-slate-50/50 border-b border-slate-100">
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Profile / Date</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Drain</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Recovery</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400"></th>
+                                        <th className="px-4 md:px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Profile / Date</th>
+                                        <th className="px-4 md:px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Drain</th>
+                                        <th className="px-4 md:px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Recovery</th>
+                                        <th className="px-4 md:px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
+                                        <th className="px-4 md:px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400"></th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-50">
@@ -135,11 +135,11 @@ export default function DashboardPage() {
                                                 animate={{ opacity: 1, x: 0 }}
                                                 className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
                                             >
-                                                <td className="px-8 py-6">
+                                                <td className="px-4 md:px-8 py-6">
                                                     <div className="font-bold text-slate-900">{audit.sector}</div>
                                                     <div className="text-[10px] text-slate-400 font-medium">{new Date(audit.date).toLocaleDateString()} • {audit.type.replace('_', ' ')}</div>
                                                 </td>
-                                                <td className="px-8 py-6">
+                                                <td className="px-4 md:px-8 py-6">
                                                     <div className="flex items-center gap-3">
                                                         <span className="font-bold text-slate-900">{audit.metrics.capacityDrain}%</span>
                                                         <div className="flex-1 w-12 h-1 bg-slate-100 rounded-full overflow-hidden">
@@ -147,15 +147,15 @@ export default function DashboardPage() {
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="px-8 py-6">
+                                                <td className="px-4 md:px-8 py-6">
                                                     <span className="font-black text-slate-900">£{audit.metrics.annualRecovery.toLocaleString()}</span>
                                                 </td>
-                                                <td className="px-8 py-6">
+                                                <td className="px-4 md:px-8 py-6">
                                                     <span className="px-3 py-1 bg-green-50 text-green-600 rounded-full text-[10px] font-black uppercase tracking-widest border border-green-100">
                                                         Forensic
                                                     </span>
                                                 </td>
-                                                <td className="px-8 py-6 text-right">
+                                                <td className="px-4 md:px-8 py-6 text-right">
                                                     <button className="p-2 text-slate-300 hover:text-slate-900 transition-colors">
                                                         <ChevronRight size={20} />
                                                     </button>

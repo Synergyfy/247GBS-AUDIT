@@ -68,7 +68,7 @@ export default function ProtocolsPage() {
                         <motion.div
                             initial={{ opacity: 0, x: 20 }}
                             animate={{ opacity: 1, x: 0 }}
-                            className="bg-white rounded-[3rem] p-10 lg:p-14 border border-slate-100 shadow-sm space-y-12"
+                            className="bg-white rounded-[3rem] p-6 md:p-10 lg:p-14 border border-slate-100 shadow-sm space-y-12"
                         >
                             <div className="flex flex-col md:flex-row gap-8 items-center border-b border-slate-50 pb-12">
                                 <div className="relative group">
@@ -88,7 +88,7 @@ export default function ProtocolsPage() {
                                 </div>
                             </div>
 
-                            <form className="grid md:grid-cols-2 gap-8">
+                            <form className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 {[
                                     { label: "Full Identity", value: "Demo Account Analyst", placeholder: "Name" },
                                     { label: "Business Entity", value: "Synergyfy Global", placeholder: "Company" },
@@ -120,7 +120,7 @@ export default function ProtocolsPage() {
                             animate={{ opacity: 1, x: 0 }}
                             className="space-y-8"
                         >
-                            <div className="bg-slate-900 rounded-[3rem] p-10 lg:p-14 text-white relative overflow-hidden group">
+                            <div className="bg-slate-900 rounded-[3rem] p-6 md:p-10 lg:p-14 text-white relative overflow-hidden group">
                                 <div className="absolute top-0 right-0 p-12 opacity-5 text-orange-500 group-hover:scale-125 transition-transform duration-1000">
                                     <Lock size={200} />
                                 </div>
@@ -136,7 +136,7 @@ export default function ProtocolsPage() {
                                 </div>
                             </div>
 
-                            <div className="bg-white rounded-[2.5rem] border border-slate-100 p-10 space-y-8">
+                            <div className="bg-white rounded-[2.5rem] border border-slate-100 p-6 md:p-10 space-y-8">
                                 <div className="flex justify-between items-center pb-8 border-b border-slate-50">
                                     <div>
                                         <div className="font-black text-slate-900">Two-Factor Authentication</div>
@@ -165,8 +165,8 @@ export default function ProtocolsPage() {
                             animate={{ opacity: 1, x: 0 }}
                             className="space-y-8"
                         >
-                            <div className="grid md:grid-cols-2 gap-8">
-                                <div className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-sm relative overflow-hidden">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <div className="bg-white rounded-[2.5rem] p-6 md:p-10 border border-slate-100 shadow-sm relative overflow-hidden">
                                     <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Subscription Protocol</div>
                                     <div className="text-3xl font-black text-slate-900 mb-2">Growth Specialist</div>
                                     <div className="text-sm font-bold text-orange-600 mb-8">£499 / Month</div>
@@ -183,7 +183,7 @@ export default function ProtocolsPage() {
                                     </button>
                                 </div>
 
-                                <div className="bg-slate-900 rounded-[2.5rem] p-10 text-white relative overflow-hidden group">
+                                <div className="bg-slate-900 rounded-[2.5rem] p-6 md:p-10 text-white relative overflow-hidden group">
                                     <div className="absolute top-0 right-0 p-8 opacity-5 text-orange-500 group-hover:scale-125 transition-transform duration-1000">
                                         <CreditCard size={120} />
                                     </div>
@@ -240,7 +240,7 @@ export default function ProtocolsPage() {
                         <motion.div
                             initial={{ opacity: 0, x: 20 }}
                             animate={{ opacity: 1, x: 0 }}
-                            className="bg-white rounded-[3rem] p-10 lg:p-14 border border-slate-100 shadow-sm space-y-12"
+                            className="bg-white rounded-[3rem] p-6 md:p-10 lg:p-14 border border-slate-100 shadow-sm space-y-12"
                         >
                             <div className="flex justify-between items-center border-b border-slate-50 pb-8">
                                 <div>
@@ -289,7 +289,7 @@ export default function ProtocolsPage() {
                             animate={{ opacity: 1, x: 0 }}
                             className="space-y-8"
                         >
-                            <div className="bg-white rounded-[3rem] p-10 lg:p-14 border border-slate-100 shadow-sm relative overflow-hidden">
+                            <div className="bg-white rounded-[3rem] p-6 md:p-10 lg:p-14 border border-slate-100 shadow-sm relative overflow-hidden">
                                 <div className="absolute -top-20 -right-20 w-80 h-80 bg-orange-50 rounded-full blur-[100px] opacity-50" />
                                 <div className="relative z-10">
                                     <div className="flex justify-between items-start mb-12">
@@ -305,7 +305,7 @@ export default function ProtocolsPage() {
                                     <div className="text-7xl font-black text-slate-900 tracking-tighter mb-4">12</div>
                                     <p className="text-sm font-black uppercase tracking-widest text-orange-600 mb-10 italic">Credits Available</p>
 
-                                    <div className="grid md:grid-cols-2 gap-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <button className="w-full py-5 bg-slate-900 text-white rounded-[1.5rem] font-black text-sm hover:bg-black transition-all shadow-xl shadow-slate-200">
                                             Purchase Bundle (10 Credits)
                                         </button>
@@ -316,7 +316,7 @@ export default function ProtocolsPage() {
                                 </div>
                             </div>
 
-                            <div className="bg-slate-50 rounded-[2.5rem] p-10 border border-slate-100 flex items-center gap-6">
+                            <div className="bg-slate-50 rounded-[2.5rem] p-6 md:p-10 border border-slate-100 flex items-center gap-6">
                                 <div className="w-14 h-14 bg-white rounded-2xl shadow-sm flex items-center justify-center text-slate-400">
                                     <Bot size={28} />
                                 </div>

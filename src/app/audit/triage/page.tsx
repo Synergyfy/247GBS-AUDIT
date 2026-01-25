@@ -119,6 +119,23 @@ export default function AuditTriagePage() {
         return ((idx + 1) / stages.length) * 100;
     }, [stage]);
 
+    // Validation for "Next" button
+    const isStepValid = useMemo(() => {
+        switch (stage) {
+            case 'stock-awareness': return !!data.hasExcessStock;
+            case 'stock-extent': return true; // Slider defaults to 0
+            case 'stock-impact': return !!data.stockImpact;
+            case 'capacity-awareness': return !!data.hasSpareCapacity;
+            case 'capacity-extent': return true; // Slider defaults to 0
+            case 'capacity-impact': return !!data.capacityImpact;
+            case 'validation': return !!data.confidenceStock;
+            case 'financials': return !!data.monthlyTurnover && !!data.stockValue;
+            case 'decision': return true;
+            case 'readiness': return !!data.isReady;
+            default: return true;
+        }
+    }, [stage, data]);
+
     return (
         <div className="min-h-screen bg-slate-50 font-sans selection:bg-orange-100 flex flex-col">
             {/* Header / Progress Bar */}
@@ -218,10 +235,14 @@ export default function AuditTriagePage() {
                             {/* Skip functionality mentioned in Stage 1/2 */}
                             <button
                                 onClick={nextStage}
-                                className="bg-slate-900 text-white px-10 py-5 rounded-2xl font-black text-sm flex items-center gap-3 shadow-xl hover:bg-black hover:-translate-y-1 transition-all active:scale-95 group"
+                                disabled={!isStepValid}
+                                className={`px-10 py-5 rounded-2xl font-black text-sm flex items-center gap-3 transition-all active:scale-95 group ${isStepValid
+                                    ? "bg-slate-900 text-white shadow-xl hover:bg-black hover:-translate-y-1"
+                                    : "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
+                                    }`}
                             >
                                 {stage === 'readiness' ? 'Complete Triage' : 'Continue Diagnostic'}
-                                <ChevronRight size={18} className="text-orange-500 group-hover:translate-x-1 transition-transform" />
+                                <ChevronRight size={18} className={`transition-transform ${isStepValid ? "text-orange-500 group-hover:translate-x-1" : "text-slate-400"}`} />
                             </button>
                         </div>
                     </div>

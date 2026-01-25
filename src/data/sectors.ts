@@ -11,7 +11,22 @@ export const SECTORS: Sector[] = [
             iconName: "Utensils"
         },
         calculationModels: { capacity: "hospitality_model", stock: "food_waste_model" },
-        recommendationTemplates: [],
+        recommendationTemplates: [
+            {
+                id: "rec-hosp-menu-opt",
+                condition: "answers['perishable_waste_pct'] > 5",
+                title: "Menu Engineering Optimisation",
+                description: "Your food waste is higher than industry average. Redesign the menu to reuse high-cost ingredients across multiple dishes.",
+                actionItem: "Audit top 10 wasted ingredients"
+            },
+            {
+                id: "rec-hosp-turnover",
+                condition: "capacityDrain > 20",
+                title: "Dynamic Table Turnover",
+                description: "Idle tables during off-peak hours can be monetised. Offer 'Happy Hour' or 'Early Bird' specials to fill gaps.",
+                actionItem: "Create an off-peak promotion"
+            }
+        ],
         groups: [
             {
                 id: "dining",
@@ -83,7 +98,22 @@ export const SECTORS: Sector[] = [
             iconName: "ShoppingBag"
         },
         calculationModels: { capacity: "retail_model", stock: "inventory_model" },
-        recommendationTemplates: [],
+        recommendationTemplates: [
+            {
+                id: "rec-retail-bundling",
+                condition: "answers['stock_value_excess'] > 1000",
+                title: "Strategic Product Bundling",
+                description: "Slow-moving high-margin items should be bundled with fast-movers to clear stock without devaluing the brand.",
+                actionItem: "Identify valid product bundles"
+            },
+            {
+                id: "rec-retail-staff-upsell",
+                condition: "capacityDrain > 15",
+                title: "Staff Upsell Training",
+                description: "Utilise quiet store hours to train staff on upselling techniques or reorganise visual merchandising.",
+                actionItem: "Schedule role-play training sessions"
+            }
+        ],
         groups: [
             {
                 id: "grocery",
@@ -148,7 +178,22 @@ export const SECTORS: Sector[] = [
             iconName: "Factory"
         },
         calculationModels: { capacity: "mfg_model", stock: "material_model" },
-        recommendationTemplates: [],
+        recommendationTemplates: [
+            {
+                id: "rec-mfg-jit",
+                condition: "answers['stock_value_excess'] > 5000",
+                title: "Just-In-Time (JIT) Adjustment",
+                description: "Excess raw material is tying up cash. Move towards JIT delivery for non-critical components.",
+                actionItem: "Review supplier lead times"
+            },
+            {
+                id: "rec-mfg-contract",
+                condition: "capacityDrain > 20",
+                title: "White-Label Production",
+                description: "Your machinery has significant downtime. Offer contract manufacturing services to smaller boutique brands.",
+                actionItem: "List capacity on B2B platforms"
+            }
+        ],
         groups: [
             {
                 id: "light-mfg",
@@ -212,7 +257,22 @@ export const SECTORS: Sector[] = [
             iconName: "Briefcase"
         },
         calculationModels: { capacity: "service_model", stock: "digital_inventory" },
-        recommendationTemplates: [],
+        recommendationTemplates: [
+            {
+                id: "rec-prof-prod-service",
+                condition: "capacityDrain > 25",
+                title: "Productise Your Service",
+                description: "Consultant downtime is costly. Package your expertise into downloadable templates or courses that sell 24/7.",
+                actionItem: "Outline a digital product"
+            },
+            {
+                id: "rec-prof-auto-admin",
+                condition: "capacityDrain > 10",
+                title: "Automate Client Onboarding",
+                description: "Reduce unbillable admin hours by implementing automated onboarding workflows for new clients.",
+                actionItem: "Audit current onboarding steps"
+            }
+        ],
         groups: [
             {
                 id: "consulting",
@@ -246,7 +306,22 @@ export const SECTORS: Sector[] = [
             iconName: "HardHat"
         },
         calculationModels: { capacity: "industrial_model", stock: "materials_model" },
-        recommendationTemplates: [],
+        recommendationTemplates: [
+            {
+                id: "rec-const-waste-sell",
+                condition: "answers['construction-stock-trigger-01'] === 1",
+                title: "Resell Leftover Materials",
+                description: "Don't skip excess materials. Sort and resell usable bricks, timber, and tiles to DIYers or reclamation yards.",
+                actionItem: "Sort usage site waste"
+            },
+            {
+                id: "rec-const-sub-rent",
+                condition: "capacityDrain > 20",
+                title: "Sub-Rent Specialist Tools",
+                description: "High-value tools sitting idle should be rented out to other tradespeople when not in use.",
+                actionItem: "Inventory rentable assets"
+            }
+        ],
         groups: [
             {
                 id: "construction",
@@ -290,7 +365,22 @@ export const SECTORS: Sector[] = [
             iconName: "Heart"
         },
         calculationModels: { capacity: "appointment_model", stock: "supply_model" },
-        recommendationTemplates: [],
+        recommendationTemplates: [
+            {
+                id: "rec-health-telehealth",
+                condition: "capacityDrain > 15",
+                title: "Telehealth Expansion",
+                description: "Fill gaps in physical appointments by offering 15-minute remote consultations for quick follow-ups.",
+                actionItem: "Setup video consultation software"
+            },
+            {
+                id: "rec-health-stock-control",
+                condition: "answers['health-medical-stock-trigger-01'] === 1",
+                title: "Perishables Audit",
+                description: "Medical supplies with expiry dates are a liability. Implement a 'First-In, First-Out' (FIFO) system strictly.",
+                actionItem: "Check stock expiry dates"
+            }
+        ],
         groups: [
             {
                 id: "medical",
@@ -324,7 +414,22 @@ export const SECTORS: Sector[] = [
             iconName: "GraduationCap"
         },
         calculationModels: { capacity: "enrollment_model", stock: "resource_model" },
-        recommendationTemplates: [],
+        recommendationTemplates: [
+            {
+                id: "rec-edu-venue-hire",
+                condition: "capacityDrain > 30",
+                title: "Off-Hours Venue Hire",
+                description: "Classrooms and halls are empty evenings and weekends. Rent them to local clubs or adult learning groups.",
+                actionItem: "Create a facilities brochure"
+            },
+            {
+                id: "rec-edu-online-course",
+                condition: "capacityDrain > 15",
+                title: "Hybrid Course Models",
+                description: "Record popular lectures to create an automated revenue stream that doesn't require live teaching hours.",
+                actionItem: "Pilot one online module"
+            }
+        ],
         groups: [
             {
                 id: "schools",

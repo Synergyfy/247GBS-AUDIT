@@ -102,7 +102,7 @@ export default function SignUpPage() {
                             <div className="space-y-4">
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
-                                        <label className="text-xs font-black uppercase tracking-widest text-slate-400 block ml-1">Full Name</label>
+                                        <label className="text-xs font-black uppercase tracking-widest text-slate-400 block ml-1">First Name</label>
                                         <div className="relative group">
                                             <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-orange-500 transition-colors">
                                                 <User size={18} />
@@ -110,24 +110,39 @@ export default function SignUpPage() {
                                             <input
                                                 type="text"
                                                 required
-                                                placeholder="John Doe"
+                                                placeholder="John"
                                                 className="w-full pl-12 pr-4 py-4 bg-slate-50/50 border-2 border-slate-100 rounded-2xl outline-none focus:border-orange-500 focus:bg-white transition-all font-bold text-slate-900 text-sm"
                                             />
                                         </div>
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-xs font-black uppercase tracking-widest text-slate-400 block ml-1">Business Name</label>
+                                        <label className="text-xs font-black uppercase tracking-widest text-slate-400 block ml-1">Last Name</label>
                                         <div className="relative group">
                                             <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-orange-500 transition-colors">
-                                                <Building2 size={18} />
+                                                <User size={18} />
                                             </div>
                                             <input
                                                 type="text"
                                                 required
-                                                placeholder="Global Corp"
+                                                placeholder="Doe"
                                                 className="w-full pl-12 pr-4 py-4 bg-slate-50/50 border-2 border-slate-100 rounded-2xl outline-none focus:border-orange-500 focus:bg-white transition-all font-bold text-slate-900 text-sm"
                                             />
                                         </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-xs font-black uppercase tracking-widest text-slate-400 block ml-1">Business Name</label>
+                                    <div className="relative group">
+                                        <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-orange-500 transition-colors">
+                                            <Building2 size={18} />
+                                        </div>
+                                        <input
+                                            type="text"
+                                            required
+                                            placeholder="Global Corp"
+                                            className="w-full pl-12 pr-4 py-4 bg-slate-50/50 border-2 border-slate-100 rounded-2xl outline-none focus:border-orange-500 focus:bg-white transition-all font-bold text-slate-900 text-sm"
+                                        />
                                     </div>
                                 </div>
 
