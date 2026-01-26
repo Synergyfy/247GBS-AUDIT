@@ -14,8 +14,13 @@ import {
     Bell,
     Search,
     Menu,
-    X
+    X,
+    LogOut,
+    User,
+    ChevronDown
 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 
 export default function DashboardLayout({
     children,
@@ -23,6 +28,8 @@ export default function DashboardLayout({
     children: React.ReactNode;
 }) {
     const pathname = usePathname();
+    const router = useRouter();
+    const { user, signOut } = useAuth();
 
     const menuItems = [
         { icon: LayoutDashboard, label: "Overview", href: "/dashboard" },
@@ -33,6 +40,33 @@ export default function DashboardLayout({
     ];
 
     const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+    const [isAvatarDropdownOpen, setIsAvatarDropdownOpen] = React.useState(false);
+    const avatarDropdownRef = React.useRef<HTMLDivElement>(null);
+
+    // Handle click outside to close dropdown
+    React.useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (avatarDropdownRef.current && !avatarDropdownRef.current.contains(event.target as Node)) {
+                setIsAvatarDropdownOpen(false);
+            }
+        };
+
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    // Sign out handler
+    const handleSignOut = () => {
+        setIsAvatarDropdownOpen(false);
+        signOut();
+        router.push("/auth/signin");
+    };
+
+    // Mock profile handler
+    const handleViewProfile = () => {
+        setIsAvatarDropdownOpen(false);
+        router.push("/dashboard/profile");
+    };
 
     return (
         <div className="min-h-screen bg-[#F8FAFC] flex font-sans selection:bg-orange-100">
@@ -172,8 +206,8 @@ export default function DashboardLayout({
                             <Menu size={24} />
                         </button>
                         <div>
-                            <h2 className="text-xl font-black text-slate-900 tracking-tight">Intelligence Dashboard</h2>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">System V.2.1.0 • Node: London-5</p>
+                            <h2 className="text-lg md:text-xl font-black text-slate-900 tracking-tight">Intelligence Dashboard</h2>
+                            <p className="hidden md:block text-[10px] font-black uppercase tracking-widest text-slate-400">System V.2.1.0 • Node: London-5</p>
                         </div>
                     </div>
 
@@ -186,18 +220,78 @@ export default function DashboardLayout({
                                 className="pl-12 pr-4 py-2.5 bg-slate-50 border border-slate-100 rounded-full text-sm outline-none focus:border-orange-500 focus:bg-white transition-all w-64"
                             />
                         </div>
-                        <button className="p-2.5 bg-slate-50 border border-slate-100 rounded-2xl text-slate-400 hover:text-orange-500 transition-colors relative">
+                        <button className="hidden md:block p-2.5 bg-slate-50 border border-slate-100 rounded-2xl text-slate-400 hover:text-orange-500 transition-colors relative">
                             <Bell size={20} />
                             <span className="absolute top-2 right-2 w-2 h-2 bg-orange-500 rounded-full border-2 border-white" />
                         </button>
-                        <div className="flex items-center gap-3 pl-6 border-l border-slate-100">
-                            <div className="text-right">
-                                <div className="text-sm font-black text-slate-900">Demo Account</div>
+                        <div className="relative flex items-center gap-3 md:pl-6 md:border-l border-slate-100" ref={avatarDropdownRef}>
+                            <div className="text-right hidden md:block">
+                                <div className="text-sm font-black text-slate-900">{user?.name || "Guest"}</div>
                                 <div className="text-[10px] text-orange-600 font-bold uppercase tracking-widest">Master Key</div>
                             </div>
-                            <div className="w-10 h-10 bg-slate-100 rounded-xl overflow-hidden border-2 border-orange-100">
-                                <img src="https://api.dicebear.com/7.x/shapes/svg?seed=demo" alt="Avatar" />
-                            </div>
+
+                            {/* Avatar Button */}
+                            <button
+                                onClick={() => setIsAvatarDropdownOpen(!isAvatarDropdownOpen)}
+                                className="flex items-center gap-2 group cursor-pointer"
+                            >
+                                <div className="w-10 h-10 bg-slate-100 rounded-xl overflow-hidden border-2 border-orange-100 group-hover:border-orange-500 transition-colors">
+                                    <img src={user?.avatar || "https://api.dicebear.com/7.x/shapes/svg?seed=guest"} alt="Avatar" />
+                                </div>
+                                <ChevronDown
+                                    size={16}
+                                    className={`text-slate-400 group-hover:text-orange-500 transition-all duration-200 ${isAvatarDropdownOpen ? 'rotate-180' : ''}`}
+                                />
+                            </button>
+
+                            {/* Dropdown Menu */}
+                            {isAvatarDropdownOpen && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                                    transition={{ duration: 0.15, ease: "easeOut" }}
+                                    className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden z-50"
+                                >
+                                    {/* User Info Header */}
+                                    <div className="px-4 py-3 bg-gradient-to-br from-slate-50 to-orange-50 border-b border-slate-100">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-slate-100 rounded-xl overflow-hidden border-2 border-orange-200">
+                                                <img src={user?.avatar || "https://api.dicebear.com/7.x/shapes/svg?seed=guest"} alt="Avatar" />
+                                            </div>
+                                            <div>
+                                                <div className="text-sm font-bold text-slate-900">{user?.name || "Guest"}</div>
+                                                <div className="text-[10px] text-slate-500">{user?.email || "Not signed in"}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Menu Items */}
+                                    <div className="py-2">
+                                        <button
+                                            onClick={handleViewProfile}
+                                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-orange-50 hover:text-orange-600 transition-colors group"
+                                        >
+                                            <div className="w-8 h-8 bg-slate-100 group-hover:bg-orange-100 rounded-lg flex items-center justify-center transition-colors">
+                                                <User size={16} className="text-slate-500 group-hover:text-orange-600" />
+                                            </div>
+                                            <span className="font-semibold">My Profile</span>
+                                        </button>
+
+                                        <div className="mx-4 my-1 border-t border-slate-100" />
+
+                                        <button
+                                            onClick={handleSignOut}
+                                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-red-50 hover:text-red-600 transition-colors group"
+                                        >
+                                            <div className="w-8 h-8 bg-slate-100 group-hover:bg-red-100 rounded-lg flex items-center justify-center transition-colors">
+                                                <LogOut size={16} className="text-slate-500 group-hover:text-red-600" />
+                                            </div>
+                                            <span className="font-semibold">Sign Out</span>
+                                        </button>
+                                    </div>
+                                </motion.div>
+                            )}
                         </div>
                     </div>
                 </header>

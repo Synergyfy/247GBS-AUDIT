@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Outfit } from "next/font/google";
 import "./globals.css";
 import { PublicNavbar } from "@/components/PublicNavbar";
+import { Providers } from "@/components/Providers";
 
 const outfit = Outfit({
   subsets: ["latin"],
@@ -24,8 +25,10 @@ export default function RootLayout({
       <body
         className={`${outfit.variable} font-sans antialiased min-h-screen bg-background text-foreground overflow-x-hidden`}
       >
-        <PublicNavbar />
-        {children}
+        <Providers>
+          <PublicNavbar />
+          {children}
+        </Providers>
       </body>
     </html>
   );

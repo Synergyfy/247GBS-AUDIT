@@ -15,18 +15,22 @@ import {
     ShieldAlert,
     ArrowLeft
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 export default function SignUpPage() {
     const router = useRouter();
+    const { signIn } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
     const [step, setStep] = useState(1);
+    const [email, setEmail] = useState("");
 
     const handleSignUp = (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
-        // Mock account creation
+        // Mock account creation and sign in
         setTimeout(() => {
-            router.push("/audit/triage");
+            signIn(email);
+            router.push("/dashboard");
         }, 1500);
     };
 
@@ -156,6 +160,8 @@ export default function SignUpPage() {
                                             type="email"
                                             required
                                             placeholder="john@example.com"
+                                            value={email}
+                                            onChange={(e) => setEmail(e.target.value)}
                                             className="w-full pl-12 pr-4 py-4 bg-slate-50/50 border-2 border-slate-100 rounded-2xl outline-none focus:border-orange-500 focus:bg-white transition-all font-bold text-slate-900 text-sm"
                                         />
                                     </div>

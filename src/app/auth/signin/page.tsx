@@ -14,9 +14,11 @@ import {
     AlertCircle,
     UserPlus
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 export default function SignInPage() {
     const router = useRouter();
+    const { signIn } = useAuth();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [isLoading, setIsLoading] = useState(false);
@@ -29,13 +31,13 @@ export default function SignInPage() {
 
         // Mock authentication delay
         setTimeout(() => {
-            if (email === "demo@example.com" && password === "password") {
-                router.push("/audit/selection");
-            } else if (email && password) {
-                // For demo purposes, allow any non-empty combination but show a message
-                router.push("/audit/selection");
+            if (email && password) {
+                // Sign in the user (sets auth state and localStorage)
+                signIn(email);
+                // Redirect to dashboard after successful sign in
+                router.push("/dashboard");
             } else {
-                setError("Invalid credentials. Please use demo@example.com / password");
+                setError("Please enter your email and password");
                 setIsLoading(false);
             }
         }, 1500);
@@ -159,8 +161,8 @@ export default function SignInPage() {
                             type="submit"
                             disabled={isLoading}
                             className={`w-full py-6 rounded-[2rem] font-black text-xl flex items-center justify-center gap-3 transition-all relative overflow-hidden group ${isLoading
-                                    ? "bg-slate-100 text-slate-400 cursor-wait"
-                                    : "bg-slate-900 text-white hover:bg-black shadow-2xl shadow-slate-200 hover:-translate-y-1"
+                                ? "bg-slate-100 text-slate-400 cursor-wait"
+                                : "bg-slate-900 text-white hover:bg-black shadow-2xl shadow-slate-200 hover:-translate-y-1"
                                 }`}
                         >
                             {isLoading ? (

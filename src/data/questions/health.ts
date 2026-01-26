@@ -83,5 +83,129 @@ export const HEALTH_QUESTIONS: Question[] = [
         groupId: "alternative-wellness",
         isLongFormOnly: true,
         weight: 2.0
+    },
+
+    // ==========================================
+    // SPARE CAPACITY QUESTIONS
+    // ==========================================
+
+    // 1. Medical & Clinical
+    {
+        id: "health-medical-capacity-trigger-01",
+        text: "What is your appointment slot utilization rate?",
+        type: "percentage",
+        category: "SPARE_CAPACITY",
+        sectorSpecific: ["health-wellness"],
+        groupId: "medical",
+        weight: 2.5
+    },
+    {
+        id: "health-medical-capacity-trigger-02",
+        text: "Are missed or cancelled appointments frequent?",
+        type: "boolean",
+        category: "SPARE_CAPACITY",
+        sectorSpecific: ["health-wellness"],
+        groupId: "medical",
+        weight: 2.0
+    },
+    {
+        id: "health-medical-capacity-deep-01",
+        text: "How many consultation hours are idle weekly?",
+        type: "number",
+        category: "SPARE_CAPACITY",
+        sectorSpecific: ["health-wellness"],
+        groupId: "medical",
+        isLongFormOnly: true,
+        weight: 2.2
+    },
+
+    // 2. Beauty & Grooming
+    {
+        id: "health-beauty-capacity-trigger-01",
+        text: "What is your chair/bed utilization rate?",
+        type: "percentage",
+        category: "SPARE_CAPACITY",
+        sectorSpecific: ["health-wellness"],
+        groupId: "beauty",
+        weight: 2.2
+    },
+    {
+        id: "health-beauty-capacity-trigger-02",
+        text: "Are there significant booking gaps or no-shows?",
+        type: "boolean",
+        category: "SPARE_CAPACITY",
+        sectorSpecific: ["health-wellness"],
+        groupId: "beauty",
+        weight: 1.8
+    },
+    {
+        id: "health-beauty-capacity-deep-01",
+        text: "How many stylist/technician hours are idle weekly?",
+        type: "number",
+        category: "SPARE_CAPACITY",
+        sectorSpecific: ["health-wellness"],
+        groupId: "beauty",
+        isLongFormOnly: true,
+        weight: 2.0
+    },
+
+    // 3. Fitness & Sports
+    {
+        id: "health-fitness-capacity-trigger-01",
+        text: "What is your average class attendance rate?",
+        type: "percentage",
+        category: "SPARE_CAPACITY",
+        sectorSpecific: ["health-wellness"],
+        groupId: "fitness",
+        weight: 2.0
+    },
+    {
+        id: "health-fitness-capacity-trigger-02",
+        text: "Is equipment under-utilized during off-peak hours?",
+        type: "boolean",
+        category: "SPARE_CAPACITY",
+        sectorSpecific: ["health-wellness"],
+        groupId: "fitness",
+        weight: 1.5
+    },
+    {
+        id: "health-fitness-capacity-deep-01",
+        text: "How many trainer hours are unbilled weekly?",
+        type: "number",
+        category: "SPARE_CAPACITY",
+        sectorSpecific: ["health-wellness"],
+        groupId: "fitness",
+        isLongFormOnly: true,
+        weight: 2.2
+    },
+
+    // 4. Alternative & Wellness
+    {
+        id: "health-wellness-capacity-trigger-01",
+        text: "What is your treatment room utilization rate?",
+        type: "percentage",
+        category: "SPARE_CAPACITY",
+        sectorSpecific: ["health-wellness"],
+        groupId: "alternative-wellness",
+        weight: 2.0
+    },
+    {
+        id: "health-wellness-capacity-trigger-02",
+        text: "Are practitioner gaps or cancellations common?",
+        type: "boolean",
+        category: "SPARE_CAPACITY",
+        sectorSpecific: ["health-wellness"],
+        groupId: "alternative-wellness",
+        weight: 1.8
+    },
+    {
+        id: "health-wellness-capacity-deep-01",
+        text: "How many appointment slots go unfilled weekly?",
+        type: "number",
+        category: "SPARE_CAPACITY",
+        sectorSpecific: ["health-wellness"],
+        groupId: "alternative-wellness",
+        isLongFormOnly: true,
+        weight: 2.0
     }
 ];

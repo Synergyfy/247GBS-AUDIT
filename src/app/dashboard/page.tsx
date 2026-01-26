@@ -188,7 +188,7 @@ export default function DashboardPage() {
                 {/* Specialist Coordination Sidebar */}
                 <div className="space-y-10">
                     {/* AI Advisor Panel */}
-                    <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white relative overflow-hidden group">
+                    <div className="bg-slate-900 rounded-[2.5rem] p-6 md:p-8 text-white relative overflow-hidden group">
                         <div className="absolute top-0 right-0 p-8 opacity-10 text-orange-500 group-hover:scale-125 transition-transform duration-1000">
                             <Bot size={120} />
                         </div>
