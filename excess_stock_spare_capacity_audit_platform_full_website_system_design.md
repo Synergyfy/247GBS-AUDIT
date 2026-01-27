@@ -174,7 +174,7 @@ Clear side-by-side comparison:
 - Support level
 - Output quality
 
-#### 4. Why Quarterly Audits Matter
+#### 4. Why Seasonal Audits Matter
 Key reasons:
 - Identify profit leakage
 - Adjust for seasonality

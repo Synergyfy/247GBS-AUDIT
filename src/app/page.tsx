@@ -200,13 +200,13 @@ export default function LandingPage() {
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-orange-100 rounded-full blur-3xl -translate-x-1/2 translate-y-1/2 opacity-50" />
       </section>
 
-      {/* Why Quarterly Audits Matter */}
+      {/* Why Seasonal Audits Matter */}
       <section id="why" className="py-32 px-6">
         <div className="max-w-7xl mx-auto">
           <div className="grid lg:grid-cols-2 gap-20 items-center">
             <motion.div {...fadeIn}>
               <h2 className="text-4xl lg:text-5xl font-bold mb-10 leading-tight">
-                Why <span className="text-orange-500">Quarterly Audits</span> are Essential for Survival
+                Why <span className="text-orange-500">Seasonal Audits</span> are Essential for Survival
               </h2>
               <p className="text-lg text-slate-600 mb-12">
                 Business operations are fluid. What was efficient last month may be leaking profit today. Consistent auditing ensures your business remains lean and responsive to market shifts.
@@ -308,7 +308,7 @@ export default function LandingPage() {
                     <Clock size={18} className="text-orange-500" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-sm">Quarterly Lifecycle</h4>
+                    <h4 className="font-bold text-sm">Seasonal Lifecycle</h4>
                     <p className="text-xs text-slate-500">Automatic reminders to refresh your audit every 90 days for maximum efficiency.</p>
                   </div>
                 </div>
@@ -343,7 +343,7 @@ export default function LandingPage() {
                     Directory Members
                   </h4>
                   <p className="text-sm text-slate-500 leading-relaxed mb-6">
-                    Membership level determines your quarterly token allocation. Gold and Platinum levels include **unlimited Forensic Audits**.
+                    Membership level determines your seasonal token allocation. Gold and Platinum levels include **unlimited Forensic Audits**.
                   </p>
                   <button className="text-orange-600 font-black text-xs uppercase tracking-widest hover:translate-x-1 transition-transform inline-flex items-center gap-2">
                     Member Dashboard <ArrowRight size={14} />

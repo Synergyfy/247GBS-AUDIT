@@ -120,7 +120,7 @@ export default function SignInPage() {
 
                         <div className="space-y-4">
                             <div className="space-y-2">
-                                <label className="text-xs font-black uppercase tracking-widest text-slate-400 block ml-1">Email Protocol</label>
+                                <label className="text-xs font-black uppercase tracking-widest text-slate-400 block ml-1">Email</label>
                                 <div className="relative group">
                                     <div className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-orange-500 transition-colors">
                                         <Mail size={18} />
@@ -138,7 +138,7 @@ export default function SignInPage() {
 
                             <div className="space-y-2">
                                 <div className="flex justify-between items-center px-1">
-                                    <label className="text-xs font-black uppercase tracking-widest text-slate-400 block">Encryption Key</label>
+                                    <label className="text-xs font-black uppercase tracking-widest text-slate-400 block">Password</label>
                                     <a href="#" className="text-[10px] font-black uppercase tracking-widest text-orange-600 hover:text-orange-700 transition-colors">Forgot Access?</a>
                                 </div>
                                 <div className="relative group">
@@ -172,7 +172,7 @@ export default function SignInPage() {
                                 </>
                             ) : (
                                 <>
-                                    <span>Initialize Access</span>
+                                    <span>Sign In</span>
                                     <ArrowRight size={24} className="group-hover:translate-x-1 transition-transform" />
                                 </>
                             )}
@@ -186,7 +186,7 @@ export default function SignInPage() {
                             className="inline-flex items-center gap-2 px-8 py-3 bg-white border-2 border-slate-100 rounded-full font-black text-xs uppercase tracking-widest text-slate-900 hover:border-orange-500 hover:text-orange-600 transition-all"
                         >
                             <UserPlus size={14} />
-                            Initialize Membership
+                            Sign Up
                         </Link>
                     </footer>
                 </motion.div>

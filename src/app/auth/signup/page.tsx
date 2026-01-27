@@ -73,7 +73,7 @@ export default function SignUpPage() {
                                 "Complete Forensic Audit Suite",
                                 "AI-Powered Strategic Roadmaps",
                                 "Specialist Consultation Credits",
-                                "Quarterly Benchmarking Reports"
+                                "Seasonal Benchmarking Reports"
                             ].map((item, i) => (
                                 <motion.div
                                     key={i}
