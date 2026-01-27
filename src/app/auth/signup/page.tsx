@@ -30,7 +30,7 @@ export default function SignUpPage() {
         // Mock account creation and sign in
         setTimeout(() => {
             signIn(email);
-            router.push("/dashboard");
+            router.push("/audit/triage");
         }, 1500);
     };
 

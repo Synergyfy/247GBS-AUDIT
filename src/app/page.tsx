@@ -59,7 +59,7 @@ export default function LandingPage() {
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link
-                  href="/auth/signin"
+                  href="/audit/triage"
                   className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-4 rounded-2xl font-bold text-lg flex items-center justify-center gap-2 shadow-xl shadow-orange-200 transition-all hover:-translate-y-1 active:translate-y-0"
                 >
                   Start Your Audit
@@ -148,7 +148,7 @@ export default function LandingPage() {
               </ul>
 
               <Link
-                href="/auth/signin"
+                href="/audit/triage"
                 className="w-full py-4 rounded-xl border-2 border-orange-500 text-orange-500 font-bold hover:bg-orange-500 hover:text-white transition-all text-center flex items-center justify-center gap-2"
               >
                 Select Short Form
@@ -187,7 +187,7 @@ export default function LandingPage() {
               </ul>
 
               <Link
-                href="/auth/signin"
+                href="/audit/triage"
                 className="w-full py-4 rounded-xl bg-orange-500 text-white font-bold hover:bg-orange-600 transition-all text-center flex items-center justify-center gap-2 shadow-xl shadow-orange-950/20"
               >
                 Select Long Form
