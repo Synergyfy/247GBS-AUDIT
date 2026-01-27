@@ -408,12 +408,23 @@ function StageContent({
                         </div>
 
                         <div className="relative pt-10">
+                            <motion.div
+                                className="absolute -top-2 left-0 w-full flex justify-center pointer-events-none"
+                                animate={{ x: [0, 20, 0] }}
+                                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                            >
+                                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-orange-500/50 bg-white/10 px-3 py-1 rounded-full backdrop-blur-sm">
+                                    <ChevronLeft size={10} />
+                                    Slide to adjust
+                                    <ChevronRight size={10} />
+                                </div>
+                            </motion.div>
                             <input
                                 type="range"
                                 min="0"
                                 max="100"
                                 step="1"
-                                className="w-full h-3 bg-slate-200 rounded-full appearance-none cursor-pointer accent-orange-500"
+                                className="w-full h-3 bg-slate-200 rounded-full appearance-none cursor-pointer accent-orange-500 hover:h-4 transition-all"
                                 value={data.stockExtent || 0}
                                 onChange={(e) => updateData({ stockExtent: parseInt(e.target.value) })}
                             />
@@ -514,12 +525,23 @@ function StageContent({
                         </div>
 
                         <div className="relative pt-10 px-4">
+                            <motion.div
+                                className="absolute -top-2 left-0 w-full flex justify-center pointer-events-none"
+                                animate={{ x: [0, -20, 0] }}
+                                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                            >
+                                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-orange-500 bg-white/10 px-3 py-1 rounded-full backdrop-blur-sm border border-white/10">
+                                    <ChevronLeft size={10} />
+                                    Slide to adjust
+                                    <ChevronRight size={10} />
+                                </div>
+                            </motion.div>
                             <input
                                 type="range"
                                 min="0"
                                 max="100"
                                 step="1"
-                                className="w-full h-3 bg-white/10 rounded-full appearance-none cursor-pointer accent-orange-500"
+                                className="w-full h-3 bg-white/10 rounded-full appearance-none cursor-pointer accent-orange-500 hover:bg-white/20 transition-all"
                                 value={data.capacityExtent || 0}
                                 onChange={(e) => updateData({ capacityExtent: parseInt(e.target.value) })}
                             />
