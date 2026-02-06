@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -24,34 +24,19 @@ import {
     MoreVertical,
     Bot
 } from "lucide-react";
-import type { SavedAudit, DashboardStats } from "@/types/audit";
+import type { SavedAudit, DashboardStats } from "@/services/dashboard/types";
+import useDashboard from "@/services/dashboard/hooks";
 
 export default function DashboardPage() {
-    const [recentAudits, setRecentAudits] = useState<SavedAudit[]>([]);
-    const [stats, setStats] = useState<DashboardStats>({
+    const { data, loading, error } = useDashboard();
+
+    const recentAudits = data?.recentAudits ?? [];
+    const stats: DashboardStats = data?.stats ?? {
         totalAudits: 0,
         activeRecovery: 0,
         efficiencyGain: 0,
-        nextAuditDate: "2026-04-20"
-    });
-
-    useEffect(() => {
-        // Mock data loading
-        const saved = localStorage.getItem("saved_audits");
-        if (saved) {
-            const parsed = JSON.parse(saved);
-            setRecentAudits(parsed);
-
-            // Calculate total recovery
-            const totalRecovery = parsed.reduce((acc: number, curr: SavedAudit) => acc + curr.metrics.annualRecovery, 0);
-            setStats({
-                totalAudits: parsed.length,
-                activeRecovery: totalRecovery,
-                efficiencyGain: 12.4, // Mock fixed gain
-                nextAuditDate: "2026-04-22"
-            });
-        }
-    }, []);
+        nextAuditDate: "2026-04-20",
+    };
 
     return (
         <div className="space-y-10">
@@ -61,7 +46,7 @@ export default function DashboardPage() {
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                 >
-                    <h1 className="text-4xl font-black text-slate-900 mb-2">Welcome Back, <span className="text-orange-500 underline decoration-slate-200 underline-offset-8">Analyst</span>.</h1>
+                    <h1 className="text-4xl font-black text-slate-900 mb-2">Welcome Back, <span className="text-orange-500 underline decoration-slate-200 underline-offset-8">{data?.userName ?? 'Analyst'}</span>.</h1>
                     <p className="text-slate-500 font-medium">Your business optimization roadmap is active and recovering value.</p>
                 </motion.div>
                 <Link
@@ -212,7 +197,7 @@ export default function DashboardPage() {
                             <Zap size={20} className="text-orange-500" fill="currentColor" />
                         </div>
                         <div className="flex items-end gap-2 mb-2">
-                            <span className="text-5xl font-black text-slate-900">12</span>
+                            <span className="text-5xl font-black text-slate-900">{data?.tokenBalance ?? 0}</span>
                             <span className="text-xl font-black text-orange-500 mb-1">Tokens</span>
                         </div>
                         <p className="text-xs text-slate-500 font-medium leading-relaxed mb-8">

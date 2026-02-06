@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     History,
@@ -16,18 +16,12 @@ import {
     Calendar,
     Zap
 } from "lucide-react";
-import type { SavedAudit } from "@/types/audit";
+import type { SavedAudit } from "@/services/audit/types";
+import useAudits from "@/services/audit/hooks";
 
 export default function AuditVaultPage() {
-    const [audits, setAudits] = useState<SavedAudit[]>([]);
+    const { audits, loading, error, refresh } = useAudits();
     const [searchTerm, setSearchTerm] = useState("");
-
-    useEffect(() => {
-        const saved = localStorage.getItem("saved_audits");
-        if (saved) {
-            setAudits(JSON.parse(saved));
-        }
-    }, []);
 
     const filteredAudits = audits.filter(a =>
         a.sector.toLowerCase().includes(searchTerm.toLowerCase()) ||

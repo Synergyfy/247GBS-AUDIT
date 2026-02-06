@@ -13,54 +13,13 @@ import {
     BarChart3
 } from "lucide-react";
 import { motion } from "framer-motion";
+import useAdminAudits from "@/services/admin/audits/hooks";
 
 export default function AuditsPage() {
     const [filter, setFilter] = useState("All");
+    const { data: auditsData, metrics, loading, error } = useAdminAudits();
 
-    // Mock Audit Data
-    const audits = [
-        {
-            id: "AUD-2026-001",
-            company: "TechCorp Solutions",
-            type: "Financial Review",
-            stage: "Analysis",
-            progress: 65,
-            status: "In Progress",
-            dueDate: "Feb 10, 2026",
-            assignee: "Team Alpha"
-        },
-        {
-            id: "AUD-2026-002",
-            company: "Global Retail Inc.",
-            type: "Security Audit",
-            stage: "Discovery",
-            progress: 20,
-            status: "Action Required",
-            dueDate: "Jan 30, 2026",
-            assignee: "Unassigned"
-        },
-        {
-            id: "AUD-2026-003",
-            company: "Innovate Ltd",
-            type: "Operational Efficiency",
-            stage: "Report",
-            progress: 90,
-            status: "Review",
-            dueDate: "Jan 28, 2026",
-            assignee: "Sarah Jenkins"
-        },
-        {
-            id: "AUD-2026-004",
-            company: "Green Energy Co.",
-            type: "Sustainability Check",
-            stage: "Completed",
-            progress: 100,
-            status: "Completed",
-            dueDate: "Jan 15, 2026",
-            assignee: "Team Green"
-        }
-    ];
-
+    const audits = auditsData ?? [];
     const filteredAudits = filter === "All" ? audits : audits.filter(a => a.status === filter);
 
     return (
@@ -79,19 +38,19 @@ export default function AuditsPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-2">
                     <span className="text-xs font-black uppercase tracking-widest text-slate-400">Total Active</span>
-                    <div className="text-2xl font-black text-slate-900">24</div>
+                    <div className="text-2xl font-black text-slate-900">{metrics?.totalActive ?? '—'}</div>
                 </div>
                 <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-2">
                     <span className="text-xs font-black uppercase tracking-widest text-slate-400">Overdue</span>
-                    <div className="text-2xl font-black text-red-500">3</div>
+                    <div className="text-2xl font-black text-red-500">{metrics?.overdue ?? '—'}</div>
                 </div>
                 <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-2">
                     <span className="text-xs font-black uppercase tracking-widest text-slate-400">In Review</span>
-                    <div className="text-2xl font-black text-orange-500">8</div>
+                    <div className="text-2xl font-black text-orange-500">{metrics?.inReview ?? '—'}</div>
                 </div>
                 <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-2">
                     <span className="text-xs font-black uppercase tracking-widest text-slate-400">Completed (Jan)</span>
-                    <div className="text-2xl font-black text-green-500">15</div>
+                    <div className="text-2xl font-black text-green-500">{metrics?.completed ?? '—'}</div>
                 </div>
             </div>
 

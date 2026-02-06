@@ -15,33 +15,32 @@ import {
     UserPlus
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useAuthActions } from "@/services/auth/useAuthActions";
 
 export default function SignInPage() {
     const router = useRouter();
-    const { signIn } = useAuth();
+    const { signIn: contextSignIn } = useAuth();
+    const { signIn, isLoading, error: apiError } = useAuthActions();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState("");
+    const [localError, setLocalError] = useState("");
 
     const handleSignIn = async (e: React.FormEvent) => {
         e.preventDefault();
-        setIsLoading(true);
-        setError("");
+        setLocalError("");
 
-        // Mock authentication delay
-        setTimeout(() => {
-            if (email && password) {
-                // Sign in the user (sets auth state and localStorage)
-                signIn(email);
-                // Redirect to dashboard after successful sign in
-                router.push("/dashboard");
-            } else {
-                setError("Please enter your email and password");
-                setIsLoading(false);
-            }
-        }, 1500);
+        if (!email || !password) {
+            setLocalError("Please enter your email and password");
+            return;
+        }
+
+        const success = await signIn({ email, password });
+        if (success) {
+            router.push("/dashboard");
+        }
     };
+
+    const displayError = localError || apiError;
 
     return (
         <div className="min-h-screen bg-white flex flex-col md:flex-row font-sans selection:bg-orange-100">
@@ -107,14 +106,14 @@ export default function SignInPage() {
                     </header>
 
                     <form onSubmit={handleSignIn} className="space-y-6">
-                        {error && (
+                        {displayError && (
                             <motion.div
                                 initial={{ opacity: 0, scale: 0.95 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-600 text-sm font-bold"
                             >
                                 <AlertCircle size={18} />
-                                {error}
+                                {displayError}
                             </motion.div>
                         )}
 

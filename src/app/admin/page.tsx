@@ -12,80 +12,23 @@ import {
     Clock,
     CheckCircle2
 } from "lucide-react";
+import useAdminDashboard from "@/services/admin/dashboard/hooks";
 
 export default function AdminOverviewPage() {
-    const stats = [
-        {
-            label: "Total Revenue",
-            value: "£124,500",
-            change: "+12.5%",
-            trend: "up",
-            icon: TrendingUp,
-            color: "text-green-500",
-            bg: "bg-green-500/10"
-        },
-        {
-            label: "Active Users",
-            value: "2,543",
-            change: "+8.2%",
-            trend: "up",
-            icon: Users,
-            color: "text-blue-500",
-            bg: "bg-blue-500/10"
-        },
-        {
-            label: "Pending Audits",
-            value: "45",
-            change: "-2.4%",
-            trend: "down",
-            icon: FileText,
-            color: "text-orange-500",
-            bg: "bg-orange-500/10"
-        },
-        {
-            label: "System Alerts",
-            value: "3",
-            change: "0%",
-            trend: "neutral",
-            icon: AlertCircle,
-            color: "text-red-500",
-            bg: "bg-red-500/10"
-        }
+    const { data, loading, error } = useAdminDashboard();
+
+    const stats = data?.stats ?? [
+        { label: "Total Revenue", value: "£124,500", change: "+12.5%", trend: "up", icon: TrendingUp, color: "text-green-500", bg: "bg-green-500/10" },
+        { label: "Active Users", value: "2,543", change: "+8.2%", trend: "up", icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
+        { label: "Pending Audits", value: "45", change: "-2.4%", trend: "down", icon: FileText, color: "text-orange-500", bg: "bg-orange-500/10" },
+        { label: "System Alerts", value: "3", change: "0%", trend: "neutral", icon: AlertCircle, color: "text-red-500", bg: "bg-red-500/10" }
     ];
 
-    const activities = [
-        {
-            user: "Sarah Jenkins",
-            action: "submitted a new audit request",
-            target: "Q3 Financial Review",
-            time: "2 mins ago",
-            icon: FileText,
-            color: "bg-blue-100 text-blue-600"
-        },
-        {
-            user: "System",
-            action: "completed automated analysis",
-            target: "TechCorp Audit #442",
-            time: "15 mins ago",
-            icon: CheckCircle2,
-            color: "bg-green-100 text-green-600"
-        },
-        {
-            user: "Michael Chen",
-            action: "updated profile information",
-            target: "Security Settings",
-            time: "1 hour ago",
-            icon: Users,
-            color: "bg-orange-100 text-orange-600"
-        },
-        {
-            user: "Admin Console",
-            action: "flagged suspicious login attempt",
-            target: "IP: 192.168.1.1",
-            time: "3 hours ago",
-            icon: AlertCircle,
-            color: "bg-red-100 text-red-600"
-        }
+    const activities = data?.activities ?? [
+        { user: "Sarah Jenkins", action: "submitted a new audit request", target: "Q3 Financial Review", time: "2 mins ago", icon: FileText, color: "bg-blue-100 text-blue-600" },
+        { user: "System", action: "completed automated analysis", target: "TechCorp Audit #442", time: "15 mins ago", icon: CheckCircle2, color: "bg-green-100 text-green-600" },
+        { user: "Michael Chen", action: "updated profile information", target: "Security Settings", time: "1 hour ago", icon: Users, color: "bg-orange-100 text-orange-600" },
+        { user: "Admin Console", action: "flagged suspicious login attempt", target: "IP: 192.168.1.1", time: "3 hours ago", icon: AlertCircle, color: "bg-red-100 text-red-600" }
     ];
 
     return (
@@ -141,16 +84,25 @@ export default function AdminOverviewPage() {
                         </select>
                     </div>
 
-                    {/* Mock Chart Visual */}
+                    {/* Chart Visual (driven by admin auditTrends if available) */}
                     <div className="h-64 flex items-end justify-between gap-2 px-4">
-                        {[40, 65, 45, 80, 55, 90, 70, 85, 60, 75, 50, 95].map((h, i) => (
-                            <div key={i} className="w-full bg-orange-50 hover:bg-orange-100 rounded-t-lg relative group transition-colors" style={{ height: `${h}%` }}>
-                                <div className="absolute bottom-0 w-full bg-orange-500 rounded-t-lg transition-all duration-500" style={{ height: `${h * 0.6}%` }} />
-                                <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                                    {h * 12} Audits
-                                </div>
-                            </div>
-                        ))}
+                        {(() => {
+                            const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+                            const trends = data?.auditTrends ?? months.map((m, i) => ({ month: m, count: [40,65,45,80,55,90,70,85,60,75,50,95][i] }));
+                            const counts = months.map(m => trends.find(t => t.month === m)?.count ?? 0);
+                            const max = Math.max(...counts, 1);
+                            return counts.map((c, i) => {
+                                const h = Math.round((c / max) * 100);
+                                return (
+                                    <div key={i} className="w-full bg-orange-50 hover:bg-orange-100 rounded-t-lg relative group transition-colors" style={{ height: `${h}%` }}>
+                                        <div className="absolute bottom-0 w-full bg-orange-500 rounded-t-lg transition-all duration-500" style={{ height: `${Math.round(h * 0.6)}%` }} />
+                                        <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                                            {c} Audits
+                                        </div>
+                                    </div>
+                                );
+                            });
+                        })()}
                     </div>
                     <div className="flex justify-between mt-4 text-xs font-bold text-slate-400 uppercase tracking-wider">
                         <span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span>

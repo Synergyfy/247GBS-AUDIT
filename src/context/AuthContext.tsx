@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { refreshAccessToken } from "@/lib/auth";
 
 interface User {
     email: string;
@@ -32,6 +33,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
         }
         setIsLoading(false);
+    }, []);
+
+    // Periodically refresh access token to keep session alive and notify listeners
+    useEffect(() => {
+        let mounted = true;
+        const doRefresh = async () => {
+            try {
+                const token = await refreshAccessToken();
+                if (!mounted) return;
+                if (token) {
+                    // Notify other hooks/components that token changed by dispatching a storage event
+                    try {
+                        const ev = new StorageEvent('storage', { key: '247gbs_token', newValue: token });
+                        window.dispatchEvent(ev);
+                    } catch (err) {
+                        // Fallback: dispatch a generic event
+                        window.dispatchEvent(new Event('247gbs_token_refreshed'));
+                    }
+                }
+            } catch {
+                // ignore
+            }
+        };
+
+        // initial refresh and then every 60s
+        doRefresh();
+        const id = setInterval(doRefresh, 60 * 1000);
+        return () => {
+            mounted = false;
+            clearInterval(id);
+        };
     }, []);
 
     const signIn = (email: string) => {

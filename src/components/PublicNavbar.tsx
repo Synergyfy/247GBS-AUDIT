@@ -65,7 +65,6 @@ export function PublicNavbar() {
                 <div className="hidden md:flex items-center gap-8 text-sm font-semibold">
                     <a href="/#comparison" className="hover:text-orange-500 transition-colors">Compare Audits</a>
                     <a href="/#why" className="hover:text-orange-500 transition-colors">Why Seasonal?</a>
-                    <Link href="/dashboard" className="hover:text-orange-500 transition-colors">Dashboard</Link>
 
                     {isAuthenticated && user ? (
                         /* Avatar Dropdown for Authenticated Users */
@@ -174,7 +173,6 @@ export function PublicNavbar() {
                 >
                     <a href="/#comparison" className="block py-2 text-sm font-semibold hover:text-orange-500 transition-colors">Compare Audits</a>
                     <a href="/#why" className="block py-2 text-sm font-semibold hover:text-orange-500 transition-colors">Why Seasonal?</a>
-                    <Link href="/dashboard" className="block py-2 text-sm font-semibold hover:text-orange-500 transition-colors">Dashboard</Link>
 
                     {isAuthenticated && user ? (
                         <div className="pt-4 border-t border-slate-100 space-y-3">

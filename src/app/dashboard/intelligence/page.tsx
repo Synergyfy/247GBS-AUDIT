@@ -17,23 +17,23 @@ import {
     Target,
     Layers
 } from "lucide-react";
-import type { SavedAudit } from "@/types/audit";
+import useIntelligence from "@/services/dashboard/intelligence/hooks";
+import type { IntelligenceResponse } from "@/services/dashboard/intelligence/types";
 
 export default function ForensicIntelligencePage() {
-    const [audits, setAudits] = useState<SavedAudit[]>([]);
+    const { data, loading, error } = useIntelligence();
 
-    useEffect(() => {
-        const saved = localStorage.getItem("saved_audits");
-        if (saved) {
-            setAudits(JSON.parse(saved));
-        }
-    }, []);
-
-    // Mock aggregate data
-    const totalPotential = audits.reduce((acc, a) => acc + a.metrics.annualRecovery, 0);
-    const avgScore = audits.length > 0
-        ? Math.round(audits.reduce((acc, a) => acc + a.metrics.impactScore, 0) / audits.length)
-        : 0;
+    const strategicInsight = data?.strategicInsight ?? "";
+    const keyMetrics = data?.keyMetrics ?? [];
+    const trajectory = data?.trajectory?.dataPoints ?? [40, 60, 45, 70, 85, 65, 90, 100, 80, 95, 110, 120];
+    const efficiencyBreakdown = data?.efficiencyBreakdown ?? [
+        { label: "Idle Staff Capacity", value: 65, color: "bg-orange-500" },
+        { label: "Slow Inventory Turnover", value: 42, color: "bg-slate-900" },
+        { label: "Underutilized Square Footage", value: 28, color: "bg-slate-200" },
+        { label: "Equipment Downtime", value: 15, color: "bg-slate-100" },
+    ];
+    const maxRecoveryTarget = data?.maxRecoveryTarget ?? 0;
+    const marketRank = data?.marketRank ?? 0;
 
     return (
         <div className="space-y-10">
@@ -67,10 +67,10 @@ export default function ForensicIntelligencePage() {
                             Strategic AI Insight
                         </div>
                         <h2 className="text-3xl lg:text-4xl font-black leading-tight">
-                            "Aggregated data suggests a systemic <span className="text-orange-500 underline underline-offset-8 decoration-white/10">Under-Recovery Pattern</span> in your Hospitality Sector."
+                            {loading ? 'Loading insight…' : strategicInsight}
                         </h2>
                         <p className="text-slate-400 text-lg leading-relaxed">
-                            Our engine has detected that since your last 3 audits, though revenue is up, efficiency leak has increased by **4.2%**. This indicates growth is being achieved through resource brute-force rather than optimization.
+                            {loading ? '' : ''}
                         </p>
                         <div className="flex gap-4">
                             <button className="px-8 py-4 bg-orange-500 text-white rounded-[1.5rem] font-black hover:bg-orange-600 transition-all shadow-xl shadow-orange-500/20">
@@ -83,12 +83,7 @@ export default function ForensicIntelligencePage() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-6">
-                        {[
-                            { label: "Confidence", value: "94%", color: "orange" },
-                            { label: "Data Quality", value: "High", color: "green" },
-                            { label: "Risk Level", value: "Low", color: "blue" },
-                            { label: "Next Action", value: "Optimize", color: "orange" },
-                        ].map((metric, i) => (
+                        {keyMetrics.map((metric, i) => (
                             <div key={metric.label} className="bg-white/5 border border-white/10 p-6 rounded-3xl">
                                 <div className="text-2xl font-black mb-1">{metric.value}</div>
                                 <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">{metric.label}</div>
@@ -114,7 +109,7 @@ export default function ForensicIntelligencePage() {
 
                     {/* Mock Chart Visualization */}
                     <div className="h-64 flex items-end justify-between gap-4 px-4">
-                        {[40, 60, 45, 70, 85, 65, 90, 100, 80, 95, 110, 120].map((height, i) => (
+                        {trajectory.map((height, i) => (
                             <div key={i} className="flex-1 group relative">
                                 <motion.div
                                     initial={{ height: 0 }}
@@ -148,12 +143,7 @@ export default function ForensicIntelligencePage() {
                             Efficiency Leak by Category
                         </h3>
                         <div className="space-y-8">
-                            {[
-                                { label: "Idle Staff Capacity", value: 65, color: "bg-orange-500" },
-                                { label: "Slow Inventory Turnover", value: 42, color: "bg-slate-900" },
-                                { label: "Underutilized Square Footage", value: 28, color: "bg-slate-200" },
-                                { label: "Equipment Downtime", value: 15, color: "bg-slate-100" },
-                            ].map((cat, i) => (
+                            {efficiencyBreakdown.map((cat, i) => (
                                 <div key={i} className="space-y-3">
                                     <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
                                         <span className="text-slate-500">{cat.label}</span>
@@ -181,7 +171,7 @@ export default function ForensicIntelligencePage() {
                         <Target size={32} />
                     </div>
                     <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-orange-600 mb-2">Maximum Recovery Target</h4>
-                    <div className="text-5xl font-black text-slate-900 mb-4">£{(totalPotential * 1.4).toLocaleString()}</div>
+                    <div className="text-5xl font-black text-slate-900 mb-4">£{(maxRecoveryTarget || 0).toLocaleString()}</div>
                     <p className="text-sm text-slate-500 font-medium max-w-xs italic">Based on full adoption of all Strategic Recommendations and market trend alignment.</p>
                 </div>
 
@@ -189,7 +179,7 @@ export default function ForensicIntelligencePage() {
                     <div>
                         <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Market Sector Rank</h4>
                         <div className="flex items-end gap-3 mb-2">
-                            <span className="text-6xl font-black text-slate-900">12</span>
+                            <span className="text-6xl font-black text-slate-900">{marketRank}</span>
                             <span className="text-xl font-black text-slate-300 mb-2">/ 100</span>
                         </div>
                         <p className="text-xs text-slate-500 font-bold uppercase tracking-widest flex items-center gap-2">

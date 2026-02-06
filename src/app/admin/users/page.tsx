@@ -14,58 +14,21 @@ import {
     ArrowDownUp
 } from "lucide-react";
 import { motion } from "framer-motion";
+import useAdminUsers from "@/services/admin/users/hooks";
 
 export default function UsersPage() {
     const [searchTerm, setSearchTerm] = useState("");
+    const { data: usersData, loading, error } = useAdminUsers();
 
-    // Mock Users Data
-    const users = [
-        {
-            id: 1,
-            name: "Sarah Jenkins",
-            email: "sarah.j@techcorp.com",
-            role: "Business Owner",
-            status: "Active",
-            joinDate: "Jan 12, 2026",
-            avatar: "https://api.dicebear.com/7.x/shapes/svg?seed=Sarah"
-        },
-        {
-            id: 2,
-            name: "Michael Chen",
-            email: "m.chen@innovate.io",
-            role: "Financial Director",
-            status: "Active",
-            joinDate: "Jan 15, 2026",
-            avatar: "https://api.dicebear.com/7.x/shapes/svg?seed=Michael"
-        },
-        {
-            id: 3,
-            name: "Emma Wilson",
-            email: "emma@startup.co.uk",
-            role: "Consultant",
-            status: "Pending",
-            joinDate: "Jan 20, 2026",
-            avatar: "https://api.dicebear.com/7.x/shapes/svg?seed=Emma"
-        },
-        {
-            id: 4,
-            name: "David Miller",
-            email: "david.m@global.net",
-            role: "Admin",
-            status: "Active",
-            joinDate: "Dec 10, 2025",
-            avatar: "https://api.dicebear.com/7.x/shapes/svg?seed=David"
-        },
-        {
-            id: 5,
-            name: "James Anderson",
-            email: "j.anderson@retail.org",
-            role: "Business Owner",
-            status: "Suspended",
-            joinDate: "Nov 05, 2025",
-            avatar: "https://api.dicebear.com/7.x/shapes/svg?seed=James"
-        }
-    ];
+    const users = (usersData ?? []).map(u => ({
+        id: u.id,
+        name: `${u.firstName ?? ""}${u.firstName && u.lastName ? ' ' : ''}${u.lastName ?? ''}`.trim() || u.email.split('@')[0],
+        email: u.email,
+        role: u.role ?? 'User',
+        status: u.status ?? 'Active',
+        joinDate: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—',
+        avatar: `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(u.email ?? u.id)}`
+    }));
 
     const filteredUsers = users.filter(user =>
         user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||

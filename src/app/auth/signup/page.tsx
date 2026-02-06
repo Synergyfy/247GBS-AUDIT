@@ -16,23 +16,43 @@ import {
     ArrowLeft
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useAuthActions } from "@/services/auth/useAuthActions";
 
 export default function SignUpPage() {
     const router = useRouter();
-    const { signIn } = useAuth();
-    const [isLoading, setIsLoading] = useState(false);
-    const [step, setStep] = useState(1);
+    const { signIn: contextSignIn } = useAuth();
+    const { signUp, signIn, isLoading, error: apiError } = useAuthActions();
+    const [firstName, setFirstName] = useState("");
+    const [lastName, setLastName] = useState("");
+    const [businessName, setBusinessName] = useState("");
     const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [localError, setLocalError] = useState("");
 
-    const handleSignUp = (e: React.FormEvent) => {
+    const handleSignUp = async (e: React.FormEvent) => {
         e.preventDefault();
-        setIsLoading(true);
-        // Mock account creation and sign in
-        setTimeout(() => {
-            signIn(email);
-            router.push("/audit/triage");
-        }, 1500);
+        setLocalError("");
+
+        const success = await signUp({
+            email,
+            password,
+            firstName,
+            lastName,
+            businessName
+        });
+
+        if (success) {
+            // After successful signup, try to sign in
+            const signinSuccess = await signIn({ email, password });
+            if (signinSuccess) {
+                router.push("/audit/triage");
+            } else {
+                router.push("/auth/signin");
+            }
+        }
     };
+
+    const displayError = localError || apiError;
 
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col font-sans selection:bg-orange-100">
@@ -103,6 +123,16 @@ export default function SignUpPage() {
                         </header>
 
                         <form onSubmit={handleSignUp} className="space-y-6">
+                            {displayError && (
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-600 text-sm font-bold"
+                                >
+                                    <ShieldAlert size={18} />
+                                    {displayError}
+                                </motion.div>
+                            )}
                             <div className="space-y-4">
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
@@ -115,6 +145,8 @@ export default function SignUpPage() {
                                                 type="text"
                                                 required
                                                 placeholder="John"
+                                                value={firstName}
+                                                onChange={(e) => setFirstName(e.target.value)}
                                                 className="w-full pl-12 pr-4 py-4 bg-slate-50/50 border-2 border-slate-100 rounded-2xl outline-none focus:border-orange-500 focus:bg-white transition-all font-bold text-slate-900 text-sm"
                                             />
                                         </div>
@@ -129,6 +161,8 @@ export default function SignUpPage() {
                                                 type="text"
                                                 required
                                                 placeholder="Doe"
+                                                value={lastName}
+                                                onChange={(e) => setLastName(e.target.value)}
                                                 className="w-full pl-12 pr-4 py-4 bg-slate-50/50 border-2 border-slate-100 rounded-2xl outline-none focus:border-orange-500 focus:bg-white transition-all font-bold text-slate-900 text-sm"
                                             />
                                         </div>
@@ -145,6 +179,8 @@ export default function SignUpPage() {
                                             type="text"
                                             required
                                             placeholder="Global Corp"
+                                            value={businessName}
+                                            onChange={(e) => setBusinessName(e.target.value)}
                                             className="w-full pl-12 pr-4 py-4 bg-slate-50/50 border-2 border-slate-100 rounded-2xl outline-none focus:border-orange-500 focus:bg-white transition-all font-bold text-slate-900 text-sm"
                                         />
                                     </div>
@@ -177,6 +213,8 @@ export default function SignUpPage() {
                                             type="password"
                                             required
                                             placeholder="••••••••••••"
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
                                             className="w-full pl-12 pr-4 py-4 bg-slate-50/50 border-2 border-slate-100 rounded-2xl outline-none focus:border-orange-500 focus:bg-white transition-all font-bold text-slate-900 text-sm"
                                         />
                                     </div>

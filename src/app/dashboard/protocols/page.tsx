@@ -18,9 +18,125 @@ import {
     CheckCircle2,
     ShieldAlert
 } from "lucide-react";
+import useBilling from "@/services/protocols/billing/hooks";
+import useDashboard from "@/services/dashboard/hooks";
+import useProfile from "@/services/users/profile/hooks";
+
+function BillingSection() {
+    const { data, loading, error, refresh } = useBilling();
+
+    const planName = data?.planName ?? "—";
+    const price = data?.price ?? "—";
+    const last4 = data?.last4 ?? "•••• •••• •••• 0000";
+    const expiry = data?.expiry ?? "--/--";
+    const history = data?.history ?? [];
+
+    return (
+        <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="bg-white rounded-[2.5rem] p-6 md:p-10 border border-slate-100 shadow-sm relative overflow-hidden">
+                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Subscription Protocol</div>
+                    <div className="text-3xl font-black text-slate-900 mb-2">{planName}</div>
+                    <div className="text-sm font-bold text-orange-600 mb-8">{price}</div>
+                    <div className="flex gap-3">
+                        <button onClick={() => refresh()} className="w-full py-4 border border-slate-100 rounded-2xl font-black text-xs uppercase tracking-widest hover:border-orange-500 hover:text-orange-500 transition-all">
+                            Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <div className="bg-slate-900 rounded-[2.5rem] p-6 md:p-10 text-white relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-8 opacity-5 text-orange-500 group-hover:scale-125 transition-transform duration-1000">
+                        <CreditCard size={120} />
+                    </div>
+                    <div className="relative z-10 h-full flex flex-col justify-between">
+                        <div>
+                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-6">Primary Settlement Method</div>
+                            <div className="text-xl font-bold mb-1">{last4}</div>
+                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Expires {expiry}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
+                <div className="px-10 py-6 border-b border-slate-50 flex justify-between items-center">
+                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Settlement History</h3>
+                    <button className="text-[10px] font-black text-orange-600 uppercase tracking-widest hover:text-orange-700 transition-colors">Download Archive</button>
+                </div>
+                {loading ? (
+                    <div className="p-12 text-center text-sm text-slate-500">Loading billing history...</div>
+                ) : history.length === 0 ? (
+                    <div className="p-12 text-center text-sm text-slate-500">No settlements found.</div>
+                ) : (
+                    <table className="w-full text-left">
+                        <tbody className="divide-y divide-slate-50">
+                            {history.map((inv) => (
+                                <tr key={inv.id} className="hover:bg-slate-50/30 transition-colors group">
+                                    <td className="px-10 py-5">
+                                        <div className="text-xs font-black text-slate-900">{inv.id}</div>
+                                        <div className="text-[10px] text-slate-400 font-medium">{inv.date}</div>
+                                    </td>
+                                    <td className="px-10 py-5 text-xs font-black text-slate-900">{inv.amount}</td>
+                                    <td className="px-10 py-5">
+                                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${inv.status === 'Paid' ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-slate-50 text-slate-500 border border-slate-100'}`}>
+                                            {inv.status}
+                                        </span>
+                                    </td>
+                                    <td className="px-10 py-5 text-right">
+                                        <button className="text-slate-300 hover:text-orange-500 transition-colors">
+                                            <History size={16} />
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                )}
+            </div>
+            {error && <div className="text-sm text-red-500">{error}</div>}
+        </>
+    );
+}
+
+function TokenSection() {
+    const { data, loading } = useDashboard();
+    const tokenBalance = data?.tokenBalance ?? 0;
+
+    return (
+        <div className="bg-white rounded-[3rem] p-6 md:p-10 lg:p-14 border border-slate-100 shadow-sm relative overflow-hidden">
+            <div className="absolute -top-20 -right-20 w-80 h-80 bg-orange-50 rounded-full blur-[100px] opacity-50" />
+            <div className="relative z-10">
+                <div className="flex justify-between items-start mb-12">
+                    <div>
+                        <h3 className="text-3xl font-black text-slate-900">Session Vault</h3>
+                        <p className="text-slate-500 font-medium">Tokens required for deeper forensic analytics.</p>
+                    </div>
+                    <div className="w-16 h-16 bg-orange-500 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-orange-100">
+                        <Zap size={32} />
+                    </div>
+                </div>
+
+                <div className="text-7xl font-black text-slate-900 tracking-tighter mb-4">{loading ? '—' : tokenBalance}</div>
+
+                <p className="text-sm font-black uppercase tracking-widest text-orange-600 mb-10 italic">Credits Available</p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <button className="w-full py-5 bg-slate-900 text-white rounded-[1.5rem] font-black text-sm hover:bg-black transition-all shadow-xl shadow-slate-200">
+                        Purchase Bundle (10 Credits)
+                    </button>
+                    <button className="w-full py-5 border-2 border-slate-100 rounded-[1.5rem] font-black text-sm text-slate-500 hover:border-orange-500 hover:text-orange-500 transition-all">
+                        Usage Logs
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 export default function ProtocolsPage() {
     const [activeTab, setActiveTab] = useState("Profile");
+    const { data: profile, loading: profileLoading, error: profileError, refresh: refreshProfile } = useProfile();
 
     const tabs = [
         { name: "Profile", icon: User },
@@ -73,15 +189,15 @@ export default function ProtocolsPage() {
                             <div className="flex flex-col md:flex-row gap-8 items-center border-b border-slate-50 pb-12">
                                 <div className="relative group">
                                     <div className="w-24 h-24 bg-slate-100 rounded-[2.5rem] overflow-hidden border-4 border-white shadow-lg">
-                                        <img src="https://api.dicebear.com/7.x/shapes/svg?seed=demo" alt="Avatar" />
+                                        <img src={`https://api.dicebear.com/7.x/shapes/svg?seed=${profile?.email ?? 'demo'}`} alt="Avatar" />
                                     </div>
                                     <button className="absolute -bottom-2 -right-2 p-3 bg-orange-500 text-white rounded-2xl shadow-lg hover:scale-110 hover:bg-orange-600 transition-all">
                                         <History size={16} />
                                     </button>
                                 </div>
                                 <div className="text-center md:text-left">
-                                    <h3 className="text-2xl font-black text-slate-900">Demo Account Analyst</h3>
-                                    <p className="text-slate-400 font-medium">demo@example.com • London Node Registry</p>
+                                    <h3 className="text-2xl font-black text-slate-900">{profileLoading ? 'Loading...' : `${profile?.firstName ?? ''} ${profile?.lastName ?? ''}`}</h3>
+                                    <p className="text-slate-400 font-medium">{profile?.email ?? '—'} • {profile?.location ?? '—'}</p>
                                     <div className="mt-4 inline-flex items-center gap-2 px-4 py-1.5 bg-green-50 text-green-600 rounded-full text-[10px] font-black uppercase tracking-widest border border-green-100">
                                         Verified Organization
                                     </div>
@@ -90,9 +206,9 @@ export default function ProtocolsPage() {
 
                             <form className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 {[
-                                    { label: "Full Identity", value: "Demo Account Analyst", placeholder: "Name" },
-                                    { label: "Business Entity", value: "Synergyfy Global", placeholder: "Company" },
-                                    { label: "Strategic Node", value: "Europe / London", placeholder: "Location" },
+                                    { label: "Full Identity", value: `${profile?.firstName ?? ''} ${profile?.lastName ?? ''}`, placeholder: "Name" },
+                                    { label: "Business Entity", value: profile?.businessName ?? '', placeholder: "Company" },
+                                    { label: "Strategic Node", value: profile?.location ?? '', placeholder: "Location" },
                                     { label: "Primary Currency", value: "GBP - Sterling", placeholder: "Currency" },
                                 ].map((field) => (
                                     <div key={field.label} className="space-y-3">
@@ -165,74 +281,7 @@ export default function ProtocolsPage() {
                             animate={{ opacity: 1, x: 0 }}
                             className="space-y-8"
                         >
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                <div className="bg-white rounded-[2.5rem] p-6 md:p-10 border border-slate-100 shadow-sm relative overflow-hidden">
-                                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Subscription Protocol</div>
-                                    <div className="text-3xl font-black text-slate-900 mb-2">Growth Specialist</div>
-                                    <div className="text-sm font-bold text-orange-600 mb-8">£499 / Month</div>
-                                    <ul className="space-y-3 mb-10">
-                                        {["Unlimited Forensic Audits", "AI Roadmap Engine", "5 specialist credits/mo"].map(item => (
-                                            <li key={item} className="flex items-center gap-2 text-xs font-medium text-slate-500">
-                                                <CheckCircle2 size={14} className="text-green-500" />
-                                                {item}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                    <button className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-black transition-all">
-                                        Upgrade to Enterprise
-                                    </button>
-                                </div>
-
-                                <div className="bg-slate-900 rounded-[2.5rem] p-6 md:p-10 text-white relative overflow-hidden group">
-                                    <div className="absolute top-0 right-0 p-8 opacity-5 text-orange-500 group-hover:scale-125 transition-transform duration-1000">
-                                        <CreditCard size={120} />
-                                    </div>
-                                    <div className="relative z-10 h-full flex flex-col justify-between">
-                                        <div>
-                                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-6">Primary Settlement Method</div>
-                                            <div className="text-xl font-bold mb-1">•••• •••• •••• 4242</div>
-                                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Expires 12/28</div>
-                                        </div>
-                                        <button className="mt-8 px-6 py-2.5 bg-white/10 hover:bg-white/20 border border-white/10 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all w-fit">
-                                            Replace Card
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
-                                <div className="px-10 py-6 border-b border-slate-50 flex justify-between items-center">
-                                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Settlement History</h3>
-                                    <button className="text-[10px] font-black text-orange-600 uppercase tracking-widest hover:text-orange-700 transition-colors">Download Archive</button>
-                                </div>
-                                <table className="w-full text-left">
-                                    <tbody className="divide-y divide-slate-50">
-                                        {[
-                                            { id: "#INV-902", date: "Jan 01, 2026", amount: "£499.00", status: "Paid" },
-                                            { id: "#INV-841", date: "Dec 01, 2025", amount: "£499.00", status: "Paid" },
-                                            { id: "#INV-720", date: "Nov 01, 2025", amount: "£499.00", status: "Paid" },
-                                        ].map((inv) => (
-                                            <tr key={inv.id} className="hover:bg-slate-50/30 transition-colors group">
-                                                <td className="px-10 py-5">
-                                                    <div className="text-xs font-black text-slate-900">{inv.id}</div>
-                                                    <div className="text-[10px] text-slate-400 font-medium">{inv.date}</div>
-                                                </td>
-                                                <td className="px-10 py-5 text-xs font-black text-slate-900">{inv.amount}</td>
-                                                <td className="px-10 py-5">
-                                                    <span className="px-3 py-1 bg-green-50 text-green-600 rounded-full text-[10px] font-black uppercase tracking-widest border border-green-100">
-                                                        {inv.status}
-                                                    </span>
-                                                </td>
-                                                <td className="px-10 py-5 text-right">
-                                                    <button className="text-slate-300 hover:text-orange-500 transition-colors">
-                                                        <History size={16} />
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                            <BillingSection />
                         </motion.div>
                     )}
 
@@ -289,43 +338,7 @@ export default function ProtocolsPage() {
                             animate={{ opacity: 1, x: 0 }}
                             className="space-y-8"
                         >
-                            <div className="bg-white rounded-[3rem] p-6 md:p-10 lg:p-14 border border-slate-100 shadow-sm relative overflow-hidden">
-                                <div className="absolute -top-20 -right-20 w-80 h-80 bg-orange-50 rounded-full blur-[100px] opacity-50" />
-                                <div className="relative z-10">
-                                    <div className="flex justify-between items-start mb-12">
-                                        <div>
-                                            <h3 className="text-3xl font-black text-slate-900">Session Vault</h3>
-                                            <p className="text-slate-500 font-medium">Tokens required for deeper forensic analytics.</p>
-                                        </div>
-                                        <div className="w-16 h-16 bg-orange-500 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-orange-100">
-                                            <Zap size={32} />
-                                        </div>
-                                    </div>
-
-                                    <div className="text-7xl font-black text-slate-900 tracking-tighter mb-4">12</div>
-                                    <p className="text-sm font-black uppercase tracking-widest text-orange-600 mb-10 italic">Credits Available</p>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <button className="w-full py-5 bg-slate-900 text-white rounded-[1.5rem] font-black text-sm hover:bg-black transition-all shadow-xl shadow-slate-200">
-                                            Purchase Bundle (10 Credits)
-                                        </button>
-                                        <button className="w-full py-5 border-2 border-slate-100 rounded-[1.5rem] font-black text-sm text-slate-500 hover:border-orange-500 hover:text-orange-500 transition-all">
-                                            Usage Logs
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="bg-slate-50 rounded-[2.5rem] p-6 md:p-10 border border-slate-100 flex items-center gap-6">
-                                <div className="w-14 h-14 bg-white rounded-2xl shadow-sm flex items-center justify-center text-slate-400">
-                                    <Bot size={28} />
-                                </div>
-                                <div className="flex-1">
-                                    <div className="font-black text-slate-900">Auto-Refill Threshold</div>
-                                    <p className="text-xs text-slate-500 font-medium">Automatically add 5 tokens when balance falls below 3.</p>
-                                </div>
-                                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-600 border border-orange-200 bg-orange-50 px-3 py-1.5 rounded-full">Inactive</div>
-                            </div>
+                            <TokenSection />
                         </motion.div>
                     )}
                 </div>
