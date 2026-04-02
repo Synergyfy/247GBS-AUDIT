@@ -22,6 +22,8 @@ import {
     HelpCircle
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { API_BASE_URL } from "@/lib/api";
+import { refreshAccessToken } from "@/lib/auth";
 import type { TriageData, TriageStageId } from "@/types/audit";
 
 export default function AuditTriagePage() {
@@ -96,20 +98,57 @@ export default function AuditTriagePage() {
         return 'NO_AUDIT';
     }, [data]);
 
-    const handleFinalRedirect = () => {
+    const handleFinalRedirect = async () => {
         setLoading(true);
-        setTimeout(() => {
-            if (decision === 'NO_AUDIT') {
-                router.push('/dashboard');
+        try {
+            const token = typeof window !== "undefined" ? localStorage.getItem("247gbs_token") : null;
+            const headers: Record<string, string> = { 
+                "Content-Type": "application/json",
+                "Accept": "application/json" 
+            };
+            if (token) headers["Authorization"] = `Bearer ${token}`;
+
+            // Make the actual call to the backend
+            let res = await fetch(`${API_BASE_URL}/triage`, {
+                method: "POST",
+                headers,
+                body: JSON.stringify(data)
+            });
+
+            if (res.status === 401) {
+                const newToken = await refreshAccessToken();
+                if (newToken) {
+                    headers["Authorization"] = `Bearer ${newToken}`;
+                    res = await fetch(`${API_BASE_URL}/triage`, {
+                        method: "POST",
+                        headers,
+                        body: JSON.stringify(data)
+                    });
+                }
+            }
+
+            if (!res.ok) {
+                throw new Error("Failed to submit triage data.");
+            }
+
+            const responseData = await res.json();
+            
+            if (responseData.decision === 'NO_AUDIT') {
+                setStage('healthy');
             } else {
-                const type = (decision === 'CRITICAL' || decision === 'FULL_AUDIT') ? 'LONG_FORM' : 'SHORT_FORM';
+                const type = responseData.auditType;
                 const hasStock = (data.stockExtent || 0) >= 7 || data.hasExcessStock === 'yes' ? 'true' : 'false';
                 const hasCapacity = (data.capacityExtent || 0) >= 7 || data.hasSpareCapacity === 'yes' ? 'true' : 'false';
 
-                // Redirect directly to sector selection, bypassing the manual selection page
-                router.push(`/audit/sector?type=${type}&priority=${decision}&stock=${hasStock}&capacity=${hasCapacity}`);
+                // Redirect directly to sector selection passing the backend generated ID
+                router.push(`/audit/sector?id=${responseData.auditSessionId}&type=${type}&stock=${hasStock}&capacity=${hasCapacity}`);
             }
-        }, 2000);
+        } catch (error) {
+            console.error("Triage submission error:", error);
+            // Fallback behaviour or error state could be handled here
+        } finally {
+            setLoading(false);
+        }
     };
 
     // Progress Calculation
@@ -223,27 +262,38 @@ export default function AuditTriagePage() {
                         </AnimatePresence>
 
                         <div className="mt-12 flex justify-between items-center border-t border-slate-50 pt-8">
-                            <button
-                                onClick={prevStage}
-                                disabled={stage === 'stock-awareness'}
-                                className="flex items-center gap-2 text-slate-400 hover:text-slate-900 font-black text-xs uppercase tracking-widest disabled:opacity-30 transition-all"
-                            >
-                                <ChevronLeft size={16} />
-                                Back
-                            </button>
-
-                            {/* Skip functionality mentioned in Stage 1/2 */}
-                            <button
-                                onClick={nextStage}
-                                disabled={!isStepValid}
-                                className={`px-10 py-5 rounded-2xl font-black text-sm flex items-center gap-3 transition-all active:scale-95 group ${isStepValid
-                                    ? "bg-slate-900 text-white shadow-xl hover:bg-black hover:-translate-y-1"
-                                    : "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
-                                    }`}
-                            >
-                                {stage === 'readiness' ? 'Complete Triage' : 'Continue Diagnostic'}
-                                <ChevronRight size={18} className={`transition-transform ${isStepValid ? "text-orange-500 group-hover:translate-x-1" : "text-slate-400"}`} />
-                            </button>
+                            {stage !== 'healthy' && (
+                                <button
+                                    onClick={prevStage}
+                                    disabled={stage === 'stock-awareness'}
+                                    className="flex items-center gap-2 text-slate-400 hover:text-slate-900 font-black text-xs uppercase tracking-widest disabled:opacity-30 transition-all"
+                                >
+                                    <ChevronLeft size={16} />
+                                    Back
+                                </button>
+                            )}
+                            
+                            {stage === 'healthy' ? (
+                                <button
+                                    onClick={() => router.push('/dashboard')}
+                                    className="px-10 py-5 rounded-2xl font-black text-sm flex items-center gap-3 transition-all active:scale-95 group bg-slate-900 text-white shadow-xl hover:bg-black hover:-translate-y-1 ml-auto"
+                                >
+                                    Return to Dashboard
+                                    <ChevronRight size={18} className="transition-transform text-orange-500 group-hover:translate-x-1" />
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={nextStage}
+                                    disabled={!isStepValid}
+                                    className={`px-10 py-5 rounded-2xl font-black text-sm flex items-center gap-3 transition-all active:scale-95 group ${isStepValid
+                                        ? "bg-slate-900 text-white shadow-xl hover:bg-black hover:-translate-y-1"
+                                        : "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
+                                        }`}
+                                >
+                                    {stage === 'readiness' ? 'Complete Triage' : 'Continue Diagnostic'}
+                                    <ChevronRight size={18} className={`transition-transform ${isStepValid ? "text-orange-500 group-hover:translate-x-1" : "text-slate-400"}`} />
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -326,7 +376,21 @@ function HelperContent({ stage, data }: { stage: TriageStageId, data: TriageData
             </>
         );
     }
-    // Add more cases...
+    if (stage === 'healthy') {
+        return (
+            <>
+                <div className="w-12 h-12 bg-green-500 rounded-2xl flex items-center justify-center text-white">
+                    <CheckCircle2 size={24} />
+                </div>
+                <div>
+                    <h4 className="text-xl font-black text-white mb-2">Diagnosis Complete</h4>
+                    <p className="text-slate-400 text-sm leading-relaxed">
+                        Your efficiency metrics indicate a highly stable operation. The decision engine does not recommend further forensic allocation.
+                    </p>
+                </div>
+            </>
+        );
+    }
     return (
         <>
             <div className="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center">
@@ -783,6 +847,56 @@ function StageContent({
                                 <span className="font-black text-sm uppercase tracking-widest">{opt.label}</span>
                             </button>
                         ))}
+                    </div>
+                </div>
+            );
+
+        case 'healthy':
+            return (
+                <div className="space-y-12 py-10 flex-1 flex flex-col justify-center text-center">
+                    <motion.div 
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ type: "spring", bounce: 0.5 }}
+                        className="w-24 h-24 bg-green-100 text-green-500 rounded-[2rem] flex items-center justify-center mx-auto shadow-2xl shadow-green-500/20"
+                    >
+                        <CheckCircle2 size={48} />
+                    </motion.div>
+                    <div className="space-y-6">
+                        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest bg-green-50 text-green-600 border border-green-100 mb-2">
+                            <Activity size={14} />
+                            Status Stable
+                        </div>
+                        <h2 className="text-4xl font-black text-slate-900">No Forensic Audit Required</h2>
+                        <p className="text-slate-500 text-lg font-medium max-w-lg mx-auto leading-relaxed">
+                            Based on your inputs, your business is operating with minimal waste in both capacity and inventory. 
+                            We recommend a <span className="text-slate-900 font-bold">Monitoring Cycle</span> to keep margins healthy.
+                        </p>
+                    </div>
+                </div>
+            );
+
+        case 'healthy':
+            return (
+                <div className="space-y-12 py-10 flex-1 flex flex-col justify-center text-center">
+                    <motion.div 
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ type: "spring", bounce: 0.5 }}
+                        className="w-24 h-24 bg-green-100 text-green-500 rounded-[2rem] flex items-center justify-center mx-auto shadow-2xl shadow-green-500/20"
+                    >
+                        <CheckCircle2 size={48} />
+                    </motion.div>
+                    <div className="space-y-6">
+                        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest bg-green-50 text-green-600 border border-green-100 mb-2">
+                            <Activity size={14} />
+                            Status Stable
+                        </div>
+                        <h2 className="text-4xl font-black text-slate-900">No Forensic Audit Required</h2>
+                        <p className="text-slate-500 text-lg font-medium max-w-lg mx-auto leading-relaxed">
+                            Based on your inputs, your business is operating with minimal waste in both capacity and inventory. 
+                            We recommend a <span className="text-slate-900 font-bold">Monitoring Cycle</span> to keep margins healthy.
+                        </p>
                     </div>
                 </div>
             );

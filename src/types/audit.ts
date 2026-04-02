@@ -225,7 +225,8 @@ export type TriageStageId =
     | 'validation'
     | 'financials'
     | 'decision'
-    | 'readiness';
+    | 'readiness'
+    | 'healthy';
 
 export interface TriageData {
     hasExcessStock?: 'yes' | 'no' | 'not-sure';

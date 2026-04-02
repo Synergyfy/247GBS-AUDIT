@@ -3,6 +3,8 @@
 import { SECTORS } from "@/data/sectors";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useMemo } from "react";
+import { API_BASE_URL } from "@/lib/api";
+import { refreshAccessToken } from "@/lib/auth";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     ChevronRight,
@@ -64,6 +66,7 @@ function SectorSelectionContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const auditType = searchParams.get("type") || "SHORT_FORM";
+    const auditId = searchParams.get("id");
 
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedSectorId, setSelectedSectorId] = useState<string | null>(null);
@@ -81,14 +84,63 @@ function SectorSelectionContent() {
     const activeGroup = useMemo(() => activeSector?.groups.find((g) => g.id === selectedGroupId), [activeSector, selectedGroupId]);
     const activeType = useMemo(() => activeGroup?.types.find((t) => t.id === selectedTypeId), [activeGroup, selectedTypeId]);
 
-    const handleComplete = () => {
-        if (selectedSectorId && selectedGroupId && selectedTypeId) {
-            const stock = searchParams.get("stock") || "true";
-            const capacity = searchParams.get("capacity") || "true";
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-            router.push(
-                `/audit/flow?type=${auditType}&sector=${selectedSectorId}&group=${selectedGroupId}&businessType=${selectedTypeId}&stock=${stock}&capacity=${capacity}`
-            );
+    const handleComplete = async () => {
+        if (!auditId) {
+            alert("No audit session found. Please retake the Triage.");
+            return;
+        }
+
+        if (selectedSectorId && selectedGroupId && selectedTypeId) {
+            setIsSubmitting(true);
+            try {
+                const token = typeof window !== "undefined" ? localStorage.getItem("247gbs_token") : null;
+                const headers: Record<string, string> = {
+                    "Content-Type": "application/json",
+                    "Accept": "application/json"
+                };
+                if (token) headers["Authorization"] = `Bearer ${token}`;
+
+                const payload = {
+                    sectorId: selectedSectorId,
+                    groupId: selectedGroupId,
+                    businessTypeId: selectedTypeId
+                };
+
+                let res = await fetch(`${API_BASE_URL}/audit/${auditId}/sector`, {
+                    method: "PATCH",
+                    headers,
+                    body: JSON.stringify(payload)
+                });
+
+                if (res.status === 401) {
+                    const newToken = await refreshAccessToken();
+                    if (newToken) {
+                        headers["Authorization"] = `Bearer ${newToken}`;
+                        res = await fetch(`${API_BASE_URL}/audit/${auditId}/sector`, {
+                            method: "PATCH",
+                            headers,
+                            body: JSON.stringify(payload)
+                        });
+                    }
+                }
+
+                if (!res.ok) {
+                    throw new Error("Failed to configure audit sector");
+                }
+
+                const stock = searchParams.get("stock") || "true";
+                const capacity = searchParams.get("capacity") || "true";
+
+                router.push(
+                    `/audit/flow?id=${auditId}&type=${auditType}&sector=${selectedSectorId}&group=${selectedGroupId}&businessType=${selectedTypeId}&stock=${stock}&capacity=${capacity}`
+                );
+            } catch (err) {
+                console.error("Sector selection failed:", err);
+            } finally {
+                setIsSubmitting(false);
+            }
         }
     };
 
@@ -264,13 +316,13 @@ function SectorSelectionContent() {
                     <div className="mt-16">
                         <button
                             onClick={handleComplete}
-                            disabled={!selectedTypeId}
-                            className={`w-full py-6 rounded-[2.5rem] font-black text-xl flex items-center justify-center gap-3 transition-all ${selectedTypeId
+                            disabled={!selectedTypeId || isSubmitting}
+                            className={`w-full py-6 rounded-[2.5rem] font-black text-xl flex items-center justify-center gap-3 transition-all ${selectedTypeId && !isSubmitting
                                 ? "bg-slate-900 text-white hover:bg-black shadow-2xl shadow-slate-200"
                                 : "bg-slate-100 text-slate-300 cursor-not-allowed"
                                 }`}
                         >
-                            Initialize Audit Engine
+                            {isSubmitting ? "Initializing Engine..." : "Initialize Audit Engine"}
                             <ChevronRight size={24} />
                         </button>
                         <div className="flex justify-center gap-8 mt-6">
