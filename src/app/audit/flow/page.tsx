@@ -22,6 +22,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import AIInsightCard from "@/components/AIInsightCard";
 import AIFollowUpCard from "@/components/AIFollowUpCard";
 import type { AIInsightResponse, AIAuditState, AIBusinessContext, AIFollowUpQuestion, AIAuditStepData } from "@/types/aiTypes";
+import { API_BASE_URL } from "@/lib/api";
+import { refreshAccessToken } from "@/lib/auth";
 
 import { Suspense } from "react";
 
@@ -61,6 +63,7 @@ function AuditFlowContent() {
 
     // Metadata
     const auditType = (searchParams.get("type") as AuditType) || "SHORT_FORM";
+    const auditId = searchParams.get("id");
     const sectorId = searchParams.get("sector");
     const groupId = searchParams.get("group");
     const businessTypeId = searchParams.get("businessType");
@@ -104,38 +107,64 @@ function AuditFlowContent() {
     const stepQuestions = filteredQuestions.filter(q => q.category === currentCategory);
 
     // PHASE 6: Calculation Engine
-    const engineStats = useMemo(() => {
-        // 1. Capacity Drain %
-        const capacityQuestions = filteredQuestions.filter(q => q.category === "SPARE_CAPACITY");
-        let totalCapacityPoints = 0;
-        let maxCapacityPoints = 0;
+    const [engineStats, setEngineStats] = useState({
+        capacityDrainPct: 0,
+        totalStockImpact: 0,
+        annualRecovery: 0,
+        impactScore: 0
+    });
 
-        capacityQuestions.forEach(q => {
-            const val = answers[q.id] || 0;
-            const weight = q.weight || 1;
-            totalCapacityPoints += (val * weight);
-            maxCapacityPoints += (q.type === 'percentage' ? 100 : 50) * weight;
-        });
+    // Helper for authenticated fetch
+    const authFetch = useCallback(async (url: string, options: RequestInit = {}) => {
+        let token = typeof window !== "undefined" ? localStorage.getItem("247gbs_token") : null;
+        const headers = { ...options.headers, "Content-Type": "application/json" } as any;
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+        
+        let res = await fetch(url, { ...options, headers });
+        if (res.status === 401) {
+            token = await refreshAccessToken();
+            if (token) {
+                headers["Authorization"] = `Bearer ${token}`;
+                res = await fetch(url, { ...options, headers });
+            }
+        }
+        return res;
+    }, []);
 
-        const capacityDrainPct = Math.min(Math.round((totalCapacityPoints / (maxCapacityPoints || 1)) * 100), 100);
+    // Load initial data
+    useEffect(() => {
+        if (!auditId) return;
+        authFetch(`${API_BASE_URL}/audit/${auditId}`).then(res => {
+            if (res.ok) {
+                res.json().then(data => {
+                    if (data.answers) {
+                        // Merge db answers with any local answers
+                        setAnswers(prev => ({ ...data.answers, ...prev }));
+                    }
+                    if (data.calculatedMetrics) setEngineStats(data.calculatedMetrics);
+                });
+            }
+        }).catch(console.error);
+    }, [auditId, authFetch]);
 
-        // 2. Excess Stock Financial Impact (Annual)
-        const stockValue = answers["stock_value_excess"] || 0;
-        const wastePct = answers["perishable_waste_pct"] || 0;
-        const annualWasteImpact = (stockValue * (wastePct / 100)) * 12;
-        const totalStockImpact = stockValue + annualWasteImpact;
-
-        // 3. Projected Revenue Recovery
-        const weeklyRecovery = (capacityDrainPct / 100) * 5000 * 0.20;
-        const annualRecovery = weeklyRecovery * 52;
-
-        return {
-            capacityDrainPct,
-            totalStockImpact,
-            annualRecovery,
-            impactScore: Math.round((capacityDrainPct + (Math.min(totalStockImpact / 1000, 100))) / 2)
-        };
-    }, [answers, filteredQuestions]);
+    // Save answers
+    const saveAnswers = useCallback(async (updatedAnswers: Record<string, number | string>) => {
+        if (!auditId) return;
+        try {
+            const res = await authFetch(`${API_BASE_URL}/audit/${auditId}/answers`, {
+                method: "PUT",
+                body: JSON.stringify(updatedAnswers)
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.calculatedMetrics) {
+                    setEngineStats(data.calculatedMetrics);
+                }
+            }
+        } catch (e) {
+            console.error("Failed to save answers", e);
+        }
+    }, [auditId, authFetch]);
 
     // ============================================================
     // AI INTEGRATION (Long Form Only)
@@ -145,60 +174,24 @@ function AuditFlowContent() {
     // ============================================================
     const fetchAIInsight = useCallback(async () => {
         // RULE: Never for Short Form
-        if (auditType !== "LONG_FORM") return;
+        if (auditType !== "LONG_FORM" || !auditId) return;
 
         setAiLoading(true);
         setAiFallback(false);
 
-        // Build AI state from current audit data
-        const activeSector = SECTORS.find((s: Sector) => s.id === sectorId);
-        let groupName = "";
-        let typeName = "";
-        activeSector?.groups.forEach((g: BusinessGroup) => {
-            const foundType = g.types.find((t: BusinessType) => t.id === businessTypeId);
-            if (foundType) {
-                groupName = g.name;
-                typeName = foundType.name;
-            }
-        });
-
-        const stepsData: AIAuditStepData[] = [];
-        if (hasStockScope) stepsData.push({ step: "EXCESS_STOCK" as const, data: answers });
-        if (hasCapacityScope) stepsData.push({ step: "SPARE_CAPACITY" as const, data: answers });
-
-        const aiState: AIAuditState = {
-            context: {
-                sector: activeSector?.name || "General",
-                group: groupName,
-                businessType: typeName,
-            },
-            steps: stepsData,
-            engineStats: {
-                capacityDrainPct: engineStats.capacityDrainPct,
-                totalStockImpact: engineStats.totalStockImpact,
-                annualRecovery: engineStats.annualRecovery,
-                impactScore: engineStats.impactScore
-            },
-            followUpAnswers
-        };
-
         try {
-            const response = await fetch("/api/ai/audit", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    action: "generateInsight",
-                    payload: aiState
-                })
+            const response = await authFetch(`${API_BASE_URL}/audit/${auditId}/ai/generate-insight`, {
+                method: "POST"
             });
 
             const result = await response.json();
 
-            if (result.success && result.data) {
-                setAiInsight(result.data as AIInsightResponse);
+            if (response.ok && result) {
+                // Determine structure based on backend response shape
+                setAiInsight((result.data || result) as AIInsightResponse);
                 if (result.fallback) setAiFallback(true);
             } else {
-                throw new Error(result.error || "AI request failed");
+                throw new Error(result.message || result.error || "AI request failed");
             }
         } catch (error) {
             console.error("AI fetch error:", error);
@@ -207,7 +200,7 @@ function AuditFlowContent() {
         } finally {
             setAiLoading(false);
         }
-    }, [auditType, sectorId, businessTypeId, answers, engineStats, followUpAnswers]);
+    }, [auditType, auditId, authFetch]);
 
     // ============================================================
     // FOLLOW-UP QUESTIONS FETCH (Long Form Only)
@@ -215,55 +208,20 @@ function AuditFlowContent() {
     // ============================================================
     const fetchFollowUpQuestions = useCallback(async () => {
         // RULE: Never for Short Form
-        if (auditType !== "LONG_FORM") return;
+        if (auditType !== "LONG_FORM" || !auditId) return;
 
         setFollowUpLoading(true);
 
-        // Build AI state from current audit data
-        const activeSector = SECTORS.find((s: Sector) => s.id === sectorId);
-        let groupName = "";
-        let typeName = "";
-        activeSector?.groups.forEach((g: BusinessGroup) => {
-            const foundType = g.types.find((t: BusinessType) => t.id === businessTypeId);
-            if (foundType) {
-                groupName = g.name;
-                typeName = foundType.name;
-            }
-        });
-
-        const stepsData: AIAuditStepData[] = [];
-        if (hasStockScope) stepsData.push({ step: "EXCESS_STOCK" as const, data: answers });
-        if (hasCapacityScope) stepsData.push({ step: "SPARE_CAPACITY" as const, data: answers });
-
-        const aiState: AIAuditState = {
-            context: {
-                sector: activeSector?.name || "General",
-                group: groupName,
-                businessType: typeName,
-            },
-            steps: stepsData,
-            engineStats: {
-                capacityDrainPct: engineStats.capacityDrainPct,
-                totalStockImpact: engineStats.totalStockImpact,
-                annualRecovery: engineStats.annualRecovery,
-                impactScore: engineStats.impactScore
-            }
-        };
-
         try {
-            const response = await fetch("/api/ai/audit", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    action: "generateFollowUp",
-                    payload: aiState
-                })
+            const response = await authFetch(`${API_BASE_URL}/audit/${auditId}/ai/generate-questions`, {
+                method: "POST"
             });
 
             const result = await response.json();
 
-            if (result.success && result.data && result.data.followUpQuestions) {
-                setFollowUpQuestions(result.data.followUpQuestions);
+            const questions = result.data?.followUpQuestions || result.followUpQuestions || result;
+            if (response.ok && Array.isArray(questions)) {
+                setFollowUpQuestions(questions);
             } else {
                 // No questions or error — continue normally
                 setFollowUpQuestions([]);
@@ -274,7 +232,7 @@ function AuditFlowContent() {
         } finally {
             setFollowUpLoading(false);
         }
-    }, [auditType, sectorId, businessTypeId, answers, engineStats]);
+    }, [auditType, auditId, authFetch]);
 
     // Auto-trigger follow-up questions when entering FOLLOW_UP step
     useEffect(() => {
@@ -291,8 +249,10 @@ function AuditFlowContent() {
     }, [currentCategory, auditType, aiInsight, aiLoading, fetchAIInsight]);
 
     // Handle follow-up answers submission
-    const handleFollowUpSubmit = (answers: Record<string, string>) => {
-        setFollowUpAnswers(answers);
+    const handleFollowUpSubmit = async (followAnswers: Record<string, string>) => {
+        setFollowUpAnswers(followAnswers);
+        const combined = { ...answers, ...followAnswers };
+        await saveAnswers(combined);
         // Proceed to next step (STRATEGY_PREVIEW)
         setCurrentStepIndex(currentStepIndex + 1);
         window.scrollTo(0, 0);
@@ -313,18 +273,14 @@ function AuditFlowContent() {
         }));
     };
 
-    const handleNext = () => {
+    const handleNext = async () => {
+        await saveAnswers(answers);
         if (currentStepIndex < FLOW_STEPS.length - 1) {
             setCurrentStepIndex(currentStepIndex + 1);
             window.scrollTo(0, 0);
         } else {
             const params = new URLSearchParams();
-            params.set("type", auditType);
-            params.set("sector", sectorId || "");
-            params.set("drain", engineStats.capacityDrainPct.toString());
-            params.set("stock", engineStats.totalStockImpact.toString());
-            params.set("recovery", engineStats.annualRecovery.toString());
-            params.set("score", engineStats.impactScore.toString());
+            if (auditId) params.set("id", auditId);
             router.push(`/audit/results?${params.toString()}`);
         }
     };

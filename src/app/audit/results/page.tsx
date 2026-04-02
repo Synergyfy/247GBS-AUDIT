@@ -4,7 +4,9 @@ import { AUDIT_STRATEGIES, AuditType, Sector, RecommendationTemplate } from "@/t
 import { SECTORS } from "@/data/sectors";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
+import { API_BASE_URL } from "@/lib/api";
+import { refreshAccessToken } from "@/lib/auth";
 import {
     BarChart,
     ChevronRight,
@@ -42,49 +44,62 @@ export default function AuditResultsPage() {
 function AuditResultsContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const auditType = (searchParams.get("type") as AuditType) || "SHORT_FORM";
-    const sectorId = searchParams.get("sector");
-    const strategy = AUDIT_STRATEGIES[auditType];
+    const auditId = searchParams.get("id");
 
     const [isSaving, setIsSaving] = useState(false);
     const [saveComplete, setSaveComplete] = useState(false);
 
+    const [auditData, setAuditData] = useState<any>(null);
+
+    // Helper for authenticated fetch
+    const authFetch = useCallback(async (url: string, options: RequestInit = {}) => {
+        let token = typeof window !== "undefined" ? localStorage.getItem("247gbs_token") : null;
+        const headers = { ...options.headers, "Content-Type": "application/json" } as any;
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+        
+        let res = await fetch(url, { ...options, headers });
+        if (res.status === 401) {
+            token = await refreshAccessToken();
+            if (token) {
+                headers["Authorization"] = `Bearer ${token}`;
+                res = await fetch(url, { ...options, headers });
+            }
+        }
+        return res;
+    }, []);
+
+    useEffect(() => {
+        if (!auditId) return;
+        authFetch(`${API_BASE_URL}/audit/${auditId}`).then(res => {
+            if (res.ok) {
+                res.json().then(data => setAuditData(data));
+            }
+        });
+    }, [auditId, authFetch]);
+
+    const auditType = (auditData?.auditType as AuditType) || "SHORT_FORM";
+    const sectorId = auditData?.sectorId;
+    const strategy = AUDIT_STRATEGIES[auditType as AuditType] || AUDIT_STRATEGIES.SHORT_FORM;
+
     const activeSector = useMemo(() => SECTORS.find(s => s.id === sectorId), [sectorId]);
 
-    // Read Engine Results from URL
-    const capacityDrain = parseInt(searchParams.get("drain") || "0");
-    const annualRecovery = parseInt(searchParams.get("recovery") || "0");
-    const impactScore = parseInt(searchParams.get("score") || "0");
+    // Read Engine Results from fetched DB row
+    const capacityDrain = auditData?.calculatedMetrics?.capacityDrainPct || 0;
+    const annualRecovery = auditData?.calculatedMetrics?.annualRecovery || 0;
+    const impactScore = auditData?.calculatedMetrics?.impactScore || 0;
 
     const handleSave = () => {
         setIsSaving(true);
-
-        // Mock saving process
+        // The data is already saved to the DB via previous PUT requests.
+        // We just pretend to finalize it here for UX consistency.
         setTimeout(() => {
-            const newAudit = {
-                id: Math.random().toString(36).substr(2, 9),
-                date: new Date().toISOString(),
-                type: auditType,
-                sector: activeSector?.name || "General Business",
-                metrics: {
-                    capacityDrain,
-                    annualRecovery,
-                    impactScore
-                },
-                status: 'completed'
-            };
-
-            const existing = JSON.parse(localStorage.getItem("saved_audits") || "[]");
-            localStorage.setItem("saved_audits", JSON.stringify([newAudit, ...existing]));
-
             setIsSaving(false);
             setSaveComplete(true);
 
-            // Redirect to dashboard after a short delay
             setTimeout(() => {
                 router.push("/dashboard");
             }, 1000);
-        }, 2000);
+        }, 1000);
     };
 
     // Simple 'Engine' to find matching recommendations from config
