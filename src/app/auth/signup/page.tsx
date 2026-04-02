@@ -33,7 +33,7 @@ export default function SignUpPage() {
         e.preventDefault();
         setLocalError("");
 
-        const success = await signUp({
+        const { success } = await signUp({
             email,
             password,
             firstName,
@@ -43,7 +43,7 @@ export default function SignUpPage() {
 
         if (success) {
             // After successful signup, try to sign in
-            const signinSuccess = await signIn({ email, password });
+            const { success: signinSuccess } = await signIn({ email, password });
             if (signinSuccess) {
                 router.push("/audit/triage");
             } else {

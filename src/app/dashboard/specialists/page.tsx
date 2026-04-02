@@ -15,51 +15,23 @@ import {
     ArrowUpRight,
     MapPin,
     Calendar,
-    Clock
+    Clock,
 } from "lucide-react";
+import useSpecialists from "@/services/specialists/hooks";
 
 export default function SpecialistNetworkPage() {
-    const specialists = [
-        {
-            name: "Dr. Elena Vance",
-            role: "Forensic Operations Auditor",
-            rating: 4.9,
-            reviews: 124,
-            expertise: ["Hospitality", "Logistics"],
-            status: "Available",
-            experience: "15+ Years",
-            image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Elena"
-        },
-        {
-            name: "Marcus Thorne",
-            role: "Supply Chain Optimization",
-            rating: 5.0,
-            reviews: 89,
-            expertise: ["Manufacturing", "Retail"],
-            status: "In Call",
-            experience: "12 Years",
-            image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Marcus"
-        },
-        {
-            name: "Sarah Jenkins",
-            role: "Financial Efficiency Expert",
-            rating: 4.8,
-            reviews: 215,
-            expertise: ["FinTech", "Service Industry"],
-            status: "Available",
-            experience: "18 Years",
-            image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah"
-        },
-        {
-            name: "Julian Voss",
-            role: "Strategic Resource Planner",
-            rating: 4.9,
-            reviews: 56,
-            expertise: ["Energy", "Infrastructure"],
-            status: "Out of Office",
-            experience: "10 Years",
-            image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Julian"
-        }
+    const { specialists, stats, loading, error } = useSpecialists();
+
+    const networkStats = stats ? [
+        { label: "Verified Experts", value: stats.verifiedExperts, icon: ShieldCheck },
+        { label: "Successful Deployments", value: stats.successfulDeployments, icon: Briefcase },
+        { label: "Global Reach", value: stats.globalReach, icon: Globe },
+        { label: "Avg response Time", value: stats.avgResponseTime, icon: Clock },
+    ] : [
+        { label: "Verified Experts", value: "480+", icon: ShieldCheck },
+        { label: "Successful Deployments", value: "12.4k", icon: Briefcase },
+        { label: "Global Reach", value: "45 Countries", icon: Globe },
+        { label: "Avg response Time", value: "4 mins", icon: Clock },
     ];
 
     return (
@@ -81,12 +53,7 @@ export default function SpecialistNetworkPage() {
             {/* Elite Network Stats */}
             <div className="bg-white border-y border-slate-100 py-10 px-4 md:px-0">
                 <div className="max-w-5xl mx-auto flex flex-wrap justify-between gap-10">
-                    {[
-                        { label: "Verified Experts", value: "480+", icon: ShieldCheck },
-                        { label: "Successful Deployments", value: "12.4k", icon: Briefcase },
-                        { label: "Global Reach", value: "45 Countries", icon: Globe },
-                        { label: "Avg response Time", value: "4 mins", icon: Clock },
-                    ].map((stat, i) => (
+                    {networkStats.map((stat, i) => (
                         <div key={i} className="flex items-center gap-4">
                             <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-orange-500">
                                 <stat.icon size={24} />

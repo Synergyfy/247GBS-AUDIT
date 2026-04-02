@@ -10,7 +10,7 @@ export function useAuthActions() {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const signIn = async (data: SignInRequest): Promise<boolean> => {
+    const signIn = async (data: SignInRequest): Promise<{ success: boolean; role?: string }> => {
         setIsLoading(true);
         setError(null);
         try {
@@ -42,21 +42,23 @@ export function useAuthActions() {
             // Store token in localStorage
             localStorage.setItem('247gbs_token', accessToken);
             
-            // Update context (using email as name for now if user object is not fully present)
             const userEmail = user?.email ?? data.email;
-            // Update context with the authenticated user's email
-            contextSignIn(userEmail);
+            contextSignIn({
+                email: userEmail,
+                name: user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : undefined,
+                role: user?.role,
+            });
             
-            return true;
+            return { success: true, role: user?.role };
         } catch (err: any) {
             setError(err.message || 'An error occurred during sign in');
-            return false;
+            return { success: false, role: undefined };
         } finally {
             setIsLoading(false);
         }
     };
 
-    const signUp = async (data: SignUpRequest): Promise<boolean> => {
+    const signUp = async (data: SignUpRequest): Promise<{ success: boolean; role?: string }> => {
         setIsLoading(true);
         setError(null);
         try {
@@ -84,17 +86,24 @@ export function useAuthActions() {
 
             // If signup returned an access token, persist it and update context
             const accessToken = (result as SignUpResponse & { accessToken?: string })?.accessToken;
+            let role: string | undefined = undefined;
             if (accessToken) {
                 localStorage.setItem('247gbs_token', accessToken);
                 // If backend also returned user info, update context
-                const userEmail = (result as SignUpResponse).user?.email ?? data.email;
-                contextSignIn(userEmail);
+                const user = (result as SignUpResponse).user;
+                role = user?.role;
+                const userEmail = user?.email ?? data.email;
+                contextSignIn({
+                    email: userEmail,
+                    name: user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : undefined,
+                    role: user?.role,
+                });
             }
 
-            return true;
+            return { success: true, role };
         } catch (err: any) {
             setError(err.message || 'An error occurred during sign up');
-            return false;
+            return { success: false, role: undefined };
         } finally {
             setIsLoading(false);
         }

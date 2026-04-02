@@ -35,7 +35,7 @@ export default function DashboardPage() {
         totalAudits: 0,
         activeRecovery: 0,
         efficiencyGain: 0,
-        nextAuditDate: "2026-04-20",
+        nextAuditDate: "-",
     };
 
     return (
@@ -180,7 +180,11 @@ export default function DashboardPage() {
                         <div className="relative z-10">
                             <h4 className="text-xs font-black uppercase tracking-[0.3em] text-slate-500 mb-8 italic">AI Advisor Protocol</h4>
                             <p className="text-lg font-bold leading-relaxed mb-10">
-                                "Based on your recent hospitality audit, you are leaking £2,400/wk in prep-time capacity. I recommend the <span className="text-orange-500">Inventory Rotation Engine</span>."
+                                {data?.aiAdvisorSuggestion ? (
+                                    `"${data.aiAdvisorSuggestion}"`
+                                ) : (
+                                    `"Initialize a forensic audit to receive personalized strategic recommendations."`
+                                )}
                             </p>
                             <button className="w-full py-4 bg-orange-500 text-white rounded-[1.5rem] font-black text-sm shadow-xl shadow-orange-500/20 hover:bg-orange-600 transition-all flex items-center justify-center gap-3 group">
                                 Execute AI Suggestion

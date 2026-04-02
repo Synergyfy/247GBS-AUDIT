@@ -7,6 +7,7 @@ export interface UserProfile {
   phone?: string;
   location?: string;
   website?: string;
+  role?: string;
   tokens?: number;
 }
 

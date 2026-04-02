@@ -27,4 +27,10 @@ export interface SavedAudit {
 
 export type AuditListResponse = AuditResponseItem[];
 
+export interface VaultStats {
+  totalDataPoints: number;
+  efficiencyTrend: string;
+  archivalIntegrity: string;
+}
+
 export default AuditResponseItem;

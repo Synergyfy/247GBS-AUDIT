@@ -10,6 +10,7 @@ export interface SignInResponse {
         firstName: string;
         lastName: string;
         businessName: string;
+        role?: string;
     };
 }
 
@@ -28,5 +29,6 @@ export interface SignUpResponse {
         firstName: string;
         lastName: string;
         businessName: string;
+        role?: string;
     };
 }
