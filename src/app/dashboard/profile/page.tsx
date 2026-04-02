@@ -15,49 +15,60 @@ import {
     Camera
 } from "lucide-react";
 
+import type { UserProfile } from "@/services/users/profile/types";
+import useProfile from "@/services/users/profile/hooks";
+
 export default function ProfilePage() {
     const { user } = useAuth();
+    const { data: profile, loading: profileLoading, updateProfile } = useProfile();
     const [isLoading, setIsLoading] = useState(false);
     const [isSaved, setIsSaved] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const [formData, setFormData] = useState({
         firstName: "",
         lastName: "",
         email: "",
-        company: "Global Corp",
-        role: "Administrator",
-        phone: "+44 20 7123 4567",
-        location: "London, UK",
-        website: "www.globalcorp.com"
+        businessName: "",
+        phone: "",
+        location: "",
+        website: ""
     });
 
     useEffect(() => {
-        if (user) {
-            const names = user.name.split(" ");
-            setFormData(prev => ({
-                ...prev,
-                firstName: names[0] || "",
-                lastName: names.slice(1).join(" ") || "",
-                email: user.email,
-            }));
+        if (profile) {
+            setFormData({
+                firstName: profile.firstName || "",
+                lastName: profile.lastName || "",
+                email: profile.email || "",
+                businessName: profile.businessName || "",
+                phone: profile.phone || "",
+                location: profile.location || "",
+                website: profile.website || ""
+            });
         }
-    }, [user]);
+    }, [profile]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
+        setError(null);
 
-        // Mock API call
-        setTimeout(() => {
-            setIsLoading(false);
+        try {
+            const { email, ...updateData } = formData;
+            await updateProfile(updateData);
             setIsSaved(true);
             setTimeout(() => setIsSaved(false), 3000);
-        }, 1500);
+        } catch (err: any) {
+            setError(err.message || "Failed to update profile");
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
@@ -96,7 +107,7 @@ export default function ProfilePage() {
 
                         <div className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-orange-50 text-orange-700 rounded-xl text-xs font-bold uppercase tracking-wider">
                             <ShieldCheck size={14} />
-                            Master Administrator
+                            {profile?.role || "Administrator"}
                         </div>
                     </div>
 
@@ -213,15 +224,15 @@ export default function ProfilePage() {
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-xs font-black uppercase tracking-widest text-slate-400 block ml-1">Company Name</label>
+                                <label className="text-xs font-black uppercase tracking-widest text-slate-400 block ml-1">Business Name</label>
                                 <div className="relative group">
                                     <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-orange-500 transition-colors">
                                         <Building2 size={18} />
                                     </div>
                                     <input
                                         type="text"
-                                        name="company"
-                                        value={formData.company}
+                                        name="businessName"
+                                        value={formData.businessName}
                                         onChange={handleChange}
                                         className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-orange-500 focus:bg-white transition-all font-bold text-slate-900"
                                     />

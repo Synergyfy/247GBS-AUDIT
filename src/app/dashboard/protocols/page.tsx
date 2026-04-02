@@ -21,6 +21,10 @@ import {
 import useBilling from "@/services/protocols/billing/hooks";
 import useDashboard from "@/services/dashboard/hooks";
 import useProfile from "@/services/users/profile/hooks";
+import useSecurity from "@/services/protocols/security/hooks";
+import useNotifications from "@/services/protocols/notifications/hooks";
+import { API_BASE_URL } from "@/lib/api";
+import { refreshAccessToken } from "@/lib/auth";
 
 function BillingSection() {
     const { data, loading, error, refresh } = useBilling();
@@ -100,8 +104,30 @@ function BillingSection() {
 }
 
 function TokenSection() {
-    const { data, loading } = useDashboard();
+    const { data, loading, refresh } = useDashboard();
+    const [purchasing, setPurchasing] = useState(false);
     const tokenBalance = data?.tokenBalance ?? 0;
+
+    const handlePurchase = async () => {
+        setPurchasing(true);
+        try {
+            const token = typeof window !== "undefined" ? localStorage.getItem("247gbs_token") : null;
+            const headers: Record<string, string> = { "Content-Type": "application/json" };
+            if (token) headers["Authorization"] = `Bearer ${token}`;
+
+            const res = await fetch(`${API_BASE_URL}/protocols/tokens/purchase`, {
+                method: "POST",
+                headers,
+            });
+
+            if (!res.ok) throw new Error("Purchase failed");
+            await refresh();
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setPurchasing(false);
+        }
+    };
 
     return (
         <div className="bg-white rounded-[3rem] p-6 md:p-10 lg:p-14 border border-slate-100 shadow-sm relative overflow-hidden">
@@ -122,8 +148,12 @@ function TokenSection() {
                 <p className="text-sm font-black uppercase tracking-widest text-orange-600 mb-10 italic">Credits Available</p>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <button className="w-full py-5 bg-slate-900 text-white rounded-[1.5rem] font-black text-sm hover:bg-black transition-all shadow-xl shadow-slate-200">
-                        Purchase Bundle (10 Credits)
+                    <button 
+                        onClick={handlePurchase}
+                        disabled={purchasing}
+                        className="w-full py-5 bg-slate-900 text-white rounded-[1.5rem] font-black text-sm hover:bg-black transition-all shadow-xl shadow-slate-200 disabled:opacity-50"
+                    >
+                        {purchasing ? "Processing..." : "Purchase Bundle (10 Credits)"}
                     </button>
                     <button className="w-full py-5 border-2 border-slate-100 rounded-[1.5rem] font-black text-sm text-slate-500 hover:border-orange-500 hover:text-orange-500 transition-all">
                         Usage Logs
@@ -131,6 +161,139 @@ function TokenSection() {
                 </div>
             </div>
         </div>
+    );
+}
+
+function SecurityContent() {
+    const { data, loading, error, rotateKey } = useSecurity();
+    const [rotating, setRotating] = React.useState(false);
+    const [rotateMsg, setRotateMsg] = React.useState<string | null>(null);
+
+    const handleRotate = async () => {
+        setRotating(true);
+        setRotateMsg(null);
+        const ok = await rotateKey();
+        setRotateMsg(ok ? "Master key rotated successfully." : "Failed to rotate key.");
+        setRotating(false);
+    };
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="space-y-8"
+        >
+            <div className="bg-white rounded-[3rem] p-6 md:p-10 lg:p-14 border border-slate-100 shadow-sm space-y-10">
+                <div>
+                    <h3 className="text-2xl font-black text-slate-900 mb-2">Security Protocol</h3>
+                    <p className="text-slate-400 font-medium">Manage encryption keys and authentication layers.</p>
+                </div>
+
+                {loading ? (
+                    <div className="text-sm text-slate-500">Loading security status...</div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 space-y-1">
+                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">2FA Status</div>
+                            <div className={`text-sm font-black ${data?.is2FAEnabled ? 'text-green-600' : 'text-red-500'}`}>
+                                {data?.is2FAEnabled ? 'Enabled' : 'Disabled'}
+                            </div>
+                        </div>
+                        <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 space-y-1">
+                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Master Key</div>
+                            <div className={`text-sm font-black ${data?.masterKeyActive ? 'text-green-600' : 'text-orange-500'}`}>
+                                {data?.masterKeyActive ? 'Active' : 'Inactive'}
+                            </div>
+                        </div>
+                        <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 space-y-1">
+                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Password Strength</div>
+                            <div className="text-sm font-black text-slate-900">{data?.passwordStrength ?? '—'}</div>
+                        </div>
+                        <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 space-y-1">
+                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Last Login</div>
+                            <div className="text-sm font-black text-slate-900">{data?.lastLogin ?? '—'}</div>
+                        </div>
+                    </div>
+                )}
+
+                <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                    <button
+                        onClick={handleRotate}
+                        disabled={rotating}
+                        className="px-8 py-4 bg-slate-900 text-white rounded-[1.5rem] font-black text-sm hover:bg-black transition-all shadow-xl shadow-slate-200 disabled:opacity-50 flex items-center gap-3"
+                    >
+                        <Key size={16} />
+                        {rotating ? 'Rotating...' : 'Rotate Master Key'}
+                    </button>
+                </div>
+                {rotateMsg && <p className={`text-xs font-bold ${rotateMsg.includes('success') ? 'text-green-600' : 'text-red-500'}`}>{rotateMsg}</p>}
+                {error && <p className="text-xs font-bold text-red-500">{error}</p>}
+            </div>
+        </motion.div>
+    );
+}
+
+function NotificationsContent() {
+    const { data, loading, error, toggleNotification } = useNotifications();
+    const [toggling, setToggling] = React.useState<string | null>(null);
+
+    const handleToggle = async (title: string, current: boolean) => {
+        setToggling(title);
+        await toggleNotification(title, !current);
+        setToggling(null);
+    };
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="space-y-8"
+        >
+            <div className="bg-white rounded-[3rem] p-6 md:p-10 lg:p-14 border border-slate-100 shadow-sm space-y-8">
+                <div>
+                    <h3 className="text-2xl font-black text-slate-900 mb-2">Notification Matrix</h3>
+                    <p className="text-slate-400 font-medium">Configure your alert protocols and signal routing.</p>
+                </div>
+
+                {loading ? (
+                    <div className="text-sm text-slate-500">Loading notification settings...</div>
+                ) : data.length === 0 ? (
+                    <div className="text-sm text-slate-500">No notification settings found.</div>
+                ) : (
+                    <div className="space-y-4">
+                        {data.map((item) => (
+                            <div key={item.title} className="flex items-center justify-between p-6 bg-slate-50 rounded-[2rem] border border-slate-100 group hover:border-orange-100 transition-colors">
+                                <div>
+                                    <div className="text-sm font-black text-slate-900">{item.title}</div>
+                                    <div className="text-xs text-slate-400 font-medium mt-1">{item.desc}</div>
+                                </div>
+                                <button
+                                    onClick={() => handleToggle(item.title, item.active)}
+                                    disabled={toggling === item.title}
+                                    className={`relative w-14 h-7 rounded-full transition-all duration-300 focus:outline-none disabled:opacity-50 ${
+                                        item.active ? 'bg-orange-500' : 'bg-slate-200'
+                                    }`}
+                                >
+                                    <span className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-all duration-300 ${
+                                        item.active ? 'left-8' : 'left-1'
+                                    }`} />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                <div className="pt-4 border-t border-slate-50">
+                    <div className="flex items-center gap-4 p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
+                        <ShieldAlert className="text-slate-300" size={24} />
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">
+                            System-critical security alerts cannot be disabled and will be routed to your verified email protocol.
+                        </p>
+                    </div>
+                </div>
+                {error && <p className="text-xs font-bold text-red-500">{error}</p>}
+            </div>
+        </motion.div>
     );
 }
 
@@ -231,48 +394,7 @@ export default function ProtocolsPage() {
                     )}
 
                     {activeTab === "Security" && (
-                        <motion.div
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            className="space-y-8"
-                        >
-                            <div className="bg-slate-900 rounded-[3rem] p-6 md:p-10 lg:p-14 text-white relative overflow-hidden group">
-                                <div className="absolute top-0 right-0 p-12 opacity-5 text-orange-500 group-hover:scale-125 transition-transform duration-1000">
-                                    <Lock size={200} />
-                                </div>
-                                <div className="relative z-10">
-                                    <h3 className="text-3xl font-black mb-4">Vault Encryption Key</h3>
-                                    <p className="text-slate-400 font-medium leading-relaxed max-w-lg mb-10">
-                                        Your audit data is protected by the 247GBS End-to-End Encryption protocol. Your Master Key is currently active.
-                                    </p>
-                                    <button className="flex items-center gap-3 px-8 py-4 bg-white/10 border border-white/20 rounded-2xl font-black text-sm hover:bg-white/20 transition-all">
-                                        <Key size={18} className="text-orange-500" />
-                                        Rotate Master Key
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="bg-white rounded-[2.5rem] border border-slate-100 p-6 md:p-10 space-y-8">
-                                <div className="flex justify-between items-center pb-8 border-b border-slate-50">
-                                    <div>
-                                        <div className="font-black text-slate-900">Two-Factor Authentication</div>
-                                        <div className="text-xs text-slate-400 font-medium mt-1">Add an extra layer of security to your forensic vault.</div>
-                                    </div>
-                                    <div className="w-14 h-8 bg-green-500 rounded-full p-1 flex items-center justify-end">
-                                        <div className="w-6 h-6 bg-white rounded-full shadow-sm" />
-                                    </div>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <div>
-                                        <div className="font-black text-slate-900">AI Login Protocol</div>
-                                        <div className="text-xs text-slate-400 font-medium mt-1">Enable biometric and behavioral pattern verification.</div>
-                                    </div>
-                                    <div className="w-14 h-8 bg-slate-100 rounded-full p-1 flex items-center">
-                                        <div className="w-6 h-6 bg-white rounded-full shadow-sm border border-slate-200" />
-                                    </div>
-                                </div>
-                            </div>
-                        </motion.div>
+                        <SecurityContent />
                     )}
 
                     {activeTab === "Billing" && (
@@ -286,50 +408,7 @@ export default function ProtocolsPage() {
                     )}
 
                     {activeTab === "Notifications" && (
-                        <motion.div
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            className="bg-white rounded-[3rem] p-6 md:p-10 lg:p-14 border border-slate-100 shadow-sm space-y-12"
-                        >
-                            <div className="flex justify-between items-center border-b border-slate-50 pb-8">
-                                <div>
-                                    <h3 className="text-2xl font-black text-slate-900">Push Protocols</h3>
-                                    <p className="text-slate-400 font-medium">Configure how the system communicates tactical updates.</p>
-                                </div>
-                                <div className="p-4 bg-orange-50 rounded-2xl text-orange-500">
-                                    <Bell size={24} />
-                                </div>
-                            </div>
-
-                            <div className="space-y-10">
-                                {[
-                                    { title: "Forensic Alerts", desc: "Immediate notification of detected capacity leaks.", active: true },
-                                    { title: "Strategic Insights", desc: "Weekly AI-generated market trend analysis.", active: true },
-                                    { title: "Specialist Messages", desc: "Communications from verified network consultants.", active: false },
-                                    { title: "Vault Security", desc: "Alerts for master key rotation and access logs.", active: true },
-                                    { title: "Billing Reports", desc: "Invoices and credit balance notifications.", active: false },
-                                ].map((notif, i) => (
-                                    <div key={i} className="flex justify-between items-start">
-                                        <div className="flex-1 pr-10">
-                                            <div className="text-sm font-black text-slate-900 mb-1">{notif.title}</div>
-                                            <div className="text-xs text-slate-400 font-medium leading-relaxed">{notif.desc}</div>
-                                        </div>
-                                        <button className={`w-14 h-8 rounded-full p-1 flex items-center transition-all ${notif.active ? 'bg-orange-500 justify-end' : 'bg-slate-100 justify-start'}`}>
-                                            <div className="w-6 h-6 bg-white rounded-full shadow-sm" />
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-
-                            <div className="pt-8 border-t border-slate-50">
-                                <div className="flex items-center gap-4 p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
-                                    <ShieldAlert className="text-slate-300" size={24} />
-                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">
-                                        System-critical security alerts cannot be disabled and will be routed to your verified email protocol.
-                                    </p>
-                                </div>
-                            </div>
-                        </motion.div>
+                        <NotificationsContent />
                     )}
 
                     {activeTab === "Tokens" && (

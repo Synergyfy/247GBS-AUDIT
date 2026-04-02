@@ -68,7 +68,41 @@ export function useProfile() {
     };
   }, [fetchProfile]);
 
-  return { data, loading, error, refresh: fetchProfile } as const;
+  const updateProfile = useCallback(async (updateData: Partial<UserProfile>) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("247gbs_token") : null;
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await fetch(`${API_BASE_URL}/users/profile`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify(updateData),
+        credentials: 'include'
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.message || `Update failed ${res.status}`);
+      }
+
+      const json = (await res.json()) as UserProfile;
+      setData(json);
+      return json;
+    } catch (err: any) {
+      setError(err?.message ?? "Failed to update profile");
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return { data, loading, error, refresh: fetchProfile, updateProfile } as const;
 }
 
 export default useProfile;

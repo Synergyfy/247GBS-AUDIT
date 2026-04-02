@@ -8,17 +8,45 @@ import {
     Shield,
     CheckCircle2,
     XCircle,
-    User,
     Mail,
-    Calendar,
-    ArrowDownUp
+    ArrowDownUp,
+    Plus,
+    X,
+    Loader2,
+    UserPlus
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import useAdminUsers from "@/services/admin/users/hooks";
+import { API_BASE_URL } from "@/lib/api";
+
+interface CreateUserForm {
+    email: string;
+    firstName: string;
+    lastName: string;
+    businessName: string;
+    password: string;
+    role: string;
+}
+
+const defaultForm: CreateUserForm = {
+    email: "",
+    firstName: "",
+    lastName: "",
+    businessName: "",
+    password: "",
+    role: "User",
+};
 
 export default function UsersPage() {
     const [searchTerm, setSearchTerm] = useState("");
-    const { data: usersData, loading, error } = useAdminUsers();
+    const { data: usersData, loading, error, refresh } = useAdminUsers();
+
+    // Modal state
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [form, setForm] = useState<CreateUserForm>(defaultForm);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [formError, setFormError] = useState<string | null>(null);
+    const [formSuccess, setFormSuccess] = useState(false);
 
     const users = (usersData ?? []).map(u => ({
         id: u.id,
@@ -35,6 +63,61 @@ export default function UsersPage() {
         user.email.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    const openModal = () => {
+        setForm(defaultForm);
+        setFormError(null);
+        setFormSuccess(false);
+        setIsModalOpen(true);
+    };
+
+    const closeModal = () => {
+        if (isSubmitting) return;
+        setIsModalOpen(false);
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSubmitting(true);
+        setFormError(null);
+
+        try {
+            const token = typeof window !== "undefined" ? localStorage.getItem("247gbs_token") : null;
+            const payload: Record<string, string> = {
+                email: form.email,
+                firstName: form.firstName,
+                lastName: form.lastName,
+                role: form.role,
+            };
+            if (form.businessName.trim()) payload.businessName = form.businessName;
+            if (form.password.trim()) payload.password = form.password;
+
+            const res = await fetch(`${API_BASE_URL}/admin/users`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify(payload),
+            });
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.message || `Failed to create user (${res.status})`);
+            }
+
+            setFormSuccess(true);
+            refresh();
+            setTimeout(() => {
+                setIsModalOpen(false);
+                setFormSuccess(false);
+            }, 1500);
+        } catch (err: any) {
+            setFormError(err.message ?? "Something went wrong. Please try again.");
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
     return (
         <div className="space-y-8">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -42,7 +125,11 @@ export default function UsersPage() {
                     <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-2">User Management</h1>
                     <p className="text-slate-500 font-medium">Manage access and account status for all registered entities.</p>
                 </div>
-                <button className="px-6 py-3 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-orange-500 transition-colors shadow-lg">
+                <button
+                    onClick={openModal}
+                    className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-orange-500 transition-colors shadow-lg"
+                >
+                    <Plus size={16} />
                     Add System User
                 </button>
             </div>
@@ -84,6 +171,20 @@ export default function UsersPage() {
                             </tr>
                         </thead>
                         <tbody>
+                            {loading && (
+                                <tr>
+                                    <td colSpan={4} className="px-8 py-16 text-center">
+                                        <Loader2 className="animate-spin text-orange-500 mx-auto" size={28} />
+                                    </td>
+                                </tr>
+                            )}
+                            {!loading && filteredUsers.length === 0 && (
+                                <tr>
+                                    <td colSpan={4} className="px-8 py-16 text-center text-slate-400 font-medium text-sm">
+                                        No users found.
+                                    </td>
+                                </tr>
+                            )}
                             {filteredUsers.map((user, i) => (
                                 <motion.tr
                                     key={user.id}
@@ -135,13 +236,170 @@ export default function UsersPage() {
 
                 {/* Pagination (Mocked) */}
                 <div className="px-8 py-6 border-t border-slate-100 flex justify-between items-center bg-slate-50/30">
-                    <p className="text-xs font-bold text-slate-400">Showing 1-5 of 124 users</p>
+                    <p className="text-xs font-bold text-slate-400">Showing {filteredUsers.length} user{filteredUsers.length !== 1 ? 's' : ''}</p>
                     <div className="flex gap-2">
                         <button className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 disabled:opacity-50" disabled>Previous</button>
                         <button className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors">Next</button>
                     </div>
                 </div>
             </div>
+
+            {/* Create User Modal */}
+            <AnimatePresence>
+                {isModalOpen && (
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                        {/* Backdrop */}
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={closeModal}
+                            className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+                        />
+                        {/* Modal */}
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            className="relative bg-white rounded-[2.5rem] p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl"
+                        >
+                            {/* Header */}
+                            <div className="flex items-center justify-between mb-8">
+                                <div>
+                                    <div className="w-10 h-10 bg-orange-100 rounded-2xl flex items-center justify-center mb-3">
+                                        <UserPlus size={20} className="text-orange-500" />
+                                    </div>
+                                    <h2 className="text-2xl font-black text-slate-900">Add System User</h2>
+                                    <p className="text-sm font-medium text-slate-500 mt-1">Create a new user account in the system.</p>
+                                </div>
+                                <button
+                                    onClick={closeModal}
+                                    disabled={isSubmitting}
+                                    className="p-2 bg-slate-50 rounded-xl text-slate-400 hover:text-slate-900 transition-colors disabled:opacity-50"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            {/* Success State */}
+                            {formSuccess ? (
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.9 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    className="flex flex-col items-center justify-center py-8 text-center"
+                                >
+                                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                                        <CheckCircle2 size={32} className="text-green-500" />
+                                    </div>
+                                    <h3 className="text-xl font-black text-slate-900 mb-1">User Created!</h3>
+                                    <p className="text-sm text-slate-500">The new user has been added to the system.</p>
+                                </motion.div>
+                            ) : (
+                                <form onSubmit={handleSubmit} className="space-y-5">
+                                    {formError && (
+                                        <div className="p-4 bg-red-50 border border-red-100 text-red-600 rounded-xl text-sm font-bold">
+                                            {formError}
+                                        </div>
+                                    )}
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">First Name *</label>
+                                            <input
+                                                type="text"
+                                                required
+                                                value={form.firstName}
+                                                onChange={e => setForm({ ...form, firstName: e.target.value })}
+                                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-orange-500 focus:bg-white transition-all"
+                                                placeholder="John"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Last Name *</label>
+                                            <input
+                                                type="text"
+                                                required
+                                                value={form.lastName}
+                                                onChange={e => setForm({ ...form, lastName: e.target.value })}
+                                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-orange-500 focus:bg-white transition-all"
+                                                placeholder="Doe"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Email Address *</label>
+                                        <input
+                                            type="email"
+                                            required
+                                            value={form.email}
+                                            onChange={e => setForm({ ...form, email: e.target.value })}
+                                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-orange-500 focus:bg-white transition-all"
+                                            placeholder="john.doe@example.com"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Business Name</label>
+                                        <input
+                                            type="text"
+                                            value={form.businessName}
+                                            onChange={e => setForm({ ...form, businessName: e.target.value })}
+                                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-orange-500 focus:bg-white transition-all"
+                                            placeholder="Optional"
+                                        />
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Role</label>
+                                            <select
+                                                value={form.role}
+                                                onChange={e => setForm({ ...form, role: e.target.value })}
+                                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-orange-500 focus:bg-white transition-all"
+                                            >
+                                                <option value="User">User</option>
+                                                <option value="Admin">Admin</option>
+                                                <option value="Agent">Agent</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Password</label>
+                                            <input
+                                                type="password"
+                                                value={form.password}
+                                                onChange={e => setForm({ ...form, password: e.target.value })}
+                                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-orange-500 focus:bg-white transition-all"
+                                                placeholder="Auto-generated if blank"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-2">
+                                        <button
+                                            type="submit"
+                                            disabled={isSubmitting}
+                                            className="w-full py-4 bg-slate-900 text-white rounded-xl font-black shadow-lg hover:bg-orange-500 transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                                        >
+                                            {isSubmitting ? (
+                                                <>
+                                                    <Loader2 className="animate-spin" size={18} />
+                                                    Creating User...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <UserPlus size={18} />
+                                                    Create User
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                </form>
+                            )}
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

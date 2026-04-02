@@ -34,9 +34,13 @@ export default function SignInPage() {
             return;
         }
 
-        const success = await signIn({ email, password });
+        const { success, role } = await signIn({ email, password });
         if (success) {
-            router.push("/dashboard");
+            if (role === 'Administrator') {
+                router.push("/admin");
+            } else {
+                router.push("/dashboard");
+            }
         }
     };
 

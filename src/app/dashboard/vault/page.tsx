@@ -16,17 +16,37 @@ import {
     Calendar,
     Zap
 } from "lucide-react";
-import type { SavedAudit } from "@/services/audit/types";
-import useAudits from "@/services/audit/hooks";
-
+import { useAudits, useVaultStats } from "@/services/audit/hooks";
 export default function AuditVaultPage() {
     const { audits, loading, error, refresh } = useAudits();
+    const { stats: vaultStats, loading: statsLoading } = useVaultStats();
     const [searchTerm, setSearchTerm] = useState("");
 
     const filteredAudits = audits.filter(a =>
         a.sector.toLowerCase().includes(searchTerm.toLowerCase()) ||
         a.type.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    const summaryStats = [
+        { 
+            label: "Total Data Points", 
+            value: statsLoading ? "..." : (vaultStats?.totalDataPoints.toLocaleString() || "0"), 
+            icon: FileText, 
+            sub: "Verified metrics" 
+        },
+        { 
+            label: "Efficiency Trends", 
+            value: statsLoading ? "..." : (vaultStats?.efficiencyTrend || "0%"), 
+            icon: Zap, 
+            sub: "Vs last audit" 
+        },
+        { 
+            label: "Archival Integrity", 
+            value: statsLoading ? "..." : (vaultStats?.archivalIntegrity || "100%"), 
+            icon: ShieldCheck, 
+            sub: "End-to-end encrypted" 
+        },
+    ];
 
     return (
         <div className="space-y-10">
@@ -151,11 +171,7 @@ export default function AuditVaultPage() {
 
             {/* Vault Stats Summary */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {[
-                    { label: "Total Data Points", value: "2,480", icon: FileText, sub: "Verified metrics" },
-                    { label: "Efficiency Trends", value: "+14.2%", icon: Zap, sub: "Vs last quarter" },
-                    { label: "Archival Integrity", value: "100%", icon: ShieldCheck, sub: "End-to-end encrypted" },
-                ].map((stat, i) => (
+                {summaryStats.map((stat, i) => (
                     <div key={i} className="bg-slate-900 p-6 md:p-8 rounded-[2.5rem] text-white relative overflow-hidden group">
                         <div className="absolute top-0 right-0 p-6 opacity-5 text-orange-500 group-hover:scale-110 transition-transform duration-700">
                             <stat.icon size={80} />

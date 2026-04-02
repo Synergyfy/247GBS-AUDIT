@@ -116,7 +116,7 @@ export default function DashboardLayout({
                         </div>
                         <div className="relative z-10 text-center">
                             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-2">Membership Status</p>
-                            <div className="text-sm font-black text-white mb-4 italic">Tier 2: Growth Specialist</div>
+                            <div className="text-sm font-black text-white mb-4 italic">{user?.role || "Explorer"}</div>
                             <button className="w-full py-2.5 bg-white text-slate-900 rounded-xl font-black text-xs hover:bg-orange-500 hover:text-white transition-all">
                                 Upgrade Access
                             </button>
@@ -227,7 +227,7 @@ export default function DashboardLayout({
                         <div className="relative flex items-center gap-3 md:pl-6 md:border-l border-slate-100" ref={avatarDropdownRef}>
                             <div className="text-right hidden md:block">
                                 <div className="text-sm font-black text-slate-900">{user?.name || "Guest"}</div>
-                                <div className="text-[10px] text-orange-600 font-bold uppercase tracking-widest">Master Key</div>
+                                <div className="text-[10px] text-orange-600 font-bold uppercase tracking-widest">{user?.role || "User"}</div>
                             </div>
 
                             {/* Avatar Button */}

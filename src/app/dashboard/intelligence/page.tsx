@@ -23,17 +23,17 @@ import type { IntelligenceResponse } from "@/services/dashboard/intelligence/typ
 export default function ForensicIntelligencePage() {
     const { data, loading, error } = useIntelligence();
 
-    const strategicInsight = data?.strategicInsight ?? "";
-    const keyMetrics = data?.keyMetrics ?? [];
-    const trajectory = data?.trajectory?.dataPoints ?? [40, 60, 45, 70, 85, 65, 90, 100, 80, 95, 110, 120];
-    const efficiencyBreakdown = data?.efficiencyBreakdown ?? [
-        { label: "Idle Staff Capacity", value: 65, color: "bg-orange-500" },
-        { label: "Slow Inventory Turnover", value: 42, color: "bg-slate-900" },
-        { label: "Underutilized Square Footage", value: 28, color: "bg-slate-200" },
-        { label: "Equipment Downtime", value: 15, color: "bg-slate-100" },
+    const strategicInsight = data?.strategicInsight || "Initialize a forensic audit to unlock systemic AI insights.";
+    const keyMetrics = data?.keyMetrics || [
+        { label: "Audit Accuracy", value: "...", color: "slate" },
+        { label: "Data Points", value: "0", color: "slate" },
+        { label: "Risk Level", value: "Calculating", color: "slate" },
+        { label: "Rank", value: "-", color: "slate" },
     ];
-    const maxRecoveryTarget = data?.maxRecoveryTarget ?? 0;
-    const marketRank = data?.marketRank ?? 0;
+    const trajectory = data?.trajectory?.dataPoints || new Array(12).fill(0);
+    const efficiencyBreakdown = data?.efficiencyBreakdown || [];
+    const maxRecoveryTarget = data?.maxRecoveryTarget || 0;
+    const marketRank = data?.marketRank || "-";
 
     return (
         <div className="space-y-10">
@@ -117,8 +117,8 @@ export default function ForensicIntelligencePage() {
                                     transition={{ delay: i * 0.05 + 0.5, duration: 1 }}
                                     className={`w-full rounded-t-xl transition-all duration-300 ${i === 11 ? 'bg-orange-500' : 'bg-slate-100 group-hover:bg-slate-200'}`}
                                 />
-                                <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-[10px] font-black text-slate-300 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">
-                                    M{i + 1}
+                                <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-[10px] font-black text-slate-300 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                    Month {i + 1}
                                 </div>
                             </div>
                         ))}
@@ -143,22 +143,31 @@ export default function ForensicIntelligencePage() {
                             Efficiency Leak by Category
                         </h3>
                         <div className="space-y-8">
-                            {efficiencyBreakdown.map((cat, i) => (
-                                <div key={i} className="space-y-3">
-                                    <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-                                        <span className="text-slate-500">{cat.label}</span>
-                                        <span className="text-slate-900">{cat.value}%</span>
+                            {efficiencyBreakdown.length > 0 ? (
+                                efficiencyBreakdown.map((cat, i) => (
+                                    <div key={i} className="space-y-3">
+                                        <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
+                                            <span className="text-slate-500">{cat.label}</span>
+                                            <span className="text-slate-900">{cat.value}%</span>
+                                        </div>
+                                        <div className="w-full h-3 bg-slate-50 rounded-full overflow-hidden">
+                                            <motion.div
+                                                initial={{ width: 0 }}
+                                                animate={{ width: `${cat.value}%` }}
+                                                transition={{ delay: i * 0.1 + 1, duration: 1.5, ease: "easeOut" }}
+                                                className={`${cat.color} h-full rounded-full shadow-sm`}
+                                            />
+                                        </div>
                                     </div>
-                                    <div className="w-full h-3 bg-slate-50 rounded-full overflow-hidden">
-                                        <motion.div
-                                            initial={{ width: 0 }}
-                                            animate={{ width: `${cat.value}%` }}
-                                            transition={{ delay: i * 0.1 + 1, duration: 1.5, ease: "easeOut" }}
-                                            className={`${cat.color} h-full rounded-full shadow-sm`}
-                                        />
+                                ))
+                            ) : (
+                                <div className="py-20 text-center space-y-4">
+                                    <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-200 mx-auto">
+                                        <Layers size={24} />
                                     </div>
+                                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest italic">Insufficient Data Points</p>
                                 </div>
-                            ))}
+                            )}
                         </div>
                     </div>
                 </div>

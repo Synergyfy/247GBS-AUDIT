@@ -15,7 +15,8 @@ import {
     Menu,
     LogOut,
     ChevronDown,
-    X
+    X,
+    Star
 } from "lucide-react";
 
 export default function AdminLayout({
@@ -29,6 +30,7 @@ export default function AdminLayout({
     const menuItems = [
         { icon: LayoutDashboard, label: "Overview", href: "/admin" },
         { icon: Users, label: "User Management", href: "/admin/users" },
+        // { icon: Star, label: "Specialist Network", href: "/admin/specialists" },
         { icon: FileText, label: "Audit Oversight", href: "/admin/audits" },
         { icon: Settings, label: "System Settings", href: "/admin/settings" },
     ];

@@ -7,12 +7,13 @@ interface User {
     email: string;
     name: string;
     avatar: string;
+    role?: string;
 }
 
 interface AuthContextType {
     user: User | null;
     isAuthenticated: boolean;
-    signIn: (email: string) => void;
+    signIn: (userData: Partial<User> & { email: string }) => void;
     signOut: () => void;
 }
 
@@ -66,11 +67,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         };
     }, []);
 
-    const signIn = (email: string) => {
+    const signIn = (userData: Partial<User> & { email: string }) => {
         const newUser: User = {
-            email,
-            name: email.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
-            avatar: `https://api.dicebear.com/7.x/shapes/svg?seed=${email}`
+            email: userData.email,
+            name: userData.name || userData.email.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
+            avatar: userData.avatar || `https://api.dicebear.com/7.x/shapes/svg?seed=${userData.email}`,
+            role: userData.role || 'User',
         };
         setUser(newUser);
         localStorage.setItem("247gbs_user", JSON.stringify(newUser));
