@@ -404,7 +404,7 @@ function AuditFlowContent() {
                                     />
 
                                     {/* If no questions and not loading, auto-skip to next step */}
-                                    {!followUpLoading && followUpQuestions.length === 0 && (
+                                    {!followUpLoading && followUpQuestions?.length === 0 && (
                                         <div className="text-center py-12">
                                             <p className="text-slate-500 mb-6">No additional clarifications needed.</p>
                                             <button
