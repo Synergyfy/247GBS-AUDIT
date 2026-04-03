@@ -57,7 +57,7 @@ function AuditFlowContent() {
     const [aiFallback, setAiFallback] = useState(false);
 
     // Follow-Up State (Long Form only)
-    const [followUpQuestions, setFollowUpQuestions] = useState<AIFollowUpQuestion[]>([]);
+    const [followUpQuestions, setFollowUpQuestions] = useState<AIFollowUpQuestion[] | null>(null);
     const [followUpLoading, setFollowUpLoading] = useState(false);
     const [followUpAnswers, setFollowUpAnswers] = useState<Record<string, string>>({});
 
@@ -236,10 +236,10 @@ function AuditFlowContent() {
 
     // Auto-trigger follow-up questions when entering FOLLOW_UP step
     useEffect(() => {
-        if (currentCategory === "FOLLOW_UP" && auditType === "LONG_FORM" && followUpQuestions.length === 0 && !followUpLoading) {
+        if (currentCategory === "FOLLOW_UP" && auditType === "LONG_FORM" && followUpQuestions === null && !followUpLoading) {
             fetchFollowUpQuestions();
         }
-    }, [currentCategory, auditType, followUpQuestions.length, followUpLoading, fetchFollowUpQuestions]);
+    }, [currentCategory, auditType, followUpQuestions, followUpLoading, fetchFollowUpQuestions]);
 
     // Auto-trigger AI when entering Strategy Preview (Long Form only)
     useEffect(() => {
@@ -259,11 +259,19 @@ function AuditFlowContent() {
     };
 
     // Handle follow-up skip
-    const handleFollowUpSkip = () => {
+    const handleFollowUpSkip = useCallback(() => {
         // Proceed to next step without answers
         setCurrentStepIndex(currentStepIndex + 1);
         window.scrollTo(0, 0);
-    };
+    }, [currentStepIndex]);
+
+
+    // Auto-skip follow-up if no questions are found after fetch
+    useEffect(() => {
+        if (currentCategory === "FOLLOW_UP" && !followUpLoading && followUpQuestions && followUpQuestions.length === 0) {
+            handleFollowUpSkip();
+        }
+    }, [currentCategory, followUpLoading, followUpQuestions, handleFollowUpSkip]);
 
 
     const handleAdjust = (id: string, delta: number) => {
@@ -389,7 +397,7 @@ function AuditFlowContent() {
                                         <span className="font-black uppercase tracking-widest text-[11px]">Critical Action: Precision Recovery Input Required</span>
                                     </div>
                                     <AIFollowUpCard
-                                        questions={followUpQuestions}
+                                        questions={followUpQuestions || []}
                                         isLoading={followUpLoading}
                                         onSubmit={handleFollowUpSubmit}
                                         onSkip={handleFollowUpSkip}
