@@ -59,7 +59,7 @@ export default function AIFollowUpCard({
                         <Loader2 className="text-slate-400 animate-spin" size={24} />
                     </div>
                     <div>
-                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">
                             Intelligence Engine
                         </div>
                         <div className="font-bold text-slate-600">
@@ -89,10 +89,10 @@ export default function AIFollowUpCard({
                         <Sparkles size={24} />
                     </div>
                     <div>
-                        <div className="text-[10px] font-black uppercase tracking-widest text-orange-600">
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-orange-600">
                             Optional Clarifications
                         </div>
-                        <div className="font-black text-slate-900 text-lg">
+                        <div className="font-bold text-slate-900 text-lg">
                             Improve Accuracy
                         </div>
                     </div>
@@ -118,14 +118,14 @@ export default function AIFollowUpCard({
                         className="p-6 bg-slate-50 rounded-2xl border border-slate-100"
                     >
                         <div className="flex items-start gap-4 mb-4">
-                            <div className="w-8 h-8 bg-orange-100 rounded-xl flex items-center justify-center text-orange-600 font-black text-sm shrink-0">
+                            <div className="w-8 h-8 bg-orange-100 rounded-xl flex items-center justify-center text-orange-600 font-bold text-sm shrink-0">
                                 {idx + 1}
                             </div>
                             <div>
                                 <p className="font-bold text-slate-900 leading-relaxed">
                                     {q.question}
                                 </p>
-                                <p className="text-[11px] text-slate-400 mt-2 italic">
+                                <p className="text-[11px] text-slate-400 mt-2 ">
                                     Why: {q.reason}
                                 </p>
                             </div>
@@ -145,7 +145,7 @@ export default function AIFollowUpCard({
             <div className="flex gap-4">
                 <button
                     onClick={handleSubmit}
-                    className="flex-1 py-4 bg-slate-900 text-white rounded-2xl font-black text-sm hover:bg-black transition-colors flex items-center justify-center gap-3"
+                    className="flex-1 py-4 bg-slate-900 text-white rounded-2xl font-bold text-sm hover:bg-black transition-colors flex items-center justify-center gap-3"
                 >
                     Continue with Answers
                     <ChevronRight size={18} />

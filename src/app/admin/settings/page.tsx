@@ -68,7 +68,7 @@ export default function SettingsPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-2">System Settings</h1>
+                    <h1 className="text-3xl font-bold text-slate-900 tracking-tight mb-2">System Settings</h1>
                     <p className="text-slate-500 font-medium">Configure platform behaviour, security, and notifications.</p>
                 </div>
                 <button
@@ -92,12 +92,12 @@ export default function SettingsPage() {
                     <div className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center">
                         <Globe size={18} className="text-slate-600" />
                     </div>
-                    <h2 className="text-lg font-black text-slate-900">General</h2>
+                    <h2 className="text-lg font-bold text-slate-900">General</h2>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div>
-                        <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Platform Name</label>
+                        <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Platform Name</label>
                         <input
                             type="text"
                             value={platformName}
@@ -106,7 +106,7 @@ export default function SettingsPage() {
                         />
                     </div>
                     <div>
-                        <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Support Email</label>
+                        <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Support Email</label>
                         <input
                             type="email"
                             value={supportEmail}
@@ -115,7 +115,7 @@ export default function SettingsPage() {
                         />
                     </div>
                     <div>
-                        <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Timezone</label>
+                        <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Timezone</label>
                         <select
                             value={timezone}
                             onChange={e => setTimezone(e.target.value)}
@@ -137,7 +137,7 @@ export default function SettingsPage() {
                     <div className="w-9 h-9 bg-orange-50 rounded-xl flex items-center justify-center">
                         <Bell size={18} className="text-orange-500" />
                     </div>
-                    <h2 className="text-lg font-black text-slate-900">Notifications</h2>
+                    <h2 className="text-lg font-bold text-slate-900">Notifications</h2>
                 </div>
 
                 {[
@@ -162,7 +162,7 @@ export default function SettingsPage() {
                     <div className="w-9 h-9 bg-blue-50 rounded-xl flex items-center justify-center">
                         <Shield size={18} className="text-blue-500" />
                     </div>
-                    <h2 className="text-lg font-black text-slate-900">Security</h2>
+                    <h2 className="text-lg font-bold text-slate-900">Security</h2>
                 </div>
 
                 <div className="flex items-center justify-between py-3 border-b border-slate-50">
@@ -175,7 +175,7 @@ export default function SettingsPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
                     <div>
-                        <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Session Timeout (minutes)</label>
+                        <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Session Timeout (minutes)</label>
                         <input
                             type="number"
                             min={5}
@@ -186,7 +186,7 @@ export default function SettingsPage() {
                         />
                     </div>
                     <div>
-                        <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">IP Whitelist</label>
+                        <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">IP Whitelist</label>
                         <input
                             type="text"
                             value={ipWhitelist}
@@ -204,7 +204,7 @@ export default function SettingsPage() {
                     <div className="w-9 h-9 bg-purple-50 rounded-xl flex items-center justify-center">
                         <Key size={18} className="text-purple-500" />
                     </div>
-                    <h2 className="text-lg font-black text-slate-900">API Keys</h2>
+                    <h2 className="text-lg font-bold text-slate-900">API Keys</h2>
                 </div>
                 <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
                     <div>

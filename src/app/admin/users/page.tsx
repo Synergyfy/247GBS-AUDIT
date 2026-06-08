@@ -119,55 +119,100 @@ export default function UsersPage() {
     };
 
     return (
-        <div className="space-y-8">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-6 md:space-y-8 pb-20 md:pb-0">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-2">User Management</h1>
-                    <p className="text-slate-500 font-medium">Manage access and account status for all registered entities.</p>
+                    <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight mb-1">User Management</h1>
+                    <p className="text-xs md:text-sm text-slate-500 font-medium tracking-tight">Manage access and status for the 247GBS ecosystem.</p>
                 </div>
                 <button
                     onClick={openModal}
-                    className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-orange-500 transition-colors shadow-lg"
+                    className="flex items-center justify-center gap-2 px-6 py-4 md:py-3 bg-slate-900 text-white rounded-2xl md:rounded-xl font-bold text-sm hover:bg-orange-500 active:scale-95 transition-all shadow-lg shadow-slate-200"
                 >
-                    <Plus size={16} />
+                    <Plus size={18} />
                     Add System User
                 </button>
             </div>
 
-            <div className="bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-sm">
-                {/* Visual Bar */}
-                <div className="px-8 py-6 border-b border-slate-100 flex flex-col md:flex-row gap-4 justify-between items-center bg-slate-50/50">
+            <div className="bg-white md:border md:border-slate-100 md:rounded-3xl overflow-hidden md:shadow-sm">
+                {/* Search & Filter Bar */}
+                <div className="px-4 md:px-8 py-5 md:py-6 border-b border-slate-100 flex flex-col md:flex-row gap-4 justify-between items-center bg-slate-50/50">
                     <div className="relative w-full md:w-96">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                         <input
                             type="text"
-                            placeholder="Search by name, email, or role..."
-                            className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-100 transition-all"
+                            placeholder="Search identities..."
+                            className="w-full pl-12 pr-4 py-3.5 md:py-3 bg-white border border-slate-200 rounded-2xl md:rounded-xl text-sm font-bold outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-100 transition-all"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
-                    <div className="flex items-center gap-3 w-full md:w-auto">
-                        <button className="flex items-center gap-2 px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:border-slate-300 hover:bg-slate-50 transition-all">
+                    <div className="flex items-center gap-2 w-full md:w-auto">
+                        <button className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 active:scale-95 transition-all">
                             <Filter size={18} />
                             Filters
                         </button>
-                        <button className="flex items-center gap-2 px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:border-slate-300 hover:bg-slate-50 transition-all">
+                        <button className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 active:scale-95 transition-all">
                             <ArrowDownUp size={18} />
                             Sort
                         </button>
                     </div>
                 </div>
 
-                {/* Table */}
-                <div className="overflow-x-auto">
+                {/* Mobile Card View (Hidden on Tablet/Desktop) */}
+                <div className="md:hidden divide-y divide-slate-50">
+                    {loading ? (
+                        <div className="py-12 flex justify-center">
+                            <Loader2 className="animate-spin text-orange-500" size={32} />
+                        </div>
+                    ) : filteredUsers.length === 0 ? (
+                        <div className="py-12 text-center text-slate-400 font-medium text-sm">No users found.</div>
+                    ) : (
+                        filteredUsers.map((user, i) => (
+                            <motion.div
+                                key={user.id}
+                                initial={{ opacity: 0, x: -10 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: i * 0.03 }}
+                                className="p-4 flex items-center justify-between active:bg-slate-50 transition-colors"
+                            >
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <div className="w-12 h-12 rounded-2xl bg-slate-100 border-2 border-white shadow-sm overflow-hidden shrink-0">
+                                        <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <div className="font-bold text-slate-900 text-sm truncate">{user.name}</div>
+                                        <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate mb-1">{user.email}</div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="px-2 py-0.5 rounded-md bg-slate-100 text-[10px] font-bold text-slate-600 border border-slate-200">
+                                                {user.role.toUpperCase()}
+                                            </span>
+                                            <span className={`flex items-center gap-1 text-[10px] font-bold uppercase ${
+                                                user.status === 'Active' ? 'text-green-600' : 'text-orange-600'
+                                            }`}>
+                                                <div className={`w-1.5 h-1.5 rounded-full ${user.status === 'Active' ? 'bg-green-500' : 'bg-orange-500'}`} />
+                                                {user.status}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button className="p-3 text-slate-400 active:text-slate-900 active:bg-slate-100 rounded-xl transition-all">
+                                    <MoreHorizontal size={20} />
+                                </button>
+                            </motion.div>
+                        ))
+                    )}
+                </div>
+
+                {/* Desktop Table View (Hidden on Mobile) */}
+                <div className="hidden md:block overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-slate-50 border-b border-slate-100">
-                                <th className="px-8 py-5 text-xs font-black text-slate-400 uppercase tracking-widest">User Identity</th>
-                                <th className="px-8 py-5 text-xs font-black text-slate-400 uppercase tracking-widest">Role Protocol</th>
-                                <th className="px-8 py-5 text-xs font-black text-slate-400 uppercase tracking-widest">System Status</th>
-                                <th className="px-8 py-5 text-xs font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
+                                <th className="px-8 py-5 text-xs font-bold text-slate-400 uppercase tracking-widest">User Identity</th>
+                                <th className="px-8 py-5 text-xs font-bold text-slate-400 uppercase tracking-widest">Role Protocol</th>
+                                <th className="px-8 py-5 text-xs font-bold text-slate-400 uppercase tracking-widest">System Status</th>
+                                <th className="px-8 py-5 text-xs font-bold text-slate-400 uppercase tracking-widest text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -234,12 +279,12 @@ export default function UsersPage() {
                     </table>
                 </div>
 
-                {/* Pagination (Mocked) */}
-                <div className="px-8 py-6 border-t border-slate-100 flex justify-between items-center bg-slate-50/30">
-                    <p className="text-xs font-bold text-slate-400">Showing {filteredUsers.length} user{filteredUsers.length !== 1 ? 's' : ''}</p>
-                    <div className="flex gap-2">
-                        <button className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 disabled:opacity-50" disabled>Previous</button>
-                        <button className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors">Next</button>
+                {/* Footer Controls */}
+                <div className="px-8 py-6 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50/30">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest order-2 sm:order-1">Showing {filteredUsers.length} total entries</p>
+                    <div className="flex gap-2 order-1 sm:order-2 w-full sm:w-auto">
+                        <button className="flex-1 sm:flex-none px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 disabled:opacity-50" disabled>Prev</button>
+                        <button className="flex-1 sm:flex-none px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 active:scale-95 transition-all">Next</button>
                     </div>
                 </div>
             </div>
@@ -269,7 +314,7 @@ export default function UsersPage() {
                                     <div className="w-10 h-10 bg-orange-100 rounded-2xl flex items-center justify-center mb-3">
                                         <UserPlus size={20} className="text-orange-500" />
                                     </div>
-                                    <h2 className="text-2xl font-black text-slate-900">Add System User</h2>
+                                    <h2 className="text-2xl font-bold text-slate-900">Add System User</h2>
                                     <p className="text-sm font-medium text-slate-500 mt-1">Create a new user account in the system.</p>
                                 </div>
                                 <button
@@ -291,7 +336,7 @@ export default function UsersPage() {
                                     <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
                                         <CheckCircle2 size={32} className="text-green-500" />
                                     </div>
-                                    <h3 className="text-xl font-black text-slate-900 mb-1">User Created!</h3>
+                                    <h3 className="text-xl font-bold text-slate-900 mb-1">User Created!</h3>
                                     <p className="text-sm text-slate-500">The new user has been added to the system.</p>
                                 </motion.div>
                             ) : (
@@ -304,7 +349,7 @@ export default function UsersPage() {
 
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
-                                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">First Name *</label>
+                                            <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">First Name *</label>
                                             <input
                                                 type="text"
                                                 required
@@ -315,7 +360,7 @@ export default function UsersPage() {
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Last Name *</label>
+                                            <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Last Name *</label>
                                             <input
                                                 type="text"
                                                 required
@@ -328,7 +373,7 @@ export default function UsersPage() {
                                     </div>
 
                                     <div>
-                                        <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Email Address *</label>
+                                        <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Email Address *</label>
                                         <input
                                             type="email"
                                             required
@@ -340,7 +385,7 @@ export default function UsersPage() {
                                     </div>
 
                                     <div>
-                                        <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Business Name</label>
+                                        <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Business Name</label>
                                         <input
                                             type="text"
                                             value={form.businessName}
@@ -352,7 +397,7 @@ export default function UsersPage() {
 
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
-                                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Role</label>
+                                            <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Role</label>
                                             <select
                                                 value={form.role}
                                                 onChange={e => setForm({ ...form, role: e.target.value })}
@@ -364,7 +409,7 @@ export default function UsersPage() {
                                             </select>
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Password</label>
+                                            <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Password</label>
                                             <input
                                                 type="password"
                                                 value={form.password}
@@ -379,7 +424,7 @@ export default function UsersPage() {
                                         <button
                                             type="submit"
                                             disabled={isSubmitting}
-                                            className="w-full py-4 bg-slate-900 text-white rounded-xl font-black shadow-lg hover:bg-orange-500 transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                                            className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold shadow-lg hover:bg-orange-500 transition-all disabled:opacity-70 flex items-center justify-center gap-2"
                                         >
                                             {isSubmitting ? (
                                                 <>

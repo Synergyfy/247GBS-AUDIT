@@ -90,7 +90,7 @@ export const ReviewStep = () => {
                                 ))}
                             </ul>
                         ) : (
-                            <p className="text-sm text-muted-foreground italic">No stock items added.</p>
+                            <p className="text-sm text-muted-foreground ">No stock items added.</p>
                         )}
                     </Section>
 
@@ -108,7 +108,7 @@ export const ReviewStep = () => {
                                 ))}
                             </ul>
                         ) : (
-                            <p className="text-sm text-muted-foreground italic">No services added.</p>
+                            <p className="text-sm text-muted-foreground ">No services added.</p>
                         )}
                     </Section>
 

@@ -32,7 +32,7 @@ export default function AuditResultsPage() {
             <div className="min-h-screen bg-slate-50 flex items-center justify-center">
                 <div className="flex flex-col items-center gap-4">
                     <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
-                    <p className="text-slate-500 font-black uppercase tracking-widest text-xs">Compiling Results...</p>
+                    <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Compiling Results...</p>
                 </div>
             </div>
         }>
@@ -133,11 +133,11 @@ function AuditResultsContent() {
                 {/* Dashboard Header */}
                 <header className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
                     <motion.div variants={itemVars}>
-                        <div className="flex items-center gap-2 text-orange-600 font-black text-[10px] uppercase tracking-[0.3em] mb-3">
+                        <div className="flex items-center gap-2 text-orange-600 font-bold text-[10px] uppercase tracking-[0.3em] mb-3">
                             <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
                             Decision Engine Output | {strategy.depth}
                         </div>
-                        <h1 className="text-4xl md:text-5xl font-black text-slate-900 leading-tight">
+                        <h1 className="text-4xl md:text-5xl font-bold text-slate-900 leading-tight">
                             Strategic Growth <span className="text-orange-500">Roadmap</span>
                         </h1>
                         <p className="text-slate-500 font-medium mt-2 flex items-center gap-2">
@@ -149,7 +149,7 @@ function AuditResultsContent() {
                         <button
                             onClick={handleSave}
                             disabled={isSaving || saveComplete}
-                            className={`flex items-center gap-2 px-8 py-3 rounded-2xl font-black transition-all shadow-xl shadow-orange-100 ${saveComplete
+                            className={`flex items-center gap-2 px-8 py-3 rounded-2xl font-bold transition-all shadow-xl shadow-orange-100 ${saveComplete
                                 ? "bg-green-500 text-white"
                                 : "bg-orange-500 text-white hover:bg-orange-600 active:scale-95"
                                 }`}
@@ -186,10 +186,10 @@ function AuditResultsContent() {
                         </div>
                         <div className="relative z-10">
                             <div className="flex justify-between items-start mb-6">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Recovery Value (Annual)</span>
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Recovery Value (Annual)</span>
                                 <Zap size={20} className="text-orange-500" fill="currentColor" />
                             </div>
-                            <div className="text-6xl font-black text-white mb-2 tracking-tighter">
+                            <div className="text-6xl font-bold text-white mb-2 tracking-tighter">
                                 £{annualRecovery.toLocaleString()}
                             </div>
                             <p className="text-slate-400 text-sm font-medium leading-relaxed max-w-xs">
@@ -199,8 +199,8 @@ function AuditResultsContent() {
                     </motion.div>
 
                     <motion.div variants={itemVars} className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm">
-                        <div className="text-slate-400 font-black text-[10px] uppercase tracking-widest mb-6">Capacity Drain</div>
-                        <div className="text-4xl font-black text-slate-900 mb-2">{capacityDrain}%</div>
+                        <div className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-6">Capacity Drain</div>
+                        <div className="text-4xl font-bold text-slate-900 mb-2">{capacityDrain}%</div>
                         <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mb-6">
                             <div className="bg-orange-500 h-full" style={{ width: `${capacityDrain}%` }} />
                         </div>
@@ -211,8 +211,8 @@ function AuditResultsContent() {
                     </motion.div>
 
                     <motion.div variants={itemVars} className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm">
-                        <div className="text-slate-400 font-black text-[10px] uppercase tracking-widest mb-6">Efficiency Rank</div>
-                        <div className="text-4xl font-black text-slate-900 mb-2">{100 - impactScore}/100</div>
+                        <div className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-6">Efficiency Rank</div>
+                        <div className="text-4xl font-bold text-slate-900 mb-2">{100 - impactScore}/100</div>
                         <div className="flex gap-1 mt-4">
                             {[1, 2, 3, 4, 5].map(i => (
                                 <div key={i} className={`h-1.5 flex-1 rounded-full ${i <= (100 - impactScore) / 20 ? 'bg-green-500' : 'bg-slate-100'}`} />
@@ -228,11 +228,11 @@ function AuditResultsContent() {
 
                         <motion.div variants={itemVars} className="bg-white rounded-[2.5rem] p-10 shadow-xl border border-slate-100 overflow-hidden">
                             <header className="flex justify-between items-center mb-12">
-                                <h3 className="text-2xl font-black text-slate-900 flex items-center gap-4">
+                                <h3 className="text-2xl font-bold text-slate-900 flex items-center gap-4">
                                     <Target size={28} className="text-orange-500" />
                                     Execution Plan
                                 </h3>
-                                <span className="px-4 py-2 bg-orange-50 text-orange-600 rounded-full text-[10px] font-black uppercase tracking-widest">
+                                <span className="px-4 py-2 bg-orange-50 text-orange-600 rounded-full text-[10px] font-bold uppercase tracking-widest">
                                     3 High-Impact Moves
                                 </span>
                             </header>
@@ -240,14 +240,14 @@ function AuditResultsContent() {
                             <div className="space-y-10">
                                 {matches.map((rec: RecommendationTemplate, idx) => (
                                     <div key={rec.id} className="relative pl-16 group/item">
-                                        <div className="absolute left-0 top-0 w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center font-black text-slate-400 group-hover/item:bg-orange-500 group-hover/item:text-white transition-all">
+                                        <div className="absolute left-0 top-0 w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center font-bold text-slate-400 group-hover/item:bg-orange-500 group-hover/item:text-white transition-all">
                                             0{idx + 1}
                                         </div>
                                         {idx < matches.length - 1 && (
                                             <div className="absolute left-6 top-14 bottom-[-2.5rem] w-px bg-slate-100" />
                                         )}
-                                        <h4 className="text-xl font-black mb-3 text-slate-900">{rec.title}</h4>
-                                        <p className="text-slate-500 mb-6 font-medium leading-relaxed italic">
+                                        <h4 className="text-xl font-bold mb-3 text-slate-900">{rec.title}</h4>
+                                        <p className="text-slate-500 mb-6 font-medium leading-relaxed ">
                                             "{rec.description}"
                                         </p>
                                         <div className="flex items-center gap-3">
@@ -274,11 +274,11 @@ function AuditResultsContent() {
                         {/* Value Framing: Cost of Inaction */}
                         <motion.div variants={itemVars} className="grid md:grid-cols-2 gap-6">
                             <div className="bg-red-50 p-8 rounded-[2rem] border border-red-100">
-                                <h4 className="text-red-900 font-black mb-4 flex items-center gap-2 text-sm uppercase tracking-widest">
+                                <h4 className="text-red-900 font-bold mb-4 flex items-center gap-2 text-sm uppercase tracking-widest">
                                     <Clock size={16} />
                                     Cost of Inaction
                                 </h4>
-                                <div className="text-3xl font-black text-red-600 mb-2">
+                                <div className="text-3xl font-bold text-red-600 mb-2">
                                     £{Math.round(annualRecovery / 12).toLocaleString()} /mo
                                 </div>
                                 <p className="text-red-800/60 text-xs font-medium leading-relaxed">
@@ -286,11 +286,11 @@ function AuditResultsContent() {
                                 </p>
                             </div>
                             <div className="bg-green-50 p-8 rounded-[2rem] border border-green-100">
-                                <h4 className="text-green-900 font-black mb-4 flex items-center gap-2 text-sm uppercase tracking-widest">
+                                <h4 className="text-green-900 font-bold mb-4 flex items-center gap-2 text-sm uppercase tracking-widest">
                                     <Target size={16} />
                                     Growth Potential
                                 </h4>
-                                <div className="text-3xl font-black text-green-600 mb-2">
+                                <div className="text-3xl font-bold text-green-600 mb-2">
                                     +{((annualRecovery / 50000) * 100).toFixed(1)}%
                                 </div>
                                 <p className="text-green-800/60 text-xs font-medium leading-relaxed">
@@ -306,26 +306,26 @@ function AuditResultsContent() {
                             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-150 transition-transform duration-700">
                                 <Sparkles size={100} />
                             </div>
-                            <h4 className="text-3xl font-black mb-4 leading-tight">
+                            <h4 className="text-3xl font-bold mb-4 leading-tight">
                                 Ready to Monetise?
                             </h4>
                             <p className="text-orange-100 mb-10 text-sm leading-relaxed font-bold">
                                 Connect your {activeSector?.name} audit data to the 247GBS network and turn these findings into active cashflow.
                             </p>
-                            <button className="w-full py-5 bg-white text-orange-600 rounded-3xl font-black text-lg shadow-xl hover:bg-orange-50 transition-all active:scale-95 flex items-center justify-center gap-2">
+                            <button className="w-full py-5 bg-white text-orange-600 rounded-3xl font-bold text-lg shadow-xl hover:bg-orange-50 transition-all active:scale-95 flex items-center justify-center gap-2">
                                 Begin Monetisation
                                 <ArrowUpRight size={20} />
                             </button>
                         </motion.div>
 
                         <motion.div variants={itemVars} className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm relative">
-                            <h5 className="font-black text-slate-900 mb-6 text-xs uppercase tracking-[0.2em]">Next Audit Cycle</h5>
+                            <h5 className="font-bold text-slate-900 mb-6 text-xs uppercase tracking-[0.2em]">Next Audit Cycle</h5>
                             <div className="flex items-center gap-4 mb-8">
                                 <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400">
                                     <Calendar size={20} />
                                 </div>
                                 <div>
-                                    <p className="text-sm font-black text-slate-900">April 22nd, 2026</p>
+                                    <p className="text-sm font-bold text-slate-900">April 22nd, 2026</p>
                                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Q2 Forecast Refresh</p>
                                 </div>
                             </div>
