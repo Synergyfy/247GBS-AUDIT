@@ -30,8 +30,8 @@ export function PublicNavbar() {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    // Do not show on dashboard pages - AFTER all hooks
-    if (pathname?.startsWith("/dashboard")) {
+    // Do not show on dashboard or admin pages - AFTER all hooks
+    if (pathname?.startsWith("/dashboard") || pathname?.startsWith("/admin")) {
         return null;
     }
 
@@ -144,13 +144,21 @@ export function PublicNavbar() {
                             )}
                         </div>
                     ) : (
-                        /* Get Started Button for Unauthenticated Users */
-                        <Link
-                            href="/auth/signin"
-                            className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2.5 rounded-full shadow-lg shadow-orange-200 transition-all hover:scale-105 active:scale-95"
-                        >
-                            Get Started
-                        </Link>
+                        /* Auth Buttons for Unauthenticated Users */
+                        <>
+                            <Link
+                                href="/auth/signin"
+                                className="text-slate-600 hover:text-orange-500 transition-colors"
+                            >
+                                Sign In
+                            </Link>
+                            <Link
+                                href="/auth/signup"
+                                className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2.5 rounded-full shadow-lg shadow-orange-200 transition-all hover:scale-105 active:scale-95"
+                            >
+                                Get Started
+                            </Link>
+                        </>
                     )}
                 </div>
 
@@ -193,12 +201,20 @@ export function PublicNavbar() {
                             </button>
                         </div>
                     ) : (
-                        <Link
-                            href="/auth/signin"
-                            className="block w-full text-center bg-orange-500 hover:bg-orange-600 text-white px-6 py-2.5 rounded-full shadow-lg shadow-orange-200 transition-all"
-                        >
-                            Get Started
-                        </Link>
+                        <div className="flex flex-col gap-3 pt-2">
+                            <Link
+                                href="/auth/signin"
+                                className="block w-full text-center py-2.5 text-sm font-bold text-slate-600 hover:text-orange-500 transition-colors"
+                            >
+                                Sign In
+                            </Link>
+                            <Link
+                                href="/auth/signup"
+                                className="block w-full text-center bg-orange-500 hover:bg-orange-600 text-white px-6 py-2.5 rounded-full shadow-lg shadow-orange-200 transition-all font-bold"
+                            >
+                                Get Started
+                            </Link>
+                        </div>
                     )}
                 </motion.div>
             )}

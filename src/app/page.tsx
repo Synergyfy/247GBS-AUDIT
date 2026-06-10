@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
@@ -17,8 +18,20 @@ import {
   Target
 } from "lucide-react";
 import ChatFAB from "@/components/ChatFAB";
+import { useAuth } from "@/context/AuthContext";
 
 export default function LandingPage() {
+  const { isAuthenticated } = useAuth();
+  const router = useRouter();
+
+  const handleStartReview = () => {
+    if (!isAuthenticated) {
+      router.push("/auth/signin");
+    } else {
+      router.push("/audit/triage");
+    }
+  };
+
   const fadeIn = {
     initial: { opacity: 0, y: 20 },
     whileInView: { opacity: 1, y: 0 },
@@ -49,22 +62,22 @@ export default function LandingPage() {
             >
               <div className="inline-flex items-center gap-2 bg-orange-50 border border-orange-100 px-4 py-2 rounded-full text-orange-600 font-bold text-sm mb-6">
                 <BarChart3 size={16} />
-                <span>Next-Gen Business Optimization</span>
+                <span>Next-Gen Business Growth</span>
               </div>
-              <h1 className="text-5xl lg:text-7xl font-extrabold text-slate-900 leading-[1.1] mb-8">
-                Turn Idle <span className="text-orange-500">Resources</span> Into <span className="text-orange-500">Revenue</span>.
+              <h1 className="text-5xl lg:text-7xl font-bold text-slate-900 leading-[1.1] mb-8">
+                Turn Wasted <span className="text-orange-500">Resources</span> Into <span className="text-orange-500">Growth</span>.
               </h1>
               <p className="text-xl text-slate-600 mb-10 leading-relaxed max-w-xl">
-                Identify, measure, and monetise unused staff time, underutilised equipment, and excess inventory with our structured business audits.
+                Identify and recover unused staff time, equipment, and excess stock with our simple business reviews.
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
-                <Link
-                  href="/audit/triage"
+                <button
+                  onClick={handleStartReview}
                   className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-4 rounded-2xl font-bold text-lg flex items-center justify-center gap-2 shadow-xl shadow-orange-200 transition-all hover:-translate-y-1 active:translate-y-0"
                 >
                   Start Your Audit
                   <ArrowRight size={20} />
-                </Link>
+                </button>
                 <div className="flex items-center gap-4 px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50/50 hover:bg-slate-50 transition-colors cursor-pointer group">
                   <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
                     <PlayCircle className="text-orange-500" size={24} />
@@ -98,7 +111,7 @@ export default function LandingPage() {
                   </div>
                   <div>
                     <div className="text-sm font-bold text-slate-500">Potential Recovery</div>
-                    <div className="text-2xl font-black text-slate-900">£12,450 /mo</div>
+                    <div className="text-2xl font-bold text-slate-900">£12,450 /mo</div>
                   </div>
                 </motion.div>
               </div>
@@ -114,9 +127,9 @@ export default function LandingPage() {
       <section id="comparison" className="py-24 bg-slate-50 relative">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-20">
-            <h2 className="text-4xl md:text-5xl font-bold mb-6">Strategic Audit Options</h2>
+            <h2 className="text-4xl md:text-5xl font-bold mb-6">Strategic Review Options</h2>
             <p className="text-slate-600 max-w-2xl mx-auto text-lg">
-              Choose the depth that matches your operational complexity. Whether you need a quick pulse-check or a deep forensic analysis.
+              Choose the level that matches your business. Whether you need a quick check or a deep strategic analysis.
             </p>
           </div>
 
@@ -129,13 +142,13 @@ export default function LandingPage() {
               <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center text-orange-600 mb-8 group-hover:scale-110 group-hover:bg-orange-500 group-hover:text-white transition-all duration-500">
                 <Zap size={32} />
               </div>
-              <h3 className="text-2xl font-bold mb-4">Short Form Audit</h3>
-              <p className="text-slate-500 text-lg mb-8 italic">"A quick health check of your unused business capacity."</p>
+              <h3 className="text-2xl font-bold mb-4">Quick Review</h3>
+              <p className="text-slate-500 text-lg mb-8 ">"A fast health check of your unused business capacity."</p>
 
               <ul className="space-y-4 mb-10">
                 {[
-                  "Fast, self-service assessment",
-                  "No consultant guidance required",
+                  "Fast, easy assessment",
+                  "Self-service (no guide needed)",
                   "8-12 Essential questions",
                   "Instant automated results",
                   "Ideal for simple business models"
@@ -147,12 +160,12 @@ export default function LandingPage() {
                 ))}
               </ul>
 
-              <Link
-                href="/audit/triage"
+              <button
+                onClick={handleStartReview}
                 className="w-full py-4 rounded-xl border-2 border-orange-500 text-orange-500 font-bold hover:bg-orange-500 hover:text-white transition-all text-center flex items-center justify-center gap-2"
               >
-                Select Short Form
-              </Link>
+                Select Quick Review
+              </button>
             </motion.div>
 
             {/* Long Form Audit */}
@@ -161,23 +174,23 @@ export default function LandingPage() {
               className="bg-slate-900 p-10 rounded-[2.5rem] text-white shadow-2xl shadow-slate-200 relative overflow-hidden group"
             >
               {/* Highlight badge */}
-              <div className="absolute top-8 right-8 bg-orange-500 text-white text-xs font-black px-3 py-1 rounded-full uppercase tracking-widest">
-                Recommended for growth
+              <div className="absolute top-8 right-8 bg-orange-500 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-widest">
+                Best for growth
               </div>
 
               <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center text-orange-500 mb-8 group-hover:scale-110 group-hover:bg-orange-500 group-hover:text-white transition-all duration-500">
                 <Layers size={32} />
               </div>
-              <h3 className="text-2xl font-bold mb-4 text-white">Long Form Audit</h3>
-              <p className="text-slate-400 text-lg mb-8 italic">"A full operational audit designed to unlock hidden revenue."</p>
+              <h3 className="text-2xl font-bold mb-4 text-white">Strategic Analysis</h3>
+              <p className="text-slate-400 text-lg mb-8 ">"A deep business analysis designed to find hidden profit."</p>
 
               <ul className="space-y-4 mb-10">
                 {[
                   "Deep, guided business analysis",
-                  "Sector- and niche-specific logic",
-                  "Optional AI assistant or consultant support",
-                  "Scenario modelling & forecasting",
-                  "Strategic growth optimization plans"
+                  "Specific logic for your industry",
+                  "Optional AI or expert support",
+                  "Growth modeling & forecasting",
+                  "Personalized growth plans"
                 ].map((item, i) => (
                   <li key={i} className="flex items-start gap-3">
                     <CheckCircle2 size={20} className="text-orange-500 mt-1 shrink-0" />
@@ -186,12 +199,12 @@ export default function LandingPage() {
                 ))}
               </ul>
 
-              <Link
-                href="/audit/triage"
+              <button
+                onClick={handleStartReview}
                 className="w-full py-4 rounded-xl bg-orange-500 text-white font-bold hover:bg-orange-600 transition-all text-center flex items-center justify-center gap-2 shadow-xl shadow-orange-950/20"
               >
-                Select Long Form
-              </Link>
+                Select Strategic Analysis
+              </button>
             </motion.div>
           </div>
         </div>
@@ -206,10 +219,10 @@ export default function LandingPage() {
           <div className="grid lg:grid-cols-2 gap-20 items-center">
             <motion.div {...fadeIn}>
               <h2 className="text-4xl lg:text-5xl font-bold mb-10 leading-tight">
-                Why <span className="text-orange-500">Seasonal Audits</span> are Essential for Survival
+                Why <span className="text-orange-500">Regular Reviews</span> are Essential for Growth
               </h2>
               <p className="text-lg text-slate-600 mb-12">
-                Business operations are fluid. What was efficient last month may be leaking profit today. Consistent auditing ensures your business remains lean and responsive to market shifts.
+                Business operations are fluid. What was efficient last month may be leaking profit today. Regular reviews ensure your business remains lean and profitable.
               </p>
 
               <div className="grid gap-8">
@@ -260,7 +273,7 @@ export default function LandingPage() {
                   <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center font-bold">SM</div>
                   <div>
                     <div className="font-bold">Strategy Metrics</div>
-                    <div className="text-sm text-slate-400 font-medium tracking-widest uppercase">247GBS Ecosystem</div>
+                    <div className="text-sm text-slate-400 font-medium tracking-widest uppercase">247GBS Platform</div>
                   </div>
                 </div>
               </div>
@@ -284,22 +297,22 @@ export default function LandingPage() {
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-500 to-transparent opacity-50" />
               <div className="flex items-center gap-3 text-orange-500 mb-8">
                 <ShieldCheck size={28} />
-                <span className="font-black text-[10px] uppercase tracking-[0.3em] text-slate-400">Data Integrity Protocol</span>
+                <span className="font-bold text-[10px] uppercase tracking-[0.3em] text-slate-400">Data Integrity System</span>
               </div>
-              <h3 className="text-3xl font-black mb-6 leading-tight">
-                Why our Audits are <span className="text-orange-500 underline decoration-white/20 underline-offset-8">Authoritative</span>.
+              <h3 className="text-3xl font-bold mb-6 leading-tight">
+                Why our reviews are <span className="text-orange-500 underline decoration-white/20 underline-offset-8">Authoritative</span>.
               </h3>
               <p className="text-slate-400 font-medium leading-relaxed mb-10">
-                Our system isn't just a form. It's built on the <span className="text-white">247GBS Ecological Redistribution Framework</span>. We use verified sector benchmarks to ensure your recovery projections are commercially accurate and IMPLEMENTABLE.
+                Our system isn't just a form. It's built on a proven business growth framework. We use verified industry data to ensure your growth plans are accurate and easy to implement.
               </p>
 
               <div className="space-y-6">
                 <div className="flex items-start gap-4">
                   <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
-                    <CheckCircle2 size={18} className="text-green-500" />
+                    <CheckCircle2 size={18} className="text-green-50" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-sm">Verified Benchmarks</h4>
+                    <h4 className="font-bold text-sm text-slate-200">Verified Benchmarks</h4>
                     <p className="text-xs text-slate-500">Cross-referenced against real-world sector performance data.</p>
                   </div>
                 </div>
@@ -308,8 +321,8 @@ export default function LandingPage() {
                     <Clock size={18} className="text-orange-500" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-sm">Seasonal Lifecycle</h4>
-                    <p className="text-xs text-slate-500">Automatic reminders to refresh your audit every 90 days for maximum efficiency.</p>
+                    <h4 className="font-bold text-sm text-slate-200">Lifecycle Management</h4>
+                    <p className="text-xs text-slate-500">Automatic reminders to refresh your review every 90 days for maximum efficiency.</p>
                   </div>
                 </div>
               </div>
@@ -322,7 +335,7 @@ export default function LandingPage() {
             >
               <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
                 <div>
-                  <h3 className="text-3xl font-black text-slate-900">Tokenized Access</h3>
+                  <h3 className="text-3xl font-bold text-slate-900">Tokenized Access</h3>
                   <p className="text-slate-500 font-medium text-sm mt-1">Simple. Transparent. Scalable.</p>
                 </div>
                 <div className="bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl flex items-center gap-4">
@@ -330,32 +343,32 @@ export default function LandingPage() {
                     <Layers size={20} />
                   </div>
                   <div>
-                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Your VAULT</div>
-                    <div className="text-lg font-black text-slate-900">0 Tokens Available</div>
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Account Balance</div>
+                    <div className="text-lg font-bold text-slate-900">0 Tokens Available</div>
                   </div>
                 </div>
               </header>
 
               <div className="grid md:grid-cols-2 gap-10 mb-12">
                 <div>
-                  <h4 className="font-black text-slate-900 mb-4 flex items-center gap-2">
+                  <h4 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
                     <CreditCard size={18} className="text-orange-500" />
-                    Directory Members
+                    Member Benefits
                   </h4>
                   <p className="text-sm text-slate-500 leading-relaxed mb-6">
-                    Membership level determines your seasonal token allocation. Gold and Platinum levels include **unlimited Forensic Audits**.
+                    Membership level determines your token allocation. Gold and Platinum levels include **unlimited Business Reviews**.
                   </p>
-                  <button className="text-orange-600 font-black text-xs uppercase tracking-widest hover:translate-x-1 transition-transform inline-flex items-center gap-2">
+                  <button className="text-orange-600 font-bold text-xs uppercase tracking-widest hover:translate-x-1 transition-transform inline-flex items-center gap-2">
                     Member Dashboard <ArrowRight size={14} />
                   </button>
                 </div>
                 <div>
-                  <h4 className="font-black text-slate-900 mb-4 flex items-center gap-2">
+                  <h4 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
                     <Zap size={18} className="text-orange-500" />
-                    Single Pass
+                    One-Time Review
                   </h4>
                   <p className="text-sm text-slate-500 leading-relaxed mb-6">
-                    Not a member? Purchase a single audit token for as little as £49 to identify your business leakage.
+                    Not a member? Purchase a single review token for as little as £49 to identify your business growth potential.
                   </p>
                   <div className="flex gap-3 opacity-60 grayscale hover:grayscale-0 transition-all cursor-not-allowed">
                     <img src="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg" className="h-4" alt="PayPal" />
@@ -366,12 +379,12 @@ export default function LandingPage() {
 
               <div className="bg-orange-50 p-6 rounded-3xl border border-orange-100/50 flex flex-col md:flex-row items-center justify-between gap-6">
                 <div className="text-center md:text-left">
-                  <div className="text-[10px] font-black text-orange-600 uppercase tracking-[0.2em] mb-1">Seasonal Promo</div>
-                  <div className="text-lg font-black text-slate-900">New Members get 2 Free Tokens</div>
+                  <div className="text-[10px] font-bold text-orange-600 uppercase tracking-[0.2em] mb-1">Promo</div>
+                  <div className="text-lg font-bold text-slate-900">New Members get 2 Free Tokens</div>
                 </div>
                 <Link
                   href="/pricing"
-                  className="px-8 py-3 bg-slate-900 text-white rounded-2xl font-black text-sm hover:bg-black transition-all shadow-xl shadow-slate-200"
+                  className="px-8 py-3 bg-slate-900 text-white rounded-2xl font-bold text-sm hover:bg-black transition-all shadow-xl shadow-slate-200"
                 >
                   View Pricing
                 </Link>
@@ -387,34 +400,34 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-4 gap-12 mb-20">
             <div className="md:col-span-2">
               <div className="flex items-center gap-2 mb-6">
-                <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center font-black text-xl text-white">A</div>
-                <span className="font-black text-2xl tracking-tighter">247GBS AUDIT</span>
+                <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center font-bold text-xl text-white">A</div>
+                <span className="font-bold text-2xl tracking-tighter uppercase">247GBS</span>
               </div>
               <p className="text-slate-400 max-w-sm font-medium leading-relaxed">
-                Transforming global business waste into measurable growth through structured ecological redistribution. Authoritative. Transparent. Scalable.
+                Transforming global business waste into measurable growth through structured redistribution. Simple. Transparent. Scalable.
               </p>
             </div>
             <div>
-              <h5 className="font-black text-slate-500 uppercase text-[10px] tracking-[0.3em] mb-8">Platform</h5>
+              <h5 className="font-bold text-slate-500 uppercase text-[10px] tracking-[0.3em] mb-8">Platform</h5>
               <div className="flex flex-col gap-4 font-bold text-slate-300">
-                <a href="#" className="hover:text-orange-500 transition-colors">Audit Methodology</a>
-                <a href="#" className="hover:text-orange-500 transition-colors">Sector Specialist</a>
-                <a href="#" className="hover:text-orange-500 transition-colors">Vault Tokens</a>
+                <a href="#" className="hover:text-orange-500 transition-colors">How it Works</a>
+                <a href="#" className="hover:text-orange-500 transition-colors">Expert Directory</a>
+                <a href="#" className="hover:text-orange-500 transition-colors">Review Tokens</a>
               </div>
             </div>
             <div>
-              <h5 className="font-black text-slate-500 uppercase text-[10px] tracking-[0.3em] mb-8">Authoritative Support</h5>
+              <h5 className="font-bold text-slate-500 uppercase text-[10px] tracking-[0.3em] mb-8">Support</h5>
               <div className="flex flex-col gap-4 font-bold text-slate-300">
-                <a href="#" className="hover:text-orange-500 transition-colors">Help Centre</a>
-                <a href="#" className="hover:text-orange-500 transition-colors">Specialist Booking</a>
-                <a href="#" className="hover:text-orange-500 transition-colors">Compliance</a>
+                <a href="#" className="hover:text-orange-500 transition-colors">Help Center</a>
+                <a href="#" className="hover:text-orange-500 transition-colors">Book a Partner</a>
+                <a href="#" className="hover:text-orange-500 transition-colors">Terms</a>
               </div>
             </div>
           </div>
-          <div className="pt-10 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6 text-[10px] font-black uppercase tracking-widest text-slate-500">
+          <div className="pt-10 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6 text-[10px] font-bold uppercase tracking-widest text-slate-500">
             <p>© 2026 247 Global Business Solutions Ltd. All rights reserved.</p>
             <div className="flex gap-10">
-              <a href="#" className="hover:text-white transition-all">Privacy Framework</a>
+              <a href="#" className="hover:text-white transition-all">Privacy</a>
               <a href="#" className="hover:text-white transition-all">Terms of Access</a>
             </div>
           </div>

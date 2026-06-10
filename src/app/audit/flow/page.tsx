@@ -33,7 +33,7 @@ export default function AuditFlowPage() {
             <div className="min-h-screen bg-slate-50 flex items-center justify-center">
                 <div className="flex flex-col items-center gap-4">
                     <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
-                    <p className="text-slate-500 font-black uppercase tracking-widest text-xs">Initializing Intelligence Engine...</p>
+                    <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Initializing Intelligence Engine...</p>
                 </div>
             </div>
         }>
@@ -334,11 +334,11 @@ function AuditFlowContent() {
                                     />
                                 ))}
                             </div>
-                            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">
+                            <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">
                                 {strategy.depth} Audit Workflow
                             </span>
                         </div>
-                        <h1 className={`text-4xl font-black relative z-10 ${currentCategory === "FOLLOW_UP" ? "text-red-500 animate-pulse" : "text-white"} capitalize`}>
+                        <h1 className={`text-4xl font-bold relative z-10 ${currentCategory === "FOLLOW_UP" ? "text-red-500 animate-pulse" : "text-white"} capitalize`}>
                             {currentCategory === "STRATEGY_PREVIEW" ? "Recommended Solution" : currentCategory === "FOLLOW_UP" ? "🔥 Critical Clarifications" : currentCategory.replace("_", " ").toLowerCase()}
                         </h1>
                     </div>
@@ -352,7 +352,7 @@ function AuditFlowContent() {
                             }}
                             disabled={!hasStockScope}
                             className={`flex-1 py-6 flex items-center justify-center gap-3 transition-all relative ${currentCategory === "EXCESS_STOCK"
-                                ? "text-orange-500 font-black bg-orange-50/30"
+                                ? "text-orange-500 font-bold bg-orange-50/30"
                                 : "text-slate-400 font-bold hover:text-slate-600"
                                 } disabled:opacity-30 disabled:grayscale disabled:cursor-not-allowed`}
                         >
@@ -369,7 +369,7 @@ function AuditFlowContent() {
                             }}
                             disabled={!hasCapacityScope}
                             className={`flex-1 py-6 flex items-center justify-center gap-3 transition-all relative ${currentCategory === "SPARE_CAPACITY"
-                                ? "text-orange-500 font-black bg-orange-50/30"
+                                ? "text-orange-500 font-bold bg-orange-50/30"
                                 : "text-slate-400 font-bold hover:text-slate-600"
                                 } disabled:opacity-30 disabled:grayscale disabled:cursor-not-allowed`}
                         >
@@ -394,7 +394,7 @@ function AuditFlowContent() {
                                 >
                                     <div className="bg-red-500 text-white px-6 py-3 rounded-2xl flex items-center gap-3 shadow-lg shadow-red-100 mb-4">
                                         <AlertCircle size={20} className="animate-bounce" />
-                                        <span className="font-black uppercase tracking-widest text-[11px]">Critical Action: Precision Recovery Input Required</span>
+                                        <span className="font-bold uppercase tracking-widest text-[11px]">Critical Action: Precision Recovery Input Required</span>
                                     </div>
                                     <AIFollowUpCard
                                         questions={followUpQuestions || []}
@@ -409,7 +409,7 @@ function AuditFlowContent() {
                                             <p className="text-slate-500 mb-6">No additional clarifications needed.</p>
                                             <button
                                                 onClick={handleFollowUpSkip}
-                                                className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-black hover:bg-black transition-colors"
+                                                className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-black transition-colors"
                                             >
                                                 Continue to Results
                                             </button>
@@ -426,12 +426,12 @@ function AuditFlowContent() {
                                     className="space-y-8"
                                 >
                                     <div className="bg-orange-50 border border-orange-100 p-8 rounded-3xl">
-                                        <h3 className="text-2xl font-black text-orange-900 mb-4 flex items-center gap-3">
+                                        <h3 className="text-2xl font-bold text-orange-900 mb-4 flex items-center gap-3">
                                             <Lightbulb className="text-orange-500" />
                                             Preview: Opportunity Detected
                                         </h3>
                                         <p className="text-orange-800 leading-relaxed font-medium">
-                                            Based on your real-time inputs of {engineStats.capacityDrainPct}% capacity drain and £{engineStats.totalStockImpact.toLocaleString()} annual stock impact, the system suggests a potential annual recovery of <span className="font-black underline decoration-orange-300">£{engineStats.annualRecovery.toLocaleString()}</span> through the 247GBS redistribution engine.
+                                            Based on your real-time inputs of {engineStats.capacityDrainPct}% capacity drain and £{engineStats.totalStockImpact.toLocaleString()} annual stock impact, the system suggests a potential annual recovery of <span className="font-bold underline decoration-orange-300">£{engineStats.annualRecovery.toLocaleString()}</span> through the 247GBS redistribution engine.
                                         </p>
                                     </div>
 
@@ -447,7 +447,7 @@ function AuditFlowContent() {
                                             {!aiInsight && !aiLoading && (
                                                 <button
                                                     onClick={fetchAIInsight}
-                                                    className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-sm hover:bg-black transition-colors flex items-center justify-center gap-3"
+                                                    className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold text-sm hover:bg-black transition-colors flex items-center justify-center gap-3"
                                                 >
                                                     <Sparkles size={18} />
                                                     Get Deeper Insight
@@ -479,7 +479,7 @@ function AuditFlowContent() {
                                     <div className="bg-slate-50 border-l-4 border-orange-500 p-5 rounded-r-2xl flex gap-4">
                                         <AlertCircle className="text-orange-500 shrink-0" size={20} />
                                         <p className="text-[13px] text-slate-600 font-medium leading-relaxed">
-                                            <span className="font-black text-slate-900">Important:</span> Quality inputs drive quality strategic recommendations. Accuracy here is vital.
+                                            <span className="font-bold text-slate-900">Important:</span> Quality inputs drive quality strategic recommendations. Accuracy here is vital.
                                         </p>
                                     </div>
 
@@ -487,7 +487,7 @@ function AuditFlowContent() {
                                         {stepQuestions.map((q) => (
                                             <div key={q.id} className="group">
                                                 <div className="flex justify-between items-start mb-4">
-                                                    <label className="block text-xl font-black text-slate-900 max-w-md">
+                                                    <label className="block text-xl font-bold text-slate-900 max-w-md">
                                                         {q.text}
                                                     </label>
                                                     <button
@@ -505,14 +505,14 @@ function AuditFlowContent() {
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setAnswers(prev => ({ ...prev, [q.id]: 1 }))}
-                                                                className={`flex-1 py-6 rounded-[2rem] font-black text-xl transition-all border-3 ${answers[q.id] === 1 ? "bg-orange-500 text-white border-orange-500 shadow-xl shadow-orange-200" : "bg-slate-50 text-slate-400 border-transparent hover:bg-slate-100"}`}
+                                                                className={`flex-1 py-6 rounded-[2rem] font-bold text-xl transition-all border-3 ${answers[q.id] === 1 ? "bg-orange-500 text-white border-orange-500 shadow-xl shadow-orange-200" : "bg-slate-50 text-slate-400 border-transparent hover:bg-slate-100"}`}
                                                             >
                                                                 Yes
                                                             </button>
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setAnswers(prev => ({ ...prev, [q.id]: 0 }))}
-                                                                className={`flex-1 py-6 rounded-[2rem] font-black text-xl transition-all border-3 ${answers[q.id] === 0 ? "bg-slate-900 text-white border-slate-900 shadow-xl shadow-slate-200" : "bg-slate-50 text-slate-400 border-transparent hover:bg-slate-100"}`}
+                                                                className={`flex-1 py-6 rounded-[2rem] font-bold text-xl transition-all border-3 ${answers[q.id] === 0 ? "bg-slate-900 text-white border-slate-900 shadow-xl shadow-slate-200" : "bg-slate-50 text-slate-400 border-transparent hover:bg-slate-100"}`}
                                                             >
                                                                 No
                                                             </button>
@@ -524,7 +524,7 @@ function AuditFlowContent() {
                                                                     type="text"
                                                                     inputMode="numeric"
                                                                     pattern="[0-9]*"
-                                                                    className="w-full text-3xl font-black p-6 bg-slate-50 border-3 border-transparent focus:border-orange-500 focus:bg-white rounded-3xl outline-none transition-all pr-16 appearance-none"
+                                                                    className="w-full text-3xl font-bold p-6 bg-slate-50 border-3 border-transparent focus:border-orange-500 focus:bg-white rounded-3xl outline-none transition-all pr-16 appearance-none"
                                                                     value={answers[q.id] === undefined ? 0 : (Number.isNaN(answers[q.id]) ? '' : answers[q.id])}
                                                                     onChange={(e) => {
                                                                         const val = e.target.value;
@@ -535,7 +535,7 @@ function AuditFlowContent() {
                                                                         }
                                                                     }}
                                                                 />
-                                                                <div className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 font-black text-xl">
+                                                                <div className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xl">
                                                                     {q.type === "percentage" ? "%" : q.type === "currency" ? "£" : ""}
                                                                 </div>
                                                             </div>
@@ -571,13 +571,13 @@ function AuditFlowContent() {
                             <button
                                 onClick={handleBack}
                                 disabled={currentStepIndex === 0}
-                                className="px-10 py-4 rounded-2xl font-black text-slate-400 hover:text-slate-900 disabled:opacity-20 transition-all flex items-center gap-2"
+                                className="px-10 py-4 rounded-2xl font-bold text-slate-400 hover:text-slate-900 disabled:opacity-20 transition-all flex items-center gap-2"
                             >
                                 Back
                             </button>
                             <button
                                 onClick={handleNext}
-                                className={`px-16 py-5 ${currentCategory === "FOLLOW_UP" ? "bg-red-600 hover:bg-red-700 shadow-red-200" : "bg-orange-500 hover:bg-orange-600 shadow-orange-200"} text-white rounded-[2rem] font-black text-2xl shadow-2xl transition-all active:scale-95 flex items-center gap-3`}
+                                className={`px-16 py-5 ${currentCategory === "FOLLOW_UP" ? "bg-red-600 hover:bg-red-700 shadow-red-200" : "bg-orange-500 hover:bg-orange-600 shadow-orange-200"} text-white rounded-[2rem] font-bold text-2xl shadow-2xl transition-all active:scale-95 flex items-center gap-3`}
                             >
                                 {currentStepIndex === FLOW_STEPS.length - 1 ? "Complete Audit" : "Next Step"}
                                 <ArrowRight size={24} />
@@ -591,13 +591,13 @@ function AuditFlowContent() {
                     <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden">
                         <div className="relative z-10">
                             <div className="flex justify-between items-center mb-10">
-                                <h4 className="text-xs font-black uppercase tracking-[0.3em] text-slate-500">Engine Analytics</h4>
+                                <h4 className="text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Engine Analytics</h4>
                                 <TrendingUp className="text-orange-500" size={20} />
                             </div>
 
                             <div className="space-y-8">
                                 <div>
-                                    <div className="flex justify-between text-[11px] font-black uppercase tracking-widest mb-3">
+                                    <div className="flex justify-between text-[11px] font-bold uppercase tracking-widest mb-3">
                                         <span className="text-slate-400">Capacity Drain</span>
                                         <span className="text-orange-500">{engineStats.capacityDrainPct}%</span>
                                     </div>
@@ -610,7 +610,7 @@ function AuditFlowContent() {
                                 </div>
 
                                 <div>
-                                    <div className="flex justify-between text-[11px] font-black uppercase tracking-widest mb-3">
+                                    <div className="flex justify-between text-[11px] font-bold uppercase tracking-widest mb-3">
                                         <span className="text-slate-400">Recovery Value</span>
                                         <span className="text-orange-500">£{Math.round(engineStats.annualRecovery / 52).toLocaleString()}/wk</span>
                                     </div>
@@ -624,7 +624,7 @@ function AuditFlowContent() {
                             </div>
 
                             <div className="mt-12 p-6 bg-white/5 rounded-3xl border border-white/5 border-dashed">
-                                <p className="text-[10px] text-slate-400 italic leading-relaxed">
+                                <p className="text-[10px] text-slate-400 leading-relaxed">
                                     "Real-time analysis suggests {engineStats.capacityDrainPct > 20 ? 'critical' : 'moderate'} underutilisation. Every percentage point represents roughly £500 in potential annual recovery."
                                 </p>
                             </div>
@@ -637,11 +637,11 @@ function AuditFlowContent() {
                                 <Bot size={24} />
                             </div>
                             <div>
-                                <h5 className="font-black text-slate-900 text-sm">Strategy Assistant</h5>
+                                <h5 className="font-bold text-slate-900 text-sm">Strategy Assistant</h5>
                                 <span className="text-[10px] text-orange-600 font-bold uppercase tracking-widest">Active Logic</span>
                             </div>
                         </div>
-                        <p className="text-sm text-slate-500 leading-relaxed font-medium italic">
+                        <p className="text-sm text-slate-500 leading-relaxed font-medium ">
                             {currentCategory === "SPARE_CAPACITY"
                                 ? "Looking at idle staff time is the most immediate way to reclaim margins. It's not about cutting jobs, it's about re-allocating value."
                                 : currentCategory === "EXCESS_STOCK"

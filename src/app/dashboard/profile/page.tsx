@@ -75,7 +75,7 @@ export default function ProfilePage() {
         <div className="space-y-8">
             {/* Header */}
             <div>
-                <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-2">My Profile</h1>
+                <h1 className="text-3xl font-bold text-slate-900 tracking-tight mb-2">My Profile</h1>
                 <p className="text-slate-500 font-medium">Manage your personal information and account security.</p>
             </div>
 
@@ -102,7 +102,7 @@ export default function ProfilePage() {
                             </button>
                         </div>
 
-                        <h2 className="text-xl font-black text-slate-900">{user?.name}</h2>
+                        <h2 className="text-xl font-bold text-slate-900">{user?.name}</h2>
                         <p className="text-slate-500 text-sm font-medium mb-6">{user?.email}</p>
 
                         <div className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-orange-50 text-orange-700 rounded-xl text-xs font-bold uppercase tracking-wider">
@@ -116,7 +116,7 @@ export default function ProfilePage() {
                             <ShieldCheck size={120} strokeWidth={0.5} />
                         </div>
                         <h3 className="text-lg font-bold mb-1">Security Status</h3>
-                        <div className="text-4xl font-black text-green-400 mb-6">98%</div>
+                        <div className="text-4xl font-bold text-green-400 mb-6">98%</div>
                         <div className="space-y-3">
                             <div className="flex items-center gap-3 text-sm text-slate-300">
                                 <div className="w-2 h-2 rounded-full bg-green-400" />
@@ -158,7 +158,7 @@ export default function ProfilePage() {
                         <div className="p-8 space-y-6">
                             <div className="grid md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
-                                    <label className="text-xs font-black uppercase tracking-widest text-slate-400 block ml-1">First Name</label>
+                                    <label className="text-xs font-bold uppercase tracking-widest text-slate-400 block ml-1">First Name</label>
                                     <div className="relative group">
                                         <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-orange-500 transition-colors">
                                             <User size={18} />
@@ -173,7 +173,7 @@ export default function ProfilePage() {
                                     </div>
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-xs font-black uppercase tracking-widest text-slate-400 block ml-1">Last Name</label>
+                                    <label className="text-xs font-bold uppercase tracking-widest text-slate-400 block ml-1">Last Name</label>
                                     <div className="relative group">
                                         <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-orange-500 transition-colors">
                                             <User size={18} />
@@ -191,7 +191,7 @@ export default function ProfilePage() {
 
                             <div className="grid md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
-                                    <label className="text-xs font-black uppercase tracking-widest text-slate-400 block ml-1">Email Address</label>
+                                    <label className="text-xs font-bold uppercase tracking-widest text-slate-400 block ml-1">Email Address</label>
                                     <div className="relative group">
                                         <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-orange-500 transition-colors">
                                             <Mail size={18} />
@@ -207,7 +207,7 @@ export default function ProfilePage() {
                                     </div>
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-xs font-black uppercase tracking-widest text-slate-400 block ml-1">Phone Number</label>
+                                    <label className="text-xs font-bold uppercase tracking-widest text-slate-400 block ml-1">Phone Number</label>
                                     <div className="relative group">
                                         <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-orange-500 transition-colors">
                                             <Phone size={18} />
@@ -224,7 +224,7 @@ export default function ProfilePage() {
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-xs font-black uppercase tracking-widest text-slate-400 block ml-1">Business Name</label>
+                                <label className="text-xs font-bold uppercase tracking-widest text-slate-400 block ml-1">Business Name</label>
                                 <div className="relative group">
                                     <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-orange-500 transition-colors">
                                         <Building2 size={18} />
@@ -241,7 +241,7 @@ export default function ProfilePage() {
 
                             <div className="grid md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
-                                    <label className="text-xs font-black uppercase tracking-widest text-slate-400 block ml-1">Location</label>
+                                    <label className="text-xs font-bold uppercase tracking-widest text-slate-400 block ml-1">Location</label>
                                     <div className="relative group">
                                         <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-orange-500 transition-colors">
                                             <MapPin size={18} />
@@ -256,7 +256,7 @@ export default function ProfilePage() {
                                     </div>
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-xs font-black uppercase tracking-widest text-slate-400 block ml-1">Website</label>
+                                    <label className="text-xs font-bold uppercase tracking-widest text-slate-400 block ml-1">Website</label>
                                     <div className="relative group">
                                         <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-orange-500 transition-colors">
                                             <Globe size={18} />

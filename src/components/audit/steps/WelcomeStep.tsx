@@ -33,7 +33,7 @@ export const WelcomeStep = () => {
             className="flex flex-col items-center justify-center min-h-[600px] text-center space-y-8 p-6"
         >
             <motion.div variants={item} className="space-y-4 max-w-2xl">
-                <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight">
+                <h1 className="text-4xl md:text-6xl font-bold tracking-tight">
                     Turn <span className="text-gradient">Waste</span> into <span className="text-gradient">Growth</span>
                 </h1>
                 <p className="text-xl text-muted-foreground leading-relaxed">

@@ -49,7 +49,7 @@ export default function AIInsightCard({
                         <Loader2 className="text-orange-500 animate-spin" size={24} />
                     </div>
                     <div>
-                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">
                             Intelligence Engine
                         </div>
                         <div className="font-bold text-white">
@@ -88,10 +88,10 @@ export default function AIInsightCard({
                         <Lightbulb size={24} />
                     </div>
                     <div>
-                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
                             Strategic Insight
                         </div>
-                        <div className="font-black text-white text-lg">
+                        <div className="font-bold text-white text-lg">
                             Opportunity Analysis
                         </div>
                     </div>
@@ -111,7 +111,7 @@ export default function AIInsightCard({
             <div className="mb-8">
                 <div className="flex items-center gap-2 text-orange-500 mb-3">
                     <AlertTriangle size={16} />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Primary Issue</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest">Primary Issue</span>
                 </div>
                 <p className="text-xl font-bold leading-relaxed">
                     {insight.keyIssue}
@@ -135,11 +135,11 @@ export default function AIInsightCard({
 
             {/* Recommendations */}
             <div>
-                <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-4">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-4">
                     Recommended Actions
                 </div>
                 <div className="space-y-3">
-                    {insight.recommendations.filter(Boolean).map((rec, idx) => (
+                    {(insight.recommendations || []).filter(Boolean).map((rec, idx) => (
                         <div
                             key={idx}
                             className="flex items-start gap-3 p-4 bg-white/5 rounded-xl"

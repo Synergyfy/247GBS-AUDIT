@@ -10,7 +10,7 @@ export function useAuthActions() {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const signIn = async (data: SignInRequest): Promise<{ success: boolean; role?: string }> => {
+    const signIn = async (data: SignInRequest): Promise<{ success: boolean; role?: string; error?: string }> => {
         setIsLoading(true);
         setError(null);
         try {
@@ -51,14 +51,15 @@ export function useAuthActions() {
             
             return { success: true, role: user?.role };
         } catch (err: any) {
-            setError(err.message || 'An error occurred during sign in');
-            return { success: false, role: undefined };
+            const msg = err.message || 'An error occurred during sign in';
+            setError(msg);
+            return { success: false, role: undefined, error: msg };
         } finally {
             setIsLoading(false);
         }
     };
 
-    const signUp = async (data: SignUpRequest): Promise<{ success: boolean; role?: string }> => {
+    const signUp = async (data: SignUpRequest): Promise<{ success: boolean; role?: string; error?: string }> => {
         setIsLoading(true);
         setError(null);
         try {
@@ -102,8 +103,9 @@ export function useAuthActions() {
 
             return { success: true, role };
         } catch (err: any) {
-            setError(err.message || 'An error occurred during sign up');
-            return { success: false, role: undefined };
+            const msg = err.message || 'An error occurred during sign up';
+            setError(msg);
+            return { success: false, role: undefined, error: msg };
         } finally {
             setIsLoading(false);
         }

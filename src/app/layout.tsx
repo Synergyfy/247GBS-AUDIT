@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { Outfit } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { PublicNavbar } from "@/components/PublicNavbar";
 import { Providers } from "@/components/Providers";
 
-const outfit = Outfit({
+const inter = Inter({
   subsets: ["latin"],
-  variable: "--font-outfit",
+  variable: "--font-inter",
   display: "swap",
 });
 
@@ -23,7 +23,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="light">
       <body
-        className={`${outfit.variable} font-sans antialiased min-h-screen bg-background text-foreground overflow-x-hidden`}
+        className={`${inter.variable} font-sans antialiased min-h-screen bg-background text-foreground overflow-x-hidden`}
       >
         <Providers>
           <PublicNavbar />

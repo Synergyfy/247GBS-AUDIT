@@ -48,7 +48,7 @@ export default function AdminOverviewPage() {
     return (
         <div className="space-y-8">
             <div>
-                <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-2">System Overview</h1>
+                <h1 className="text-3xl font-bold text-slate-900 tracking-tight mb-2">System Overview</h1>
                 <p className="text-slate-500 font-medium">Real-time monitoring and administrative insights.</p>
             </div>
 
@@ -73,7 +73,7 @@ export default function AdminOverviewPage() {
                             </div>
                         </div>
                         <div className="text-slate-500 text-sm font-bold mb-1">{stat.label}</div>
-                        <div className="text-2xl font-black text-slate-900">{stat.value}</div>
+                        <div className="text-2xl font-bold text-slate-900">{stat.value}</div>
                     </motion.div>
                 ))}
             </div>

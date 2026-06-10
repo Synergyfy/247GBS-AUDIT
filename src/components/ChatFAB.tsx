@@ -27,7 +27,7 @@ export default function ChatFAB() {
                                     <Bot size={24} />
                                 </div>
                                 <div>
-                                    <h4 className="font-black text-sm uppercase tracking-widest">Strategy Assistant</h4>
+                                    <h4 className="font-bold text-sm uppercase tracking-widest">Strategy Assistant</h4>
                                     <div className="flex items-center gap-2 mt-1">
                                         <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                                         <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Logic Engine Online</span>
@@ -53,7 +53,7 @@ export default function ChatFAB() {
 
                             {/* Suggestions */}
                             <div className="space-y-2">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Suggested Queries</p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Suggested Queries</p>
                                 <div className="flex flex-wrap gap-2">
                                     {[
                                         "How do I start an audit?",

@@ -98,7 +98,7 @@ export default function AdminSpecialistsPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm">
                 <div>
-                    <h1 className="text-3xl font-black text-slate-900 mb-2">Specialist Network</h1>
+                    <h1 className="text-3xl font-bold text-slate-900 mb-2">Specialist Network</h1>
                     <p className="text-slate-500 font-medium">Manage and onboard verified forensic auditors and domain experts.</p>
                 </div>
                 <div className="flex gap-4 w-full md:w-auto">
@@ -144,7 +144,7 @@ export default function AdminSpecialistsPage() {
                             </div>
                             <div className="flex flex-wrap gap-2 mb-4">
                                 {pro.expertise.map(exp => (
-                                    <span key={exp} className="text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-50 border border-slate-100 px-2 py-1 rounded-md">
+                                    <span key={exp} className="text-[10px] font-bold uppercase tracking-widest text-slate-500 bg-slate-50 border border-slate-100 px-2 py-1 rounded-md">
                                         {exp}
                                     </span>
                                 ))}
@@ -177,7 +177,7 @@ export default function AdminSpecialistsPage() {
                         >
                             <div className="flex items-center justify-between mb-8">
                                 <div>
-                                    <h2 className="text-2xl font-black text-slate-900">Onboard Specialist</h2>
+                                    <h2 className="text-2xl font-bold text-slate-900">Onboard Specialist</h2>
                                     <p className="text-sm font-medium text-slate-500">Add a new expert to the network.</p>
                                 </div>
                                 <button onClick={() => setIsCreateModalOpen(false)} className="p-2 bg-slate-50 rounded-xl text-slate-400 hover:text-slate-900 transition-colors">
@@ -189,7 +189,7 @@ export default function AdminSpecialistsPage() {
                                 {error && <div className="p-4 bg-red-50 text-red-600 rounded-xl text-sm font-bold">{error}</div>}
                                 
                                 <div>
-                                    <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Full Name</label>
+                                    <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Full Name</label>
                                     <input 
                                         type="text" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}
                                         className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-orange-500 focus:bg-white transition-all"
@@ -199,7 +199,7 @@ export default function AdminSpecialistsPage() {
                                 
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Role/Title</label>
+                                        <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Role/Title</label>
                                         <input 
                                             type="text" required value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})}
                                             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-orange-500 focus:bg-white transition-all"
@@ -207,7 +207,7 @@ export default function AdminSpecialistsPage() {
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Experience</label>
+                                        <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Experience</label>
                                         <input 
                                             type="text" required value={formData.experience} onChange={e => setFormData({...formData, experience: e.target.value})}
                                             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-orange-500 focus:bg-white transition-all"
@@ -217,7 +217,7 @@ export default function AdminSpecialistsPage() {
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Expertise Domains (Comma-separated)</label>
+                                    <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Expertise Domains (Comma-separated)</label>
                                     <input 
                                         type="text" required value={formData.expertise} onChange={e => setFormData({...formData, expertise: e.target.value})}
                                         className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-orange-500 focus:bg-white transition-all"
@@ -227,7 +227,7 @@ export default function AdminSpecialistsPage() {
 
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Status</label>
+                                        <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Status</label>
                                         <select 
                                             value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}
                                             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-orange-500 focus:bg-white transition-all"
@@ -238,7 +238,7 @@ export default function AdminSpecialistsPage() {
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Avatar Seed (Optional)</label>
+                                        <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Avatar Seed (Optional)</label>
                                         <input 
                                             type="text" value={formData.image} onChange={e => setFormData({...formData, image: e.target.value})}
                                             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-orange-500 focus:bg-white transition-all"
@@ -250,7 +250,7 @@ export default function AdminSpecialistsPage() {
                                 <div className="pt-4">
                                     <button 
                                         type="submit" disabled={isSubmitting}
-                                        className="w-full py-4 bg-orange-500 text-white rounded-xl font-black shadow-lg shadow-orange-500/20 hover:bg-orange-600 transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                                        className="w-full py-4 bg-orange-500 text-white rounded-xl font-bold shadow-lg shadow-orange-500/20 hover:bg-orange-600 transition-all disabled:opacity-70 flex items-center justify-center gap-2"
                                     >
                                         {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : "Publish to Network"}
                                     </button>

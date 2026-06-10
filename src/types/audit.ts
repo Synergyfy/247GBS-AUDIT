@@ -229,6 +229,7 @@ export type TriageStageId =
     | 'healthy';
 
 export interface TriageData {
+    sectorId?: string;
     hasExcessStock?: 'yes' | 'no' | 'not-sure';
     stockExtent?: number;
     stockImpact?: 'serious' | 'little' | 'not-yet' | 'not-sure';
