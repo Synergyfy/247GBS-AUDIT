@@ -27,13 +27,14 @@ import {
     Eye,
     Zap as ActivityIcon // Fallback for stage icons
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { API_BASE_URL } from "@/lib/api";
 import { refreshAccessToken } from "@/lib/auth";
 import type { TriageData, TriageStageId } from "@/types/audit";
 
 export default function AuditTriagePage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const [stage, setStage] = useState<TriageStageId>('stock-awareness');
     const [data, setData] = useState<TriageData>({});
     const [loading, setLoading] = useState(false);

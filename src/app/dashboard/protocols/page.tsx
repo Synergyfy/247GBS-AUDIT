@@ -146,7 +146,8 @@ function SecurityContent() {
 }
 
 function BillingContent() {
-    const { data, history = [], loading } = useBilling();
+    const { data, loading } = useBilling();
+    const history = data?.history || [];
     return (
         <div className="space-y-4 pb-12">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
