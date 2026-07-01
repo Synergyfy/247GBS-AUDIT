@@ -70,7 +70,7 @@ export default function TimeframePage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <div className="max-w-2xl mx-auto px-4 py-12 sm:py-16">
+      <div className="max-w-2xl mx-auto px-4 pt-24 sm:pt-28 pb-12 sm:pb-16">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
           {/* Back */}
           <button

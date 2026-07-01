@@ -29,22 +29,22 @@ interface HeroSlide {
 
 const SLIDES: HeroSlide[] = [
   {
-    image: "/paperwork.jpg",
+    image: "/paperwork.webp",
     heading: <>Discover What's <span className="text-orange-400">Holding</span> Your Business <span className="text-orange-400">Back</span></>,
     body: "Identify hidden inefficiencies, missed revenue, and growth opportunities across your business."
   },
   {
-    image: "/african-american-consultant-studying-constitutional-records.jpg",
+    image: "/african-american-consultant-studying-constitutional-records.webp",
     heading: <>Turn <span className="text-orange-400">Waste</span> Into <span className="text-orange-400">Revenue</span></>,
     body: "Excess stock, idle capacity, untapped customers — we help you convert them into profit."
   },
   {
-    image: "/professional-project-businesswoman-hands-work-executive.jpg",
+    image: "/professional-project-businesswoman-hands-work-executive.webp",
     heading: <>Know Your Business <span className="text-orange-400">Inside</span> Out</>,
     body: "Get a clear diagnosis of where your business stands and what needs to change."
   },
   {
-    image: "/workplace-results-professional-report-accounting.jpg",
+    image: "/workplace-results-professional-report-accounting.webp",
     heading: <>A Plan Built <span className="text-orange-400">For You</span></>,
     body: "Tailored solutions matched to your sector, budget, and goals."
   },
