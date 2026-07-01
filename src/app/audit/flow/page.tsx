@@ -1,657 +1,961 @@
 "use client";
 
-import { AUDIT_QUESTIONS } from "@/data/questions";
-import { SECTORS } from "@/data/sectors";
-import { AUDIT_STRATEGIES, AuditType, Sector, BusinessGroup, BusinessType, Question } from "@/types/audit";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useMemo, useEffect, useCallback } from "react";
-import {
-    Bot,
-    Sparkles,
-    AlertCircle,
-    TrendingUp,
-    Info,
-    Plus,
-    Minus,
-    ArrowRight,
-    Lightbulb,
-    Zap,
-    Target
-} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import AIInsightCard from "@/components/AIInsightCard";
-import AIFollowUpCard from "@/components/AIFollowUpCard";
-import type { AIInsightResponse, AIAuditState, AIBusinessContext, AIFollowUpQuestion, AIAuditStepData } from "@/types/aiTypes";
-import { API_BASE_URL } from "@/lib/api";
-import { refreshAccessToken } from "@/lib/auth";
+import {
+    ChevronRight,
+    ChevronLeft,
+    Clock,
+    CheckCircle2,
+    ArrowRight,
+    Package,
+    Zap,
+    Users,
+    Target,
+    Cpu,
+    BarChart3,
+    Loader2,
+    AlertCircle,
+    Star,
+    Edit3,
+    Shield
+} from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { AUDIT_QUESTIONS } from "@/data/questions";
+import { AUDIT_STAGES, type AuditStage } from "@/data/audit-stages";
+import type { Question, QuestionType, AuditCategory, AuditType, QuestionOption } from "@/types/audit";
 
-import { Suspense } from "react";
+// ============================================================
+// ICON MAP
+// ============================================================
+const ICON_MAP: Record<string, React.ReactNode> = {
+    Package: <Package size={24} />,
+    Zap: <Zap size={24} />,
+    Users: <Users size={24} />,
+    Target: <Target size={24} />,
+    Cpu: <Cpu size={24} />,
+    BarChart3: <BarChart3 size={24} />,
+};
 
-export default function AuditFlowPage() {
-    return (
-        <Suspense fallback={
-            <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
-                    <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Initializing Intelligence Engine...</p>
-                </div>
-            </div>
-        }>
-            <AuditFlowContent />
-        </Suspense>
-    );
+// ============================================================
+// TYPES
+// ============================================================
+
+type FlowScreen =
+    | "introduction"
+    | "stage-intro"
+    | "question"
+    | "stage-complete"
+    | "review"
+    | "confirmation"
+    | "processing"
+    | "complete";
+
+interface AuditState {
+    currentScreen: FlowScreen;
+    stageIdx: number;
+    questionIdx: number;
+    answers: Record<string, any>;
+    startedAt: string;
 }
 
-function AuditFlowContent() {
+const STORAGE_KEY = "247gbs_audit_flow";
+
+// ============================================================
+// MAIN COMPONENT
+// ============================================================
+
+export default function AuditFlowPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
+    const { user } = useAuth();
 
-    // State
-    const [currentStepIndex, setCurrentStepIndex] = useState(0);
-    const [answers, setAnswers] = useState<Record<string, number>>({});
-    const [showAIHelp, setShowAIHelp] = useState(false);
-
-    // AI State (Long Form only)
-    const [aiInsight, setAiInsight] = useState<AIInsightResponse | null>(null);
-    const [aiLoading, setAiLoading] = useState(false);
-    const [aiFallback, setAiFallback] = useState(false);
-
-    // Follow-Up State (Long Form only)
-    const [followUpQuestions, setFollowUpQuestions] = useState<AIFollowUpQuestion[] | null>(null);
-    const [followUpLoading, setFollowUpLoading] = useState(false);
-    const [followUpAnswers, setFollowUpAnswers] = useState<Record<string, string>>({});
-
-    // Metadata
     const auditType = (searchParams.get("type") as AuditType) || "SHORT_FORM";
-    const auditId = searchParams.get("id");
-    const sectorId = searchParams.get("sector");
-    const groupId = searchParams.get("group");
-    const businessTypeId = searchParams.get("businessType");
-    const strategy = AUDIT_STRATEGIES[auditType];
+    const sectorId = searchParams.get("sector") || "";
+    const groupId = searchParams.get("group") || "";
+    const businessTypeId = searchParams.get("businessType") || "";
 
-    const hasStockScope = searchParams.get("stock") !== "false";
-    const hasCapacityScope = searchParams.get("capacity") !== "false";
-
-    // Steps definition — EXCESS_STOCK now comes BEFORE SPARE_CAPACITY
-    const FLOW_STEPS = useMemo(() => {
-        const steps: string[] = [];
-        if (hasStockScope) steps.push("EXCESS_STOCK");
-        if (hasCapacityScope) steps.push("SPARE_CAPACITY");
-        if (auditType === "LONG_FORM") steps.push("FOLLOW_UP");
-        steps.push("STRATEGY_PREVIEW");
-        return steps;
-    }, [hasStockScope, hasCapacityScope, auditType]);
-
-    const currentCategory = FLOW_STEPS[currentStepIndex];
-
-
-    // Filtering Logic
+    // Filter questions for this audit
     const filteredQuestions = useMemo(() => {
-        return AUDIT_QUESTIONS.filter((q) => {
-            // 1. Audit Type Filter (Short vs Long)
+        return AUDIT_QUESTIONS.filter(q => {
             if (auditType === "SHORT_FORM" && q.isLongFormOnly) return false;
-
-            // 2. Sector Filter
             if (q.sectorSpecific && sectorId && !q.sectorSpecific.includes(sectorId)) return false;
-
-            // 3. Group Filter (Optional granularity)
             if (q.groupId && q.groupId !== groupId) return false;
-
-            // 4. Type Filter (Optional granularity)
             if (q.typeId && q.typeId !== businessTypeId) return false;
-
             return true;
         });
     }, [auditType, sectorId, groupId, businessTypeId]);
 
-    const stepQuestions = filteredQuestions.filter(q => q.category === currentCategory);
+    // Group questions by stage category
+    const stageQuestions = useMemo(() => {
+        const grouped: Record<string, Question[]> = {};
+        AUDIT_STAGES.forEach(stage => {
+            grouped[stage.id] = filteredQuestions.filter(q => q.category === stage.category);
+        });
+        return grouped;
+    }, [filteredQuestions]);
 
-    // PHASE 6: Calculation Engine
-    const [engineStats, setEngineStats] = useState({
-        capacityDrainPct: 0,
-        totalStockImpact: 0,
-        annualRecovery: 0,
-        impactScore: 0
+    // Stages that have questions
+    const activeStages = useMemo(() => {
+        return AUDIT_STAGES.filter(stage => stageQuestions[stage.id]?.length > 0);
+    }, [stageQuestions]);
+
+    // State
+    const [state, setState] = useState<AuditState>({
+        currentScreen: "introduction",
+        stageIdx: 0,
+        questionIdx: 0,
+        answers: {},
+        startedAt: new Date().toISOString()
     });
+    const [hydrated, setHydrated] = useState(false);
 
-    // Helper for authenticated fetch
-    const authFetch = useCallback(async (url: string, options: RequestInit = {}) => {
-        let token = typeof window !== "undefined" ? localStorage.getItem("247gbs_token") : null;
-        const headers = { ...options.headers, "Content-Type": "application/json" } as any;
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-        
-        let res = await fetch(url, { ...options, headers });
-        if (res.status === 401) {
-            token = await refreshAccessToken();
-            if (token) {
-                headers["Authorization"] = `Bearer ${token}`;
-                res = await fetch(url, { ...options, headers });
-            }
+    // Restore progress
+    useEffect(() => {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                setState(parsed);
+            } catch {}
         }
-        return res;
+        setHydrated(true);
     }, []);
 
-    // Load initial data
+    // Auto-save
     useEffect(() => {
-        if (!auditId) return;
-        authFetch(`${API_BASE_URL}/audit/${auditId}`).then(res => {
-            if (res.ok) {
-                res.json().then(data => {
-                    if (data.answers) {
-                        // Merge db answers with any local answers
-                        setAnswers(prev => ({ ...data.answers, ...prev }));
-                    }
-                    if (data.calculatedMetrics) setEngineStats(data.calculatedMetrics);
-                });
-            }
-        }).catch(console.error);
-    }, [auditId, authFetch]);
-
-    // Save answers
-    const saveAnswers = useCallback(async (updatedAnswers: Record<string, number | string>) => {
-        if (!auditId) return;
-        try {
-            const res = await authFetch(`${API_BASE_URL}/audit/${auditId}/answers`, {
-                method: "PUT",
-                body: JSON.stringify(updatedAnswers)
-            });
-            if (res.ok) {
-                const data = await res.json();
-                if (data.calculatedMetrics) {
-                    setEngineStats(data.calculatedMetrics);
-                }
-            }
-        } catch (e) {
-            console.error("Failed to save answers", e);
+        if (!hydrated) return;
+        if (state.currentScreen === "complete") {
+            localStorage.removeItem(STORAGE_KEY);
+            return;
         }
-    }, [auditId, authFetch]);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }, [state, hydrated]);
 
-    // ============================================================
-    // AI INTEGRATION (Long Form Only)
-    // Gemini is called ONLY when:
-    // 1. auditType === "LONG_FORM"
-    // 2. User reaches STRATEGY_PREVIEW step
-    // ============================================================
-    const fetchAIInsight = useCallback(async () => {
-        // RULE: Never for Short Form
-        if (auditType !== "LONG_FORM" || !auditId) return;
+    const currentStage = activeStages[state.stageIdx];
+    const currentQuestions = currentStage ? stageQuestions[currentStage.id] || [] : [];
+    const currentQuestion = currentQuestions[state.questionIdx];
+    const totalQuestions = activeStages.reduce((sum, s) => sum + (stageQuestions[s.id]?.length || 0), 0);
+    const answeredCount = activeStages.slice(0, state.stageIdx).reduce((sum, s) => sum + (stageQuestions[s.id]?.length || 0), 0) + state.questionIdx;
 
-        setAiLoading(true);
-        setAiFallback(false);
-
-        try {
-            const response = await authFetch(`${API_BASE_URL}/audit/${auditId}/ai/generate-insight`, {
-                method: "POST"
-            });
-
-            const result = await response.json();
-
-            if (response.ok && result) {
-                // Determine structure based on backend response shape
-                setAiInsight((result.data || result) as AIInsightResponse);
-                if (result.fallback) setAiFallback(true);
+    // Time estimate
+    const timeRemaining = useMemo(() => {
+        let questionsLeft = 0;
+        for (let i = state.stageIdx; i < activeStages.length; i++) {
+            const qs = stageQuestions[activeStages[i].id] || [];
+            if (i === state.stageIdx) {
+                questionsLeft += qs.length - state.questionIdx - 1;
             } else {
-                throw new Error(result.message || result.error || "AI request failed");
+                questionsLeft += qs.length;
             }
-        } catch (error) {
-            console.error("AI fetch error:", error);
-            // Fallback handled by API, but set flag for UI
-            setAiFallback(true);
-        } finally {
-            setAiLoading(false);
         }
-    }, [auditType, auditId, authFetch]);
+        return Math.max(1, Math.ceil(questionsLeft * 0.5));
+    }, [state.stageIdx, state.questionIdx, activeStages, stageQuestions]);
 
-    // ============================================================
-    // FOLLOW-UP QUESTIONS FETCH (Long Form Only)
-    // Triggered when entering FOLLOW_UP step
-    // ============================================================
-    const fetchFollowUpQuestions = useCallback(async () => {
-        // RULE: Never for Short Form
-        if (auditType !== "LONG_FORM" || !auditId) return;
-
-        setFollowUpLoading(true);
-
-        try {
-            const response = await authFetch(`${API_BASE_URL}/audit/${auditId}/ai/generate-questions`, {
-                method: "POST"
-            });
-
-            const result = await response.json();
-
-            const questions = result.data?.followUpQuestions || result.followUpQuestions || result;
-            if (response.ok && Array.isArray(questions)) {
-                setFollowUpQuestions(questions);
-            } else {
-                // No questions or error — continue normally
-                setFollowUpQuestions([]);
-            }
-        } catch (error) {
-            console.error("Follow-up fetch error:", error);
-            setFollowUpQuestions([]);
-        } finally {
-            setFollowUpLoading(false);
-        }
-    }, [auditType, auditId, authFetch]);
-
-    // Auto-trigger follow-up questions when entering FOLLOW_UP step
-    useEffect(() => {
-        if (currentCategory === "FOLLOW_UP" && auditType === "LONG_FORM" && followUpQuestions === null && !followUpLoading) {
-            fetchFollowUpQuestions();
-        }
-    }, [currentCategory, auditType, followUpQuestions, followUpLoading, fetchFollowUpQuestions]);
-
-    // Auto-trigger AI when entering Strategy Preview (Long Form only)
-    useEffect(() => {
-        if (currentCategory === "STRATEGY_PREVIEW" && auditType === "LONG_FORM" && !aiInsight && !aiLoading) {
-            fetchAIInsight();
-        }
-    }, [currentCategory, auditType, aiInsight, aiLoading, fetchAIInsight]);
-
-    // Handle follow-up answers submission
-    const handleFollowUpSubmit = async (followAnswers: Record<string, string>) => {
-        setFollowUpAnswers(followAnswers);
-        const combined = { ...answers, ...followAnswers };
-        await saveAnswers(combined);
-        // Proceed to next step (STRATEGY_PREVIEW)
-        setCurrentStepIndex(currentStepIndex + 1);
-        window.scrollTo(0, 0);
+    // Navigation
+    const goToScreen = (screen: FlowScreen) => {
+        setState(prev => ({ ...prev, currentScreen: screen }));
     };
 
-    // Handle follow-up skip
-    const handleFollowUpSkip = useCallback(() => {
-        // Proceed to next step without answers
-        setCurrentStepIndex(currentStepIndex + 1);
-        window.scrollTo(0, 0);
-    }, [currentStepIndex]);
+    const goNext = useCallback(() => {
+        setState(prev => {
+            const { currentScreen, stageIdx, questionIdx } = prev;
+            const stage = activeStages[stageIdx];
+            const questions = stage ? stageQuestions[stage.id] || [] : [];
 
+            if (currentScreen === "introduction") {
+                return { ...prev, currentScreen: "stage-intro" };
+            }
 
-    // Auto-skip follow-up if no questions are found after fetch
-    useEffect(() => {
-        if (currentCategory === "FOLLOW_UP" && !followUpLoading && followUpQuestions && followUpQuestions.length === 0) {
-            handleFollowUpSkip();
-        }
-    }, [currentCategory, followUpLoading, followUpQuestions, handleFollowUpSkip]);
+            if (currentScreen === "stage-intro") {
+                return { ...prev, currentScreen: "question", questionIdx: 0 };
+            }
 
+            if (currentScreen === "question") {
+                if (questionIdx < questions.length - 1) {
+                    return { ...prev, questionIdx: questionIdx + 1 };
+                } else {
+                    return { ...prev, currentScreen: "stage-complete" };
+                }
+            }
 
-    const handleAdjust = (id: string, delta: number) => {
-        setAnswers(prev => ({
+            if (currentScreen === "stage-complete") {
+                if (stageIdx < activeStages.length - 1) {
+                    return { ...prev, stageIdx: stageIdx + 1, questionIdx: 0, currentScreen: "stage-intro" };
+                } else {
+                    return { ...prev, currentScreen: "review" };
+                }
+            }
+
+            return prev;
+        });
+    }, [activeStages, stageQuestions]);
+
+    const goBack = useCallback(() => {
+        setState(prev => {
+            const { currentScreen, stageIdx, questionIdx } = prev;
+            const stage = activeStages[stageIdx];
+            const questions = stage ? stageQuestions[stage.id] || [] : [];
+
+            if (currentScreen === "stage-intro") {
+                if (stageIdx > 0) {
+                    return { ...prev, stageIdx: stageIdx - 1, currentScreen: "stage-complete" };
+                } else {
+                    return { ...prev, currentScreen: "introduction" };
+                }
+            }
+
+            if (currentScreen === "question") {
+                if (questionIdx > 0) {
+                    return { ...prev, questionIdx: questionIdx - 1 };
+                } else {
+                    return { ...prev, currentScreen: "stage-intro" };
+                }
+            }
+
+            if (currentScreen === "stage-complete") {
+                return { ...prev, currentScreen: "question", questionIdx: questions.length - 1 };
+            }
+
+            if (currentScreen === "review") {
+                return { ...prev, currentScreen: "stage-complete" };
+            }
+
+            return prev;
+        });
+    }, [activeStages, stageQuestions]);
+
+    const setAnswer = (questionId: string, value: any) => {
+        setState(prev => ({
             ...prev,
-            [id]: Math.max(0, (prev[id] || 0) + delta)
+            answers: { ...prev.answers, [questionId]: value }
         }));
     };
 
-    const handleNext = async () => {
-        await saveAnswers(answers);
-        if (currentStepIndex < FLOW_STEPS.length - 1) {
-            setCurrentStepIndex(currentStepIndex + 1);
-            window.scrollTo(0, 0);
-        } else {
-            const params = new URLSearchParams();
-            if (auditId) params.set("id", auditId);
-            router.push(`/audit/results?${params.toString()}`);
-        }
+    const handleSubmit = () => {
+        setState(prev => ({ ...prev, currentScreen: "processing" }));
+        setTimeout(() => {
+            localStorage.setItem("247gbs_audit_completed", JSON.stringify({
+                completedAt: new Date().toISOString(),
+                auditType,
+                sectorId,
+                answers: state.answers
+            }));
+            localStorage.removeItem(STORAGE_KEY);
+            setState(prev => ({ ...prev, currentScreen: "complete" }));
+        }, 4000);
     };
 
-    const handleBack = () => {
-        if (currentStepIndex > 0) {
-            setCurrentStepIndex(currentStepIndex - 1);
+    const handleEditStage = (stageIdx: number) => {
+        setState(prev => ({
+            ...prev,
+            stageIdx,
+            questionIdx: 0,
+            currentScreen: "question"
+        }));
+    };
 
+    if (!hydrated) {
+        return (
+            <div className="min-h-screen flex items-center justify-center pt-24 sm:pt-28">
+                <Loader2 size={32} className="text-orange-500 animate-spin" />
+            </div>
+        );
+    }
+
+    // ==================== INTRODUCTION ====================
+    if (state.currentScreen === "introduction") {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/30 flex items-center justify-center p-4 pt-24 sm:pt-28">
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="w-full max-w-2xl"
+                >
+                    <div className="bg-white rounded-3xl shadow-2xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+                        <div className="bg-slate-900 px-6 sm:px-10 py-8 sm:py-12 text-center">
+                            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                                <BarChart3 size={32} className="text-white" />
+                            </div>
+                            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-3">Business Audit</h1>
+                            <p className="text-slate-400 text-sm sm:text-base">{auditType === "LONG_FORM" ? "Long" : "Short"} Business Audit</p>
+                        </div>
+
+                        <div className="px-6 sm:px-10 py-8 sm:py-10">
+                            <p className="text-slate-600 text-sm sm:text-base leading-relaxed text-center mb-8">
+                                This assessment will review different areas of your business. Each stage focuses on a specific aspect of your operations. Your answers help us identify opportunities, diagnose issues, and prepare the most appropriate recommendations for your business.
+                            </p>
+
+                            <div className="grid grid-cols-3 gap-4 mb-8">
+                                <div className="text-center">
+                                    <div className="text-xs text-slate-500 mb-1">Estimated Time</div>
+                                    <div className="font-bold text-slate-900">{auditType === "LONG_FORM" ? "28" : "10"} min</div>
+                                </div>
+                                <div className="text-center border-x border-slate-100">
+                                    <div className="text-xs text-slate-500 mb-1">Stages</div>
+                                    <div className="font-bold text-slate-900">{activeStages.length}</div>
+                                </div>
+                                <div className="text-center">
+                                    <div className="text-xs text-slate-500 mb-1">Questions</div>
+                                    <div className="font-bold text-slate-900">~{totalQuestions}</div>
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={goNext}
+                                className="w-full bg-orange-500 hover:bg-orange-600 text-white px-6 py-4 rounded-2xl font-bold text-base sm:text-lg flex items-center justify-center gap-3 shadow-xl shadow-orange-500/30 transition-all hover:-translate-y-1 active:translate-y-0"
+                            >
+                                Begin Assessment
+                                <ArrowRight size={18} />
+                            </button>
+                        </div>
+                    </div>
+                </motion.div>
+            </div>
+        );
+    }
+
+    // ==================== STAGE INTRODUCTION ====================
+    if (state.currentScreen === "stage-intro" && currentStage) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/30">
+                <Navbar auditType={auditType} stageIdx={state.stageIdx} totalStages={activeStages.length} stageTitle={currentStage.title} />
+
+                <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+                    <div className="bg-white rounded-3xl shadow-2xl shadow-slate-200/50 border border-slate-50 overflow-hidden">
+                        <div className="p-6 sm:p-10 lg:p-14 text-center">
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center text-orange-500 mx-auto mb-6"
+                            >
+                                {ICON_MAP[currentStage.icon] || <BarChart3 size={24} />}
+                            </motion.div>
+
+                            <span className="inline-block text-[10px] sm:text-xs font-bold uppercase tracking-widest text-orange-500 mb-3">
+                                Stage {currentStage.number} of {activeStages.length}
+                            </span>
+
+                            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-4">
+                                {currentStage.title}
+                            </h2>
+
+                            <p className="text-slate-600 text-sm sm:text-base leading-relaxed max-w-lg mx-auto mb-3">
+                                {currentStage.description}
+                            </p>
+
+                            <p className="text-slate-400 text-xs sm:text-sm leading-relaxed max-w-lg mx-auto mb-8">
+                                {currentStage.purpose}
+                            </p>
+
+                            <button
+                                onClick={goNext}
+                                className="bg-slate-900 hover:bg-black text-white px-8 py-4 rounded-2xl font-bold text-base flex items-center justify-center gap-3 shadow-xl transition-all hover:-translate-y-1 active:translate-y-0 mx-auto"
+                            >
+                                Continue
+                                <ChevronRight size={18} />
+                            </button>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        );
+    }
+
+    // ==================== QUESTION ====================
+    if (state.currentScreen === "question" && currentQuestion) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/30">
+                <Navbar auditType={auditType} stageIdx={state.stageIdx} totalStages={activeStages.length} stageTitle={currentStage?.title || ""} />
+
+                <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+                    {/* Progress */}
+                    <div className="mb-6">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-[10px] sm:text-xs font-bold text-slate-500">
+                                Question {answeredCount + 1} of {totalQuestions}
+                            </span>
+                            <span className="text-[10px] sm:text-xs font-bold text-orange-600 flex items-center gap-1">
+                                <Clock size={12} /> ~{timeRemaining} min remaining
+                            </span>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-1.5">
+                            <motion.div
+                                className="bg-orange-500 h-1.5 rounded-full"
+                                animate={{ width: `${(answeredCount / totalQuestions) * 100}%` }}
+                                transition={{ duration: 0.5 }}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Question Card */}
+                    <div className="bg-white rounded-3xl shadow-2xl shadow-slate-200/50 border border-slate-50 overflow-hidden">
+                        <div className="p-6 sm:p-10">
+                            <AnimatePresence mode="wait">
+                                <motion.div
+                                    key={currentQuestion.id}
+                                    initial={{ opacity: 0, x: 20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: -20 }}
+                                    transition={{ duration: 0.3 }}
+                                >
+                                    <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-2 leading-tight">
+                                        {currentQuestion.text}
+                                    </h2>
+
+                                    {currentQuestion.helpText && (
+                                        <p className="text-sm text-slate-400 mb-6">{currentQuestion.helpText}</p>
+                                    )}
+
+                                    {!currentQuestion.helpText && <div className="mb-6" />}
+
+                                    <QuestionInput
+                                        question={currentQuestion}
+                                        value={state.answers[currentQuestion.id]}
+                                        onChange={(val) => setAnswer(currentQuestion.id, val)}
+                                    />
+                                </motion.div>
+                            </AnimatePresence>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="px-6 sm:px-10 py-5 border-t border-slate-50 flex justify-between items-center">
+                            <button
+                                onClick={goBack}
+                                className="flex items-center gap-2 text-slate-400 hover:text-slate-900 font-bold text-[10px] sm:text-xs uppercase tracking-widest transition-all"
+                            >
+                                <ChevronLeft size={14} />
+                                Back
+                            </button>
+
+                            <button
+                                onClick={goNext}
+                                className="bg-slate-900 hover:bg-black text-white px-6 py-3 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition-all"
+                            >
+                                Next
+                                <ChevronRight size={14} />
+                            </button>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        );
+    }
+
+    // ==================== STAGE COMPLETE ====================
+    if (state.currentScreen === "stage-complete" && currentStage) {
+        const nextStage = activeStages[state.stageIdx + 1];
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/30 flex items-center justify-center p-4 pt-24 sm:pt-28">
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="w-full max-w-lg"
+                >
+                    <div className="bg-white rounded-3xl shadow-2xl p-8 sm:p-10 text-center">
+                        <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                            <CheckCircle2 size={32} className="text-green-600" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-slate-900 mb-2">Stage Complete</h2>
+                        <p className="text-slate-500 text-sm mb-6">{currentStage.title}</p>
+                        <p className="text-green-600 font-bold text-sm mb-6">Completed Successfully</p>
+
+                        {nextStage && (
+                            <div className="bg-slate-50 rounded-xl p-4 mb-6">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Next Stage</p>
+                                <p className="font-bold text-slate-900">{nextStage.title}</p>
+                            </div>
+                        )}
+
+                        <button
+                            onClick={goNext}
+                            className="w-full bg-slate-900 hover:bg-black text-white px-6 py-4 rounded-2xl font-bold text-base flex items-center justify-center gap-3 shadow-xl transition-all hover:-translate-y-1 active:translate-y-0"
+                        >
+                            Continue
+                            <ChevronRight size={18} />
+                        </button>
+                    </div>
+                </motion.div>
+            </div>
+        );
+    }
+
+    // ==================== REVIEW ====================
+    if (state.currentScreen === "review") {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/30">
+                <Navbar auditType={auditType} stageIdx={activeStages.length} totalStages={activeStages.length} stageTitle="Review" />
+
+                <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+                    <div className="bg-white rounded-3xl shadow-2xl shadow-slate-200/50 border border-slate-50 overflow-hidden">
+                        <div className="p-6 sm:p-10">
+                            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2 text-center">Review Your Responses</h2>
+                            <p className="text-slate-500 text-sm text-center mb-8">Check your answers before submitting.</p>
+
+                            <div className="space-y-3">
+                                {activeStages.map((stage, i) => {
+                                    const questions = stageQuestions[stage.id] || [];
+                                    const answered = questions.filter(q => state.answers[q.id] !== undefined).length;
+                                    return (
+                                        <div key={stage.id} className="flex items-center justify-between p-4 rounded-xl border border-slate-100 hover:border-slate-200 transition-colors">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                                                    <CheckCircle2 size={16} className="text-green-600" />
+                                                </div>
+                                                <div>
+                                                    <div className="font-bold text-slate-900 text-sm">Stage {stage.number}: {stage.title}</div>
+                                                    <div className="text-xs text-slate-400">{answered} of {questions.length} questions answered</div>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => handleEditStage(i)}
+                                                className="text-orange-500 hover:text-orange-600 font-bold text-xs flex items-center gap-1 transition-colors"
+                                            >
+                                                <Edit3 size={14} />
+                                                Edit
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        <div className="px-6 sm:px-10 py-5 border-t border-slate-50 flex justify-between items-center">
+                            <button
+                                onClick={goBack}
+                                className="flex items-center gap-2 text-slate-400 hover:text-slate-900 font-bold text-[10px] sm:text-xs uppercase tracking-widest transition-all"
+                            >
+                                <ChevronLeft size={14} />
+                                Back
+                            </button>
+
+                            <button
+                                onClick={() => goToScreen("confirmation")}
+                                className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition-all"
+                            >
+                                Submit Audit
+                                <ArrowRight size={14} />
+                            </button>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        );
+    }
+
+    // ==================== CONFIRMATION ====================
+    if (state.currentScreen === "confirmation") {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/30 flex items-center justify-center p-4 pt-24 sm:pt-28">
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="w-full max-w-lg"
+                >
+                    <div className="bg-white rounded-3xl shadow-2xl p-8 sm:p-10 text-center">
+                        <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                            <Shield size={32} className="text-blue-600" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-slate-900 mb-3">Ready to Submit</h2>
+                        <p className="text-slate-600 text-sm leading-relaxed mb-8">
+                            You have completed your Business Audit. Your responses will now be analysed to produce a detailed business diagnosis and a tailored set of recommended solutions.
+                        </p>
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => goToScreen("review")}
+                                className="flex-1 border-2 border-slate-200 text-slate-600 px-4 py-3 rounded-xl font-bold text-sm hover:border-slate-300 transition-all"
+                            >
+                                Go Back
+                            </button>
+                            <button
+                                onClick={handleSubmit}
+                                className="flex-1 bg-orange-500 hover:bg-orange-600 text-white px-4 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all"
+                            >
+                                Submit Audit
+                                <ArrowRight size={14} />
+                            </button>
+                        </div>
+                    </div>
+                </motion.div>
+            </div>
+        );
+    }
+
+    // ==================== PROCESSING ====================
+    if (state.currentScreen === "processing") {
+        const checks = [
+            "Business Profile",
+            "Business Sector",
+            "Audit Responses",
+            "Business Health Indicators",
+            "Operational Risks",
+            "Growth Opportunities",
+            "Inventory Position",
+            "Customer Performance",
+            "Marketing Effectiveness",
+            "Operational Efficiency",
+            "Technology Readiness"
+        ];
+
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/30 flex items-center justify-center p-4 pt-24 sm:pt-28">
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="w-full max-w-lg"
+                >
+                    <div className="bg-white rounded-3xl shadow-2xl p-8 sm:p-10">
+                        <div className="text-center mb-8">
+                            <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                                <Loader2 size={32} className="text-orange-500 animate-spin" />
+                            </div>
+                            <h2 className="text-2xl font-bold text-slate-900 mb-3">Analysing Your Business</h2>
+                            <p className="text-slate-500 text-sm">Please wait while we process your audit responses.</p>
+                        </div>
+
+                        <div className="space-y-2.5">
+                            {checks.map((check, i) => (
+                                <motion.div
+                                    key={check}
+                                    initial={{ opacity: 0, x: -10 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: i * 0.3 }}
+                                    className="flex items-center gap-3 text-sm"
+                                >
+                                    <motion.div
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        transition={{ delay: i * 0.3 + 0.2 }}
+                                    >
+                                        <CheckCircle2 size={16} className="text-green-500" />
+                                    </motion.div>
+                                    <span className="text-slate-600">{check}</span>
+                                </motion.div>
+                            ))}
+                        </div>
+                    </div>
+                </motion.div>
+            </div>
+        );
+    }
+
+    // ==================== COMPLETE ====================
+    if (state.currentScreen === "complete") {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/30 flex items-center justify-center p-4 pt-24 sm:pt-28">
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="w-full max-w-lg"
+                >
+                    <div className="bg-white rounded-3xl shadow-2xl p-8 sm:p-10 text-center">
+                        <div className="w-16 h-16 bg-green-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                            <CheckCircle2 size={32} className="text-white" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-slate-900 mb-3">Audit Complete</h2>
+                        <p className="text-slate-600 text-sm leading-relaxed mb-8">
+                            Your Business Audit has been submitted successfully. Your responses are being analysed and your Business Diagnosis will be available shortly.
+                        </p>
+
+                        <button
+                            onClick={() => {
+                                localStorage.removeItem(STORAGE_KEY);
+                                router.push("/dashboard");
+                            }}
+                            className="w-full bg-slate-900 hover:bg-black text-white px-6 py-4 rounded-2xl font-bold text-base flex items-center justify-center gap-3 shadow-xl transition-all hover:-translate-y-1 active:translate-y-0"
+                        >
+                            Return to Dashboard
+                            <ArrowRight size={18} />
+                        </button>
+                    </div>
+                </motion.div>
+            </div>
+        );
+    }
+
+    return null;
+}
+
+// ============================================================
+// NAVBAR
+// ============================================================
+
+function Navbar({ auditType, stageIdx, totalStages, stageTitle }: {
+    auditType: AuditType;
+    stageIdx: number;
+    totalStages: number;
+    stageTitle: string;
+}) {
+    return (
+        <nav className="bg-white border-b border-slate-100 px-4 sm:px-6 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">A</span>
+                </div>
+                <div>
+                    <div className="font-bold text-slate-900 text-sm tracking-tight">247GBS Audit</div>
+                    <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400">
+                        {auditType === "LONG_FORM" ? "Long" : "Short"} Audit
+                    </div>
+                </div>
+            </div>
+            <div className="text-right">
+                <div className="text-xs font-bold text-slate-900">Stage {Math.min(stageIdx + 1, totalStages)} of {totalStages}</div>
+                <div className="text-[10px] text-slate-400">{stageTitle}</div>
+            </div>
+        </nav>
+    );
+}
+
+// ============================================================
+// QUESTION INPUT
+// ============================================================
+
+function QuestionInput({ question, value, onChange }: {
+    question: Question;
+    value: any;
+    onChange: (val: any) => void;
+}) {
+    switch (question.type) {
+        case "multiple-choice":
+            return <MultipleChoice question={question} value={value} onChange={onChange} />;
+        case "multi-select":
+            return <MultiSelect question={question} value={value} onChange={onChange} />;
+        case "rating":
+            return <RatingScale question={question} value={value} onChange={onChange} />;
+        case "number":
+            return <NumberInput question={question} value={value} onChange={onChange} />;
+        case "percentage":
+            return <PercentageInput question={question} value={value} onChange={onChange} />;
+        case "currency":
+            return <CurrencyInput question={question} value={value} onChange={onChange} />;
+        case "text":
+            return <TextInput question={question} value={value} onChange={onChange} />;
+        case "long-text":
+            return <LongTextInput question={question} value={value} onChange={onChange} />;
+        case "boolean":
+            return <BooleanInput question={question} value={value} onChange={onChange} />;
+        default:
+            return <MultipleChoice question={question} value={value} onChange={onChange} />;
+    }
+}
+
+function MultipleChoice({ question, value, onChange }: { question: Question; value: any; onChange: (v: any) => void }) {
+    return (
+        <div className="grid gap-3">
+            {question.options?.map(opt => (
+                <motion.button
+                    key={opt.id}
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => onChange(opt.id)}
+                    className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left ${
+                        value === opt.id
+                            ? "bg-white border-orange-500 shadow-[0_8px_30px_rgb(249,115,22,0.12)]"
+                            : "bg-white border-slate-100 hover:border-slate-300 hover:shadow-md"
+                    }`}
+                >
+                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                        value === opt.id ? "border-orange-500" : "border-slate-300"
+                    }`}>
+                        {value === opt.id && <div className="w-2 h-2 bg-orange-500 rounded-full" />}
+                    </div>
+                    <div>
+                        <div className="font-bold text-sm text-slate-900">{opt.label}</div>
+                        {opt.sub && <div className="text-xs text-slate-400 mt-0.5">{opt.sub}</div>}
+                    </div>
+                </motion.button>
+            ))}
+        </div>
+    );
+}
+
+function MultiSelect({ question, value, onChange }: { question: Question; value: any; onChange: (v: any) => void }) {
+    const selected: string[] = value || [];
+    const toggle = (id: string) => {
+        if (id === "none") {
+            onChange(["none"]);
+            return;
         }
+        const next = selected.includes(id)
+            ? selected.filter(s => s !== id)
+            : [...selected.filter(s => s !== "none"), id];
+        onChange(next);
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 py-12 px-4 selection:bg-orange-100 font-sans">
-            <nav className="fixed top-0 left-0 w-full z-50 bg-white/80 backdrop-blur-md border-b border-orange-100">
-                <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-lg">A</div>
-                        <span className="font-bold tracking-tight text-slate-900">247GBS Audit Engine</span>
-                    </div>
-                    <a href="/dashboard" className="text-xs font-bold text-slate-500 hover:text-orange-500 uppercase tracking-widest transition-colors">
-                        Exit Audit
-                    </a>
-                </div>
-            </nav>
-
-            <div className="max-w-6xl mx-auto flex flex-col lg:flex-row gap-8 pt-12">
-
-                {/* Main Step Engine */}
-                <div className="flex-1 bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200 border border-slate-100 overflow-hidden">
-
-                    {/* Progress Navigator */}
-                    <div className="bg-slate-900 pt-10 pb-6 px-10 text-white relative overflow-hidden">
-                        <div className="absolute top-0 right-0 p-8 opacity-5 text-orange-500">
-                            <Target size={160} />
+        <div className="grid gap-3">
+            {question.options?.map(opt => {
+                const isSelected = selected.includes(opt.id);
+                return (
+                    <motion.button
+                        key={opt.id}
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => toggle(opt.id)}
+                        className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left ${
+                            isSelected
+                                ? "bg-white border-orange-500 shadow-[0_8px_30px_rgb(249,115,22,0.12)]"
+                                : "bg-white border-slate-100 hover:border-slate-300 hover:shadow-md"
+                        }`}
+                    >
+                        <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
+                            isSelected ? "border-orange-500 bg-orange-500" : "border-slate-300"
+                        }`}>
+                            {isSelected && <CheckCircle2 size={10} className="text-white" />}
                         </div>
-                        <div className="relative z-10 flex justify-between items-center mb-8">
-                            <div className="flex gap-2">
-                                {FLOW_STEPS.map((step, idx) => (
-                                    <div
-                                        key={step}
-                                        className={`h-1.5 rounded-full transition-all duration-500 ${idx === currentStepIndex ? "bg-orange-500 w-12" : idx < currentStepIndex ? "bg-green-500 w-8" : "bg-white/20 w-8"
-                                            }`}
-                                    />
-                                ))}
-                            </div>
-                            <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">
-                                {strategy.depth} Audit Workflow
-                            </span>
+                        <div>
+                            <div className="font-bold text-sm text-slate-900">{opt.label}</div>
+                            {opt.sub && <div className="text-xs text-slate-400 mt-0.5">{opt.sub}</div>}
                         </div>
-                        <h1 className={`text-4xl font-bold relative z-10 ${currentCategory === "FOLLOW_UP" ? "text-red-500 animate-pulse" : "text-white"} capitalize`}>
-                            {currentCategory === "STRATEGY_PREVIEW" ? "Recommended Solution" : currentCategory === "FOLLOW_UP" ? "🔥 Critical Clarifications" : currentCategory.replace("_", " ").toLowerCase()}
-                        </h1>
+                    </motion.button>
+                );
+            })}
+        </div>
+    );
+}
+
+function RatingScale({ question, value, onChange }: { question: Question; value: any; onChange: (v: any) => void }) {
+    const min = question.min || 1;
+    const max = question.max || 5;
+    const options = question.options || [];
+
+    return (
+        <div className="grid grid-cols-5 gap-2 sm:gap-3">
+            {options.map(opt => (
+                <motion.button
+                    key={opt.id}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => onChange(opt.id)}
+                    className={`flex flex-col items-center gap-2 p-3 sm:p-4 rounded-2xl border-2 transition-all ${
+                        value === opt.id
+                            ? "border-orange-500 bg-orange-50 shadow-lg"
+                            : "border-slate-100 hover:border-slate-300"
+                    }`}
+                >
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${
+                        value === opt.id
+                            ? "bg-orange-500 text-white"
+                            : "bg-slate-100 text-slate-600"
+                    }`}>
+                        {opt.value || opt.id}
                     </div>
+                    <span className="text-[10px] sm:text-xs font-bold text-slate-600 text-center leading-tight">{opt.label}</span>
+                </motion.button>
+            ))}
+        </div>
+    );
+}
 
-                    {/* Scope Switcher / Tabs */}
-                    <div className="flex border-b border-slate-100">
-                        <button
-                            onClick={() => {
-                                const idx = FLOW_STEPS.indexOf("EXCESS_STOCK");
-                                if (idx !== -1) setCurrentStepIndex(idx);
-                            }}
-                            disabled={!hasStockScope}
-                            className={`flex-1 py-6 flex items-center justify-center gap-3 transition-all relative ${currentCategory === "EXCESS_STOCK"
-                                ? "text-orange-500 font-bold bg-orange-50/30"
-                                : "text-slate-400 font-bold hover:text-slate-600"
-                                } disabled:opacity-30 disabled:grayscale disabled:cursor-not-allowed`}
-                        >
-                            <TrendingUp size={20} />
-                            Excess Stock Audit
-                            {currentCategory === "EXCESS_STOCK" && (
-                                <motion.div layoutId="scope-tab" className="absolute bottom-0 left-0 right-0 h-1 bg-orange-500" />
-                            )}
-                        </button>
-                        <button
-                            onClick={() => {
-                                const idx = FLOW_STEPS.indexOf("SPARE_CAPACITY");
-                                if (idx !== -1) setCurrentStepIndex(idx);
-                            }}
-                            disabled={!hasCapacityScope}
-                            className={`flex-1 py-6 flex items-center justify-center gap-3 transition-all relative ${currentCategory === "SPARE_CAPACITY"
-                                ? "text-orange-500 font-bold bg-orange-50/30"
-                                : "text-slate-400 font-bold hover:text-slate-600"
-                                } disabled:opacity-30 disabled:grayscale disabled:cursor-not-allowed`}
-                        >
-                            <Zap size={20} />
-                            Spare Capacity Audit
-                            {currentCategory === "SPARE_CAPACITY" && (
-                                <motion.div layoutId="scope-tab" className="absolute bottom-0 left-0 right-0 h-1 bg-orange-500" />
-                            )}
-                        </button>
-                    </div>
+function NumberInput({ question, value, onChange }: { question: Question; value: any; onChange: (v: any) => void }) {
+    return (
+        <div className="flex items-center gap-4">
+            <button
+                onClick={() => onChange(Math.max(0, (value || 0) - 1))}
+                className="w-12 h-12 rounded-xl border-2 border-slate-200 flex items-center justify-center text-slate-600 hover:border-slate-300 transition-colors font-bold text-xl"
+            >
+                -
+            </button>
+            <input
+                type="number"
+                value={value ?? ""}
+                onChange={(e) => onChange(Number(e.target.value))}
+                placeholder={question.placeholder || "0"}
+                className="flex-1 text-center text-2xl font-bold text-slate-900 py-3 border-b-2 border-slate-200 focus:border-orange-500 outline-none transition-colors bg-transparent"
+            />
+            <button
+                onClick={() => onChange((value || 0) + 1)}
+                className="w-12 h-12 rounded-xl border-2 border-slate-200 flex items-center justify-center text-slate-600 hover:border-slate-300 transition-colors font-bold text-xl"
+            >
+                +
+            </button>
+        </div>
+    );
+}
 
-                    <div className="p-10 md:p-16">
-                        <AnimatePresence mode="wait">
-                            {/* FOLLOW_UP STEP — Long Form Only */}
-                            {currentCategory === "FOLLOW_UP" ? (
-                                <motion.div
-                                    key="followup"
-                                    initial={{ opacity: 0, x: 20 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    exit={{ opacity: 0, x: -20 }}
-                                    className="space-y-8 p-8 rounded-3xl border-2 border-red-100 bg-red-50/20"
-                                >
-                                    <div className="bg-red-500 text-white px-6 py-3 rounded-2xl flex items-center gap-3 shadow-lg shadow-red-100 mb-4">
-                                        <AlertCircle size={20} className="animate-bounce" />
-                                        <span className="font-bold uppercase tracking-widest text-[11px]">Critical Action: Precision Recovery Input Required</span>
-                                    </div>
-                                    <AIFollowUpCard
-                                        questions={followUpQuestions || []}
-                                        isLoading={followUpLoading}
-                                        onSubmit={handleFollowUpSubmit}
-                                        onSkip={handleFollowUpSkip}
-                                    />
+function PercentageInput({ question, value, onChange }: { question: Question; value: any; onChange: (v: any) => void }) {
+    return (
+        <div className="flex items-center gap-3">
+            <input
+                type="number"
+                min={0}
+                max={100}
+                value={value ?? ""}
+                onChange={(e) => onChange(Number(e.target.value))}
+                placeholder={question.placeholder || "0"}
+                className="flex-1 text-center text-2xl font-bold text-slate-900 py-3 border-b-2 border-slate-200 focus:border-orange-500 outline-none transition-colors bg-transparent"
+            />
+            <span className="text-2xl font-bold text-slate-400">%</span>
+        </div>
+    );
+}
 
-                                    {/* If no questions and not loading, auto-skip to next step */}
-                                    {!followUpLoading && followUpQuestions?.length === 0 && (
-                                        <div className="text-center py-12">
-                                            <p className="text-slate-500 mb-6">No additional clarifications needed.</p>
-                                            <button
-                                                onClick={handleFollowUpSkip}
-                                                className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-black transition-colors"
-                                            >
-                                                Continue to Results
-                                            </button>
-                                        </div>
-                                    )}
-                                </motion.div>
-                            ) : currentCategory === "STRATEGY_PREVIEW" ? (
+function CurrencyInput({ question, value, onChange }: { question: Question; value: any; onChange: (v: any) => void }) {
+    return (
+        <div className="flex items-center gap-3">
+            <span className="text-2xl font-bold text-slate-400">£</span>
+            <input
+                type="number"
+                min={0}
+                value={value ?? ""}
+                onChange={(e) => onChange(Number(e.target.value))}
+                placeholder={question.placeholder || "0"}
+                className="flex-1 text-center text-2xl font-bold text-slate-900 py-3 border-b-2 border-slate-200 focus:border-orange-500 outline-none transition-colors bg-transparent"
+            />
+        </div>
+    );
+}
 
-                                <motion.div
-                                    key="strategy"
-                                    initial={{ opacity: 0, x: 20 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    exit={{ opacity: 0, x: -20 }}
-                                    className="space-y-8"
-                                >
-                                    <div className="bg-orange-50 border border-orange-100 p-8 rounded-3xl">
-                                        <h3 className="text-2xl font-bold text-orange-900 mb-4 flex items-center gap-3">
-                                            <Lightbulb className="text-orange-500" />
-                                            Preview: Opportunity Detected
-                                        </h3>
-                                        <p className="text-orange-800 leading-relaxed font-medium">
-                                            Based on your real-time inputs of {engineStats.capacityDrainPct}% capacity drain and £{engineStats.totalStockImpact.toLocaleString()} annual stock impact, the system suggests a potential annual recovery of <span className="font-bold underline decoration-orange-300">£{engineStats.annualRecovery.toLocaleString()}</span> through the 247GBS redistribution engine.
-                                        </p>
-                                    </div>
+function TextInput({ question, value, onChange }: { question: Question; value: any; onChange: (v: any) => void }) {
+    return (
+        <input
+            type="text"
+            value={value || ""}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={question.placeholder || "Type your answer..."}
+            className="w-full text-base text-slate-900 py-3 px-4 border-2 border-slate-200 rounded-xl focus:border-orange-500 outline-none transition-colors"
+        />
+    );
+}
 
-                                    {/* AI INSIGHT CARD — Long Form Only */}
-                                    {auditType === "LONG_FORM" && (
-                                        <div className="space-y-4">
-                                            <AIInsightCard
-                                                insight={aiInsight}
-                                                isLoading={aiLoading}
-                                                isFallback={aiFallback}
-                                                onRetry={fetchAIInsight}
-                                            />
-                                            {!aiInsight && !aiLoading && (
-                                                <button
-                                                    onClick={fetchAIInsight}
-                                                    className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold text-sm hover:bg-black transition-colors flex items-center justify-center gap-3"
-                                                >
-                                                    <Sparkles size={18} />
-                                                    Get Deeper Insight
-                                                </button>
-                                            )}
-                                        </div>
-                                    )}
+function LongTextInput({ question, value, onChange }: { question: Question; value: any; onChange: (v: any) => void }) {
+    return (
+        <textarea
+            value={value || ""}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={question.placeholder || "Type your answer..."}
+            rows={4}
+            className="w-full text-base text-slate-900 py-3 px-4 border-2 border-slate-200 rounded-xl focus:border-orange-500 outline-none transition-colors resize-none"
+        />
+    );
+}
 
-                                    <div className="grid md:grid-cols-2 gap-6">
-                                        <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100">
-                                            <h4 className="font-bold text-slate-900 mb-2">Short-Term Action</h4>
-                                            <p className="text-sm text-slate-500">Inventory liquidation of items older than 90 days. Estimated recovery: £{engineStats.totalStockImpact.toLocaleString()}</p>
-                                        </div>
-                                        <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100">
-                                            <h4 className="font-bold text-slate-900 mb-2">Long-Term Pivot</h4>
-                                            <p className="text-sm text-slate-500">Staff redistribution from prep-tasks to upselling. Expected margin increase: 4.2%</p>
-                                        </div>
-                                    </div>
-                                </motion.div>
-
-                            ) : (
-                                <motion.div
-                                    key={currentCategory}
-                                    initial={{ opacity: 0, x: 20 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    exit={{ opacity: 0, x: -20 }}
-                                    className="space-y-12"
-                                >
-                                    <div className="bg-slate-50 border-l-4 border-orange-500 p-5 rounded-r-2xl flex gap-4">
-                                        <AlertCircle className="text-orange-500 shrink-0" size={20} />
-                                        <p className="text-[13px] text-slate-600 font-medium leading-relaxed">
-                                            <span className="font-bold text-slate-900">Important:</span> Quality inputs drive quality strategic recommendations. Accuracy here is vital.
-                                        </p>
-                                    </div>
-
-                                    <form className="space-y-12">
-                                        {stepQuestions.map((q) => (
-                                            <div key={q.id} className="group">
-                                                <div className="flex justify-between items-start mb-4">
-                                                    <label className="block text-xl font-bold text-slate-900 max-w-md">
-                                                        {q.text}
-                                                    </label>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setShowAIHelp(true)}
-                                                        className="text-slate-300 hover:text-orange-500 transition-colors"
-                                                    >
-                                                        <Info size={20} />
-                                                    </button>
-                                                </div>
-
-                                                <div className="flex items-center gap-4">
-                                                    {q.type === "boolean" ? (
-                                                        <div className="flex gap-4 w-full">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setAnswers(prev => ({ ...prev, [q.id]: 1 }))}
-                                                                className={`flex-1 py-6 rounded-[2rem] font-bold text-xl transition-all border-3 ${answers[q.id] === 1 ? "bg-orange-500 text-white border-orange-500 shadow-xl shadow-orange-200" : "bg-slate-50 text-slate-400 border-transparent hover:bg-slate-100"}`}
-                                                            >
-                                                                Yes
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setAnswers(prev => ({ ...prev, [q.id]: 0 }))}
-                                                                className={`flex-1 py-6 rounded-[2rem] font-bold text-xl transition-all border-3 ${answers[q.id] === 0 ? "bg-slate-900 text-white border-slate-900 shadow-xl shadow-slate-200" : "bg-slate-50 text-slate-400 border-transparent hover:bg-slate-100"}`}
-                                                            >
-                                                                No
-                                                            </button>
-                                                        </div>
-                                                    ) : (
-                                                        <>
-                                                            <div className="flex-1 relative">
-                                                                <input
-                                                                    type="text"
-                                                                    inputMode="numeric"
-                                                                    pattern="[0-9]*"
-                                                                    className="w-full text-3xl font-bold p-6 bg-slate-50 border-3 border-transparent focus:border-orange-500 focus:bg-white rounded-3xl outline-none transition-all pr-16 appearance-none"
-                                                                    value={answers[q.id] === undefined ? 0 : (Number.isNaN(answers[q.id]) ? '' : answers[q.id])}
-                                                                    onChange={(e) => {
-                                                                        const val = e.target.value;
-                                                                        if (val === '') {
-                                                                            setAnswers(prev => ({ ...prev, [q.id]: NaN }));
-                                                                        } else if (/^\d*$/.test(val)) {
-                                                                            setAnswers(prev => ({ ...prev, [q.id]: parseInt(val) }));
-                                                                        }
-                                                                    }}
-                                                                />
-                                                                <div className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xl">
-                                                                    {q.type === "percentage" ? "%" : q.type === "currency" ? "£" : ""}
-                                                                </div>
-                                                            </div>
-                                                            <div className="flex flex-col gap-2">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handleAdjust(q.id, 1)}
-                                                                    className="p-3 bg-slate-100 hover:bg-orange-500 hover:text-white rounded-xl transition-all"
-                                                                >
-                                                                    <Plus size={20} />
-                                                                </button>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handleAdjust(q.id, -1)}
-                                                                    className="p-3 bg-slate-100 hover:bg-orange-500 hover:text-white rounded-xl transition-all"
-                                                                >
-                                                                    <Minus size={20} />
-                                                                </button>
-                                                            </div>
-                                                        </>
-                                                    )}
-                                                </div>
-
-
-                                            </div>
-                                        ))}
-                                    </form>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-
-                        <div className="flex justify-between mt-20 pt-10 border-t border-slate-100">
-                            <button
-                                onClick={handleBack}
-                                disabled={currentStepIndex === 0}
-                                className="px-10 py-4 rounded-2xl font-bold text-slate-400 hover:text-slate-900 disabled:opacity-20 transition-all flex items-center gap-2"
-                            >
-                                Back
-                            </button>
-                            <button
-                                onClick={handleNext}
-                                className={`px-16 py-5 ${currentCategory === "FOLLOW_UP" ? "bg-red-600 hover:bg-red-700 shadow-red-200" : "bg-orange-500 hover:bg-orange-600 shadow-orange-200"} text-white rounded-[2rem] font-bold text-2xl shadow-2xl transition-all active:scale-95 flex items-center gap-3`}
-                            >
-                                {currentStepIndex === FLOW_STEPS.length - 1 ? "Complete Audit" : "Next Step"}
-                                <ArrowRight size={24} />
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Dynamic Context Sidebar */}
-                <aside className="lg:w-96 space-y-8">
-                    <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden">
-                        <div className="relative z-10">
-                            <div className="flex justify-between items-center mb-10">
-                                <h4 className="text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Engine Analytics</h4>
-                                <TrendingUp className="text-orange-500" size={20} />
-                            </div>
-
-                            <div className="space-y-8">
-                                <div>
-                                    <div className="flex justify-between text-[11px] font-bold uppercase tracking-widest mb-3">
-                                        <span className="text-slate-400">Capacity Drain</span>
-                                        <span className="text-orange-500">{engineStats.capacityDrainPct}%</span>
-                                    </div>
-                                    <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden">
-                                        <motion.div
-                                            animate={{ width: `${engineStats.capacityDrainPct}%` }}
-                                            className="bg-orange-500 h-full shadow-[0_0_15px_rgba(249,115,22,0.5)]"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <div className="flex justify-between text-[11px] font-bold uppercase tracking-widest mb-3">
-                                        <span className="text-slate-400">Recovery Value</span>
-                                        <span className="text-orange-500">£{Math.round(engineStats.annualRecovery / 52).toLocaleString()}/wk</span>
-                                    </div>
-                                    <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden">
-                                        <motion.div
-                                            animate={{ width: `${Math.min((engineStats.annualRecovery / 50000) * 100, 100)}%` }}
-                                            className="bg-orange-400 h-full"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="mt-12 p-6 bg-white/5 rounded-3xl border border-white/5 border-dashed">
-                                <p className="text-[10px] text-slate-400 leading-relaxed">
-                                    "Real-time analysis suggests {engineStats.capacityDrainPct > 20 ? 'critical' : 'moderate'} underutilisation. Every percentage point represents roughly £500 in potential annual recovery."
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm">
-                        <div className="flex items-center gap-4 mb-6">
-                            <div className="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-orange-100">
-                                <Bot size={24} />
-                            </div>
-                            <div>
-                                <h5 className="font-bold text-slate-900 text-sm">Strategy Assistant</h5>
-                                <span className="text-[10px] text-orange-600 font-bold uppercase tracking-widest">Active Logic</span>
-                            </div>
-                        </div>
-                        <p className="text-sm text-slate-500 leading-relaxed font-medium ">
-                            {currentCategory === "SPARE_CAPACITY"
-                                ? "Looking at idle staff time is the most immediate way to reclaim margins. It's not about cutting jobs, it's about re-allocating value."
-                                : currentCategory === "EXCESS_STOCK"
-                                    ? "Stock older than 90 days isn't just taking up space; it's dead capital that costs you storage fees and lost opportunity."
-                                    : "We are combining your operational and stock data to build your forensic roadmap."}
-                        </p>
-                    </div>
-                </aside>
-
-            </div>
-        </div >
+function BooleanInput({ question, value, onChange }: { question: Question; value: any; onChange: (v: any) => void }) {
+    return (
+        <div className="grid grid-cols-2 gap-4">
+            {[
+                { id: "yes", label: "Yes" },
+                { id: "no", label: "No" }
+            ].map(opt => (
+                <motion.button
+                    key={opt.id}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => onChange(opt.id)}
+                    className={`py-4 rounded-2xl border-2 font-bold text-base transition-all ${
+                        value === opt.id
+                            ? opt.id === "yes"
+                                ? "border-green-500 bg-green-50 text-green-700"
+                                : "border-red-500 bg-red-50 text-red-700"
+                            : "border-slate-200 text-slate-600 hover:border-slate-300"
+                    }`}
+                >
+                    {opt.label}
+                </motion.button>
+            ))}
+        </div>
     );
 }

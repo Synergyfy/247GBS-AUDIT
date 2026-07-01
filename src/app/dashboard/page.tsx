@@ -1,280 +1,361 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 import {
-    LayoutDashboard,
-    Plus,
-    TrendingUp,
-    Users,
-    BarChart3,
-    History,
-    Settings,
-    Bell,
-    Search,
-    ChevronRight,
-    Zap,
-    Target,
-    ArrowUpRight,
-    Briefcase,
-    Calendar,
+    Clock,
+    CheckCircle2,
     ArrowRight,
-    Star,
-    MoreVertical,
-    Bot
+    BarChart3,
+    FileText,
+    AlertCircle,
+    ShieldCheck,
+    Loader2,
+    Eye,
+    UserCheck
 } from "lucide-react";
-import type { SavedAudit, DashboardStats } from "@/services/dashboard/types";
-import useDashboard from "@/services/dashboard/hooks";
+import { useAuth } from "@/context/AuthContext";
 
-export default function DashboardPage() {
-    const { data, loading, error } = useDashboard();
-
-    const recentAudits = data?.recentAudits ?? [];
-    const stats: DashboardStats = data?.stats ?? {
-        totalAudits: 0,
-        activeRecovery: 0,
-        efficiencyGain: 0,
-        nextAuditDate: "-",
-    };
-
-    return (
-        <div className="space-y-10">
-            {/* Welcome & Global CTA */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                >
-                    <h1 className="text-3xl md:text-4xl font-bold text-slate-900 mb-2">Welcome Back, <span className="text-orange-500 underline decoration-slate-200 underline-offset-8">{data?.userName ?? 'Member'}</span>.</h1>
-                    <p className="text-sm md:text-base text-slate-500 font-medium">Your business growth plan is active.</p>
-                </motion.div>
-                <Link
-                    href="/audit/selection"
-                    className="w-full md:w-auto bg-slate-900 text-white px-8 py-4 rounded-2xl md:rounded-[2rem] font-bold text-base md:text-lg flex items-center justify-center gap-3 shadow-xl shadow-slate-200 hover:bg-black hover:-translate-y-1 transition-all active:scale-95 group"
-                >
-                    <Plus size={24} className="text-orange-500 group-hover:rotate-90 transition-transform" />
-                    New Business Review
-                </Link>
-            </div>
-
-            {/* Sophisticated Stats Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-                {[
-                    { label: "Active Savings", value: `£${stats.activeRecovery.toLocaleString()}`, sub: "Projected Annual", icon: TrendingUp, color: "orange" },
-                    { label: "Review Sessions", value: stats.totalAudits, sub: "Completed to date", icon: History, color: "slate" },
-                    { label: "Profit Gain", value: `+${stats.efficiencyGain}%`, sub: "Avg per review", icon: Zap, color: "orange" },
-                    { label: "Next Review", value: stats.nextAuditDate, sub: "Recommended refresh", icon: Calendar, color: "slate" },
-                ].map((stat, i) => (
-                    <motion.div
-                        key={i}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: i * 0.1 }}
-                        className="bg-white p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] border border-slate-100 shadow-sm group hover:shadow-xl hover:shadow-orange-100/20 transition-all"
-                    >
-                        <div className="flex justify-between items-start mb-6">
-                            <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl flex items-center justify-center ${stat.color === 'orange' ? 'bg-orange-500 text-white shadow-lg shadow-orange-100' : 'bg-slate-900 text-white shadow-lg shadow-slate-100'}`}>
-                                <stat.icon size={18} />
-                            </div>
-                            <ArrowUpRight className="text-slate-200 group-hover:text-orange-500 transition-colors" size={20} />
-                        </div>
-                        <div className="text-xl md:text-2xl font-bold text-slate-900 mb-1">{stat.value}</div>
-                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">{stat.label}</div>
-                        <div className="pt-4 border-t border-slate-50 text-[10px] font-bold text-slate-400 ">
-                            {stat.sub}
-                        </div>
-                    </motion.div>
-                ))}
-            </div>
-
-            <div className="grid lg:grid-cols-3 gap-10">
-                {/* My History / Recent Activity */}
-                <div className="lg:col-span-2 space-y-6">
-                    <div className="flex justify-between items-center px-4">
-                        <h3 className="text-xl font-bold text-slate-900 flex items-center gap-3">
-                            <ArchiveIcon className="text-orange-500" size={24} />
-                            My History
-                        </h3>
-                        <Link href="/dashboard/vault" className="text-xs font-bold uppercase tracking-widest text-orange-600 hover:text-slate-900 transition-colors">View All</Link>
-                    </div>
-
-                    <div className="space-y-4">
-                        {recentAudits.length > 0 ? (
-                            <React.Fragment>
-                                {/* Desktop Table */}
-                                <div className="hidden md:block bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
-                                    <table className="w-full text-left">
-                                        <thead>
-                                            <tr className="bg-slate-50/50 border-b border-slate-100">
-                                                <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Industry / Date</th>
-                                                <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Waste</th>
-                                                <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Potential</th>
-                                                <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Status</th>
-                                                <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-slate-400"></th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-50">
-                                            <AnimatePresence>
-                                                {recentAudits.slice(0, 5).map((audit, i) => (
-                                                    <motion.tr
-                                                        key={audit.id}
-                                                        initial={{ opacity: 0, x: -20 }}
-                                                        animate={{ opacity: 1, x: 0 }}
-                                                        className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
-                                                    >
-                                                        <td className="px-8 py-6">
-                                                            <div className="font-bold text-slate-900">{audit.sector}</div>
-                                                            <div className="text-[10px] text-slate-400 font-medium">{new Date(audit.date).toLocaleDateString()} • {audit.type.replace('_', ' ')}</div>
-                                                        </td>
-                                                        <td className="px-8 py-6">
-                                                            <div className="flex items-center gap-3">
-                                                                <span className="font-bold text-slate-900">{audit.metrics.capacityDrain}%</span>
-                                                                <div className="flex-1 w-12 h-1 bg-slate-100 rounded-full overflow-hidden">
-                                                                    <div className="bg-orange-500 h-full" style={{ width: `${audit.metrics.capacityDrain}%` }} />
-                                                                </div>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-8 py-6">
-                                                            <span className="font-bold text-slate-900">£{audit.metrics.annualRecovery.toLocaleString()}</span>
-                                                        </td>
-                                                        <td className="px-8 py-6">
-                                                            <span className="px-3 py-1 bg-green-50 text-green-600 rounded-full text-[10px] font-bold uppercase tracking-widest border border-green-100">
-                                                                Completed
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-8 py-6 text-right">
-                                                            <button className="p-2 text-slate-300 hover:text-slate-900 transition-colors">
-                                                                <ChevronRight size={20} />
-                                                            </button>
-                                                        </td>
-                                                    </motion.tr>
-                                                ))}
-                                            </AnimatePresence>
-                                        </tbody>
-                                    </table>
-                                </div>
-
-                                {/* Mobile Cards */}
-                                <div className="md:hidden space-y-4">
-                                    {recentAudits.slice(0, 5).map((audit, i) => (
-                                        <motion.div
-                                            key={audit.id}
-                                            initial={{ opacity: 0, y: 10 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            transition={{ delay: i * 0.05 }}
-                                            className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm active:scale-[0.98] transition-all"
-                                        >
-                                            <div className="flex justify-between items-start mb-4">
-                                                <div>
-                                                    <div className="font-bold text-slate-900 text-lg">{audit.sector}</div>
-                                                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{new Date(audit.date).toLocaleDateString()} • {audit.type.replace('_', ' ')}</div>
-                                                </div>
-                                                <ChevronRight className="text-slate-300" size={20} />
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-50">
-                                                <div>
-                                                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Savings</div>
-                                                    <div className="font-bold text-slate-900">£{audit.metrics.annualRecovery.toLocaleString()}</div>
-                                                </div>
-                                                <div>
-                                                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Waste</div>
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="font-bold text-slate-900">{audit.metrics.capacityDrain}%</span>
-                                                        <div className="flex-1 h-1 bg-slate-100 rounded-full overflow-hidden">
-                                                            <div className="bg-orange-500 h-full" style={{ width: `${audit.metrics.capacityDrain}%` }} />
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </motion.div>
-                                    ))}
-                                </div>
-                            </React.Fragment>
-                        ) : (
-                            <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm p-12 md:p-20 text-center space-y-6">
-                                <div className="w-16 h-16 md:w-20 md:h-20 bg-slate-50 rounded-[1.5rem] md:rounded-[2rem] flex items-center justify-center mx-auto text-slate-200">
-                                    <ArchiveIcon size={32} />
-                                </div>
-                                <div>
-                                    <p className="text-slate-900 font-bold">No history available.</p>
-                                    <p className="text-sm text-slate-400 max-w-xs mx-auto mt-2 ">Your business review plans will appear here once saved.</p>
-                                </div>
-                                <Link
-                                    href="/audit/selection"
-                                    className="inline-flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-black transition-all"
-                                >
-                                    Start Your First Review <ArrowRight size={14} />
-                                </Link>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* Specialist Coordination Sidebar */}
-                <div className="space-y-10">
-                    {/* AI Advisor Panel */}
-                    <div className="bg-slate-900 rounded-[2.5rem] p-6 md:p-8 text-white relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 p-8 opacity-10 text-orange-500 group-hover:scale-125 transition-transform duration-1000">
-                            <Bot size={120} />
-                        </div>
-                        <div className="relative z-10">
-                            <h4 className="text-xs font-bold uppercase tracking-[0.3em] text-slate-500 mb-8 ">Smart Advisor</h4>
-                            <p className="text-lg font-bold leading-relaxed mb-10">
-                                {data?.aiAdvisorSuggestion ? (
-                                    `"${data.aiAdvisorSuggestion}"`
-                                ) : (
-                                    `"Start a business review to receive personalized strategic recommendations."`
-                                )}
-                            </p>
-                            <button className="w-full py-4 bg-orange-500 text-white rounded-[1.5rem] font-bold text-sm shadow-xl shadow-orange-500/20 hover:bg-orange-600 transition-all flex items-center justify-center gap-3 group">
-                                Apply AI Suggestion
-                                <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Token Allocation Card */}
-                    <div className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-sm relative overflow-hidden">
-                        <div className="absolute -top-10 -right-10 w-40 h-40 bg-orange-50 rounded-full blur-3xl opacity-50" />
-                        <div className="flex justify-between items-center mb-10">
-                            <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Balance</h4>
-                            <Zap size={20} className="text-orange-500" fill="currentColor" />
-                        </div>
-                        <div className="flex items-end gap-2 mb-2">
-                            <span className="text-5xl font-bold text-slate-900">{data?.tokenBalance ?? 0}</span>
-                            <span className="text-xl font-bold text-orange-500 mb-1">Tokens</span>
-                        </div>
-                        <p className="text-xs text-slate-500 font-medium leading-relaxed mb-8">
-                            Your next <span className="text-slate-900 font-bold underline decoration-orange-300 underline-offset-4 tracking-tight ">Review Update</span> costs **1 Token**.
-                        </p>
-                        <button className="w-full py-4 rounded-2xl border-2 border-slate-100 font-bold text-slate-500 hover:border-orange-500 hover:text-orange-600 transition-all text-xs uppercase tracking-widest">
-                            Buy more tokens
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
+interface TriageResult {
+    assignedAudit: 'SHORT_FORM' | 'LONG_FORM';
+    completedAt: string;
 }
 
-function ArchiveIcon({ className, size }: { className?: string, size?: number }) {
+interface AuditCompleted {
+    completedAt: string;
+    auditType: string;
+    sectorId: string;
+}
+
+export default function DashboardPage() {
+    const { user } = useAuth();
+    const router = useRouter();
+    const [triageResult, setTriageResult] = useState<TriageResult | null>(null);
+    const [auditCompleted, setAuditCompleted] = useState<AuditCompleted | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    const [diagnosisViewed, setDiagnosisViewed] = useState(false);
+    const [improvementPlanComplete, setImprovementPlanComplete] = useState(false);
+
+    useEffect(() => {
+        // Check triage
+        const completed = localStorage.getItem("247gbs_assessment_completed");
+        const resultStr = localStorage.getItem("247gbs_triage_result");
+
+        if (completed && resultStr) {
+            try {
+                const result = JSON.parse(resultStr);
+                setTriageResult(result);
+            } catch {
+                setTriageResult({ assignedAudit: 'SHORT_FORM', completedAt: new Date().toISOString() });
+            }
+        } else if (completed) {
+            setTriageResult({ assignedAudit: 'SHORT_FORM', completedAt: new Date().toISOString() });
+        }
+
+        // Check audit completion
+        const auditStr = localStorage.getItem("247gbs_audit_completed");
+        if (auditStr) {
+            try {
+                setAuditCompleted(JSON.parse(auditStr));
+            } catch {}
+        }
+
+        // Check if diagnosis has been viewed
+        const viewed = localStorage.getItem("247gbs_diagnosis_viewed");
+        if (viewed === "true") {
+            setDiagnosisViewed(true);
+        }
+
+        // Check if improvement plan is complete
+        const planComplete = localStorage.getItem("247gbs_solutions_complete");
+        if (planComplete === "true") {
+            setImprovementPlanComplete(true);
+        }
+
+        setLoading(false);
+    }, []);
+
+    const isLong = triageResult?.assignedAudit === 'LONG_FORM';
+    const auditName = isLong ? 'Long Business Audit' : 'Short Business Audit';
+    const lastUpdated = triageResult?.completedAt
+        ? new Date(triageResult.completedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+        : new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center min-h-[60vh]">
+                <Loader2 size={32} className="text-orange-500 animate-spin" />
+            </div>
+        );
+    }
+
     return (
-        <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width={size || 24}
-            height={size || 24}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className={className}
-        >
-            <rect width="20" height="5" x="2" y="3" rx="1" />
-            <path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" />
-            <path d="M10 12h4" />
-        </svg>
-    )
+        <div className="space-y-8">
+            {/* Header */}
+            <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
+            >
+                <div>
+                    <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-1">
+                        {user?.name || 'Your Business'}
+                    </h1>
+                    <div className="flex items-center gap-3 text-sm text-slate-500">
+                        <span className="flex items-center gap-1.5">
+                            <span className={`w-2 h-2 rounded-full ${triageResult ? 'bg-green-500' : 'bg-slate-300'}`} />
+                            {triageResult ? 'Triage Complete' : 'Triage Not Started'}
+                        </span>
+                        <span className="text-slate-300">|</span>
+                        <span className="flex items-center gap-1.5">
+                            <span className={`w-2 h-2 rounded-full ${auditCompleted ? 'bg-green-500' : 'bg-slate-300'}`} />
+                            {auditCompleted ? 'Audit Completed' : 'Audit Not Started'}
+                        </span>
+                        <span className="text-slate-300">|</span>
+                        <span className="flex items-center gap-1.5">
+                            <span className={`w-2 h-2 rounded-full ${improvementPlanComplete ? 'bg-green-500' : diagnosisViewed ? 'bg-green-500' : 'bg-slate-300'}`} />
+                            {improvementPlanComplete ? 'Improvement Plan Ready' : diagnosisViewed ? 'Diagnosis Reviewed' : 'Diagnosis Not Started'}
+                        </span>
+                        <span className="text-slate-300 hidden sm:inline">|</span>
+                        <span className="hidden sm:inline">Last Updated: {lastUpdated}</span>
+                    </div>
+                </div>
+            </motion.div>
+
+            {/* Business Diagnosis Ready */}
+            {auditCompleted && !diagnosisViewed && !improvementPlanComplete && (
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-3xl p-6 sm:p-8 text-white"
+                >
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                        <div className="flex items-center gap-4">
+                            <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center">
+                                <Eye size={28} />
+                            </div>
+                            <div>
+                                <h3 className="text-xl sm:text-2xl font-bold mb-1">Business Diagnosis Ready</h3>
+                                <p className="text-white/80 text-sm">Your audit has been analysed. View your personalised business diagnosis and recommendations.</p>
+                            </div>
+                        </div>
+                        <Link
+                            href="/audit/results"
+                            className="bg-white text-green-700 px-6 py-3 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-green-50 transition-all shrink-0"
+                        >
+                            View Business Diagnosis
+                            <ArrowRight size={16} />
+                        </Link>
+                    </div>
+                </motion.div>
+            )}
+
+            {/* Diagnosis Viewed → Recommended Solutions */}
+            {auditCompleted && diagnosisViewed && !improvementPlanComplete && (
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-3xl p-6 sm:p-8 text-white"
+                >
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                        <div className="flex items-center gap-4">
+                            <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center">
+                                <BarChart3 size={28} />
+                            </div>
+                            <div>
+                                <h3 className="text-xl sm:text-2xl font-bold mb-1">Recommended Solutions Ready</h3>
+                                <p className="text-white/80 text-sm">Your business diagnosis is complete. View tailored solutions to address your business needs.</p>
+                            </div>
+                        </div>
+                        <Link
+                            href="/solutions"
+                            className="bg-white text-orange-700 px-6 py-3 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-orange-50 transition-all shrink-0"
+                        >
+                            View Recommended Solutions
+                            <ArrowRight size={16} />
+                        </Link>
+                    </div>
+                </motion.div>
+            )}
+
+            {/* Improvement Plan Complete → Account Manager Review */}
+            {auditCompleted && improvementPlanComplete && (
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-3xl p-6 sm:p-8 text-white"
+                >
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                        <div className="flex items-center gap-4">
+                            <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center">
+                                <UserCheck size={28} />
+                            </div>
+                            <div>
+                                <h3 className="text-xl sm:text-2xl font-bold mb-1">Account Manager Review Ready</h3>
+                                <p className="text-white/80 text-sm">Your Business Improvement Plan is complete. Review your recommendations with an MCOM Account Manager.</p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => window.alert("Account Manager Review coming in Module 5")}
+                            className="bg-white text-purple-700 px-6 py-3 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-purple-50 transition-all shrink-0"
+                        >
+                            Book Account Manager Review
+                            <ArrowRight size={16} />
+                        </button>
+                    </div>
+                </motion.div>
+            )}
+
+            {/* Main Audit Card */}
+            {triageResult ? (
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
+                    className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden"
+                >
+                    {/* Card Header */}
+                    <div className={`px-6 sm:px-8 py-5 sm:py-6 flex items-center justify-between ${
+                        auditCompleted ? 'bg-green-500' : isLong ? 'bg-orange-500' : 'bg-blue-500'
+                    }`}>
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                                <FileText size={20} className="text-white" />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-white text-base sm:text-lg">Assigned Audit</h3>
+                                <p className="text-white/70 text-xs sm:text-sm">{auditName}</p>
+                            </div>
+                        </div>
+                        <span className="px-3 py-1.5 bg-white/20 rounded-full text-[10px] sm:text-xs font-bold text-white uppercase tracking-wider">
+                            {auditCompleted ? 'Completed' : 'Ready to Start'}
+                        </span>
+                    </div>
+
+                    {/* Card Body */}
+                    <div className="p-6 sm:p-8">
+                        {/* Stats */}
+                        <div className="grid grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
+                            <div className="text-center">
+                                <div className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">Estimated Time</div>
+                                <div className="text-lg sm:text-xl font-bold text-slate-900">{isLong ? '28 min' : '10 min'}</div>
+                            </div>
+                            <div className="text-center border-x border-slate-100">
+                                <div className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">Stages</div>
+                                <div className="text-lg sm:text-xl font-bold text-slate-900">6</div>
+                            </div>
+                            <div className="text-center">
+                                <div className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">Questions</div>
+                                <div className="text-lg sm:text-xl font-bold text-slate-900">~{isLong ? '40' : '20'}</div>
+                            </div>
+                        </div>
+
+                        {/* Progress */}
+                        <div className="mb-6 sm:mb-8">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-bold text-slate-500">Progress</span>
+                                <span className="text-xs font-bold text-slate-400">{auditCompleted ? '100%' : '0%'}</span>
+                            </div>
+                            <div className="w-full bg-slate-100 rounded-full h-2">
+                                <div className={`h-2 rounded-full transition-all ${auditCompleted ? 'bg-green-500' : 'bg-orange-500'}`} style={{ width: auditCompleted ? '100%' : '0%' }} />
+                            </div>
+                            <p className="text-[10px] sm:text-xs text-slate-400 mt-1.5">{auditCompleted ? 'Completed' : 'Not Started'}</p>
+                        </div>
+
+                        {/* CTA */}
+                        {auditCompleted ? (
+                            <Link
+                                href="/audit/results"
+                                className="w-full bg-green-500 hover:bg-green-600 text-white px-6 py-4 rounded-2xl font-bold text-base sm:text-lg flex items-center justify-center gap-3 shadow-xl transition-all hover:-translate-y-1 active:translate-y-0"
+                            >
+                                View Results
+                                <ArrowRight size={18} />
+                            </Link>
+                        ) : (
+                            <Link
+                                href={`/audit/flow?type=${triageResult.assignedAudit}`}
+                                className="w-full bg-slate-900 hover:bg-black text-white px-6 py-4 rounded-2xl font-bold text-base sm:text-lg flex items-center justify-center gap-3 shadow-xl transition-all hover:-translate-y-1 active:translate-y-0"
+                            >
+                                Start Audit
+                                <ArrowRight size={18} />
+                            </Link>
+                        )}
+
+                        {/* Note */}
+                        <p className="text-[10px] sm:text-xs text-slate-400 text-center mt-4 leading-relaxed">
+                            {auditCompleted
+                                ? "Your audit has been completed and analysed. View your Business Diagnosis for detailed recommendations."
+                                : "This audit has been selected automatically based on your Business Triage and is tailored to your business profile."
+                            }
+                        </p>
+                    </div>
+                </motion.div>
+            ) : (
+                /* No Triage Completed */
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
+                    className="bg-white rounded-3xl border border-slate-100 shadow-sm p-8 sm:p-12 text-center"
+                >
+                    <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                        <AlertCircle size={32} className="text-orange-500" />
+                    </div>
+                    <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mb-3">
+                        Complete Your Business Triage First
+                    </h3>
+                    <p className="text-slate-500 text-sm sm:text-base max-w-md mx-auto mb-8">
+                        Before starting your audit, you need to complete the free Business Triage. This helps us determine the most appropriate audit for your business.
+                    </p>
+                    <Link
+                        href="/audit/welcome"
+                        className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-8 py-4 rounded-2xl font-bold text-base shadow-xl shadow-orange-500/30 transition-all hover:-translate-y-1"
+                    >
+                        Start Business Triage
+                        <ArrowRight size={18} />
+                    </Link>
+                </motion.div>
+            )}
+
+            {/* Quick Info Section */}
+            {triageResult && (
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                    className="grid sm:grid-cols-2 gap-4"
+                >
+                    <div className="bg-white rounded-2xl border border-slate-100 p-5 sm:p-6">
+                        <div className="flex items-start gap-3">
+                            <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center shrink-0">
+                                <CheckCircle2 size={18} className="text-green-600" />
+                            </div>
+                            <div>
+                                <h4 className="font-bold text-slate-900 text-sm mb-1">Business Triage Complete</h4>
+                                <p className="text-xs text-slate-500 leading-relaxed">
+                                    Your responses have been analysed and your audit has been automatically assigned.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="bg-white rounded-2xl border border-slate-100 p-5 sm:p-6">
+                        <div className="flex items-start gap-3">
+                            <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center shrink-0">
+                                <ShieldCheck size={18} className="text-blue-600" />
+                            </div>
+                            <div>
+                                <h4 className="font-bold text-slate-900 text-sm mb-1">Tailored to Your Sector</h4>
+                                <p className="text-xs text-slate-500 leading-relaxed">
+                                    Your audit includes sector-specific questions based on your MCOM Central profile.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </motion.div>
+            )}
+        </div>
+    );
 }

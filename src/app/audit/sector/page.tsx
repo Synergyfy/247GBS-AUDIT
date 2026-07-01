@@ -418,7 +418,7 @@ function SectorSelectionContent() {
                                     : "bg-slate-100 text-slate-300 cursor-not-allowed shadow-none"
                                     }`}
                             >
-                                {isSubmitting ? "Configuring Module..." : "Apply Industry Protocol"}
+                                {isSubmitting ? "Configuring Module..." : "Continue"}
                                 <ChevronRight size={20} className={`transition-transform group-hover:translate-x-1 ${selectedTypeId ? "text-orange-500" : "text-slate-300"}`} />
                             </button>
                         </div>
