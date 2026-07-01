@@ -1,351 +1,663 @@
 "use client";
 
-import { AUDIT_STRATEGIES, AuditType, Sector, RecommendationTemplate } from "@/types/audit";
-import { SECTORS } from "@/data/sectors";
-import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
-import { useEffect, useMemo, useState, useCallback } from "react";
-import { API_BASE_URL } from "@/lib/api";
-import { refreshAccessToken } from "@/lib/auth";
-import {
-    BarChart,
-    ChevronRight,
-    Download,
-    TrendingUp,
-    Zap,
-    ShieldCheck,
-    Calendar,
-    Sparkles,
-    ArrowUpRight,
-    Clock,
-    Target,
-    ArrowBigRightDash,
-    Briefcase
-} from "lucide-react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { motion } from "framer-motion";
+import {
+    ChevronRight,
+    ChevronDown,
+    CheckCircle2,
+    AlertCircle,
+    TrendingUp,
+    TrendingDown,
+    Zap,
+    Target,
+    Users,
+    BarChart3,
+    Package,
+    Cpu,
+    Eye,
+    Star,
+    Clock,
+    ArrowRight,
+    Shield,
+    Download,
+    Printer,
+    Share2,
+    AlertTriangle,
+    Loader2
+} from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { generateDiagnosis, getReadinessLabel, getOverallStatusLabel, type BusinessDiagnosis, type HealthRating } from "@/lib/diagnosis";
 
-import { Suspense } from "react";
-
-export default function AuditResultsPage() {
-    return (
-        <Suspense fallback={
-            <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
-                    <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Compiling Results...</p>
-                </div>
-            </div>
-        }>
-            <AuditResultsContent />
-        </Suspense>
-    );
+function getRatingColor(rating: HealthRating): string {
+    const colors: Record<HealthRating, string> = {
+        excellent: 'bg-green-500',
+        good: 'bg-blue-500',
+        average: 'bg-yellow-500',
+        poor: 'bg-orange-500',
+        critical: 'bg-red-500'
+    };
+    return colors[rating];
 }
 
-function AuditResultsContent() {
-    const router = useRouter();
-    const searchParams = useSearchParams();
-    const auditId = searchParams.get("id");
+function getRatingTextColor(rating: HealthRating): string {
+    const colors: Record<HealthRating, string> = {
+        excellent: 'text-green-600',
+        good: 'text-blue-600',
+        average: 'text-yellow-600',
+        poor: 'text-orange-600',
+        critical: 'text-red-600'
+    };
+    return colors[rating];
+}
 
-    const [isSaving, setIsSaving] = useState(false);
-    const [saveComplete, setSaveComplete] = useState(false);
+function getRatingBgColor(rating: HealthRating): string {
+    const colors: Record<HealthRating, string> = {
+        excellent: 'bg-green-50 border-green-200',
+        good: 'bg-blue-50 border-blue-200',
+        average: 'bg-yellow-50 border-yellow-200',
+        poor: 'bg-orange-50 border-orange-200',
+        critical: 'bg-red-50 border-red-200'
+    };
+    return colors[rating];
+}
 
-    const [auditData, setAuditData] = useState<any>(null);
+function getSeverityColor(severity: string): string {
+    const colors: Record<string, string> = {
+        high: 'text-red-600 bg-red-50 border-red-200',
+        medium: 'text-orange-600 bg-orange-50 border-orange-200',
+        low: 'text-yellow-600 bg-yellow-50 border-yellow-200'
+    };
+    return colors[severity] || colors.low;
+}
 
-    // Helper for authenticated fetch
-    const authFetch = useCallback(async (url: string, options: RequestInit = {}) => {
-        let token = typeof window !== "undefined" ? localStorage.getItem("247gbs_token") : null;
-        const headers = { ...options.headers, "Content-Type": "application/json" } as any;
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-        
-        let res = await fetch(url, { ...options, headers });
-        if (res.status === 401) {
-            token = await refreshAccessToken();
-            if (token) {
-                headers["Authorization"] = `Bearer ${token}`;
-                res = await fetch(url, { ...options, headers });
-            }
+function getPriorityColor(level: string): string {
+    const colors: Record<string, string> = {
+        immediate: 'bg-red-500',
+        medium: 'bg-orange-500',
+        'long-term': 'bg-blue-500'
+    };
+    return colors[level] || colors.medium;
+}
+
+function getPriorityLabel(level: string): string {
+    const labels: Record<string, string> = {
+        immediate: 'Immediate Attention',
+        medium: 'Medium Priority',
+        'long-term': 'Long-Term Growth'
+    };
+    return labels[level] || level;
+}
+
+export default function DiagnosisPage() {
+    const { user } = useAuth();
+    const [loading, setLoading] = useState(true);
+    const [generating, setGenerating] = useState(true);
+    const [diagnosis, setDiagnosis] = useState<BusinessDiagnosis | null>(null);
+    const [expandedCat, setExpandedCat] = useState<string | null>(null);
+    const printRef = useRef<HTMLDivElement>(null);
+
+    // Load audit answers and generate diagnosis
+    useEffect(() => {
+        const auditStr = localStorage.getItem("247gbs_audit_completed");
+        const triageStr = localStorage.getItem("247gbs_triage_result");
+
+        if (!auditStr && !triageStr) {
+            setLoading(false);
+            setGenerating(false);
+            return;
         }
-        return res;
+
+        // Combine audit answers + triage answers for richer diagnosis
+        let allAnswers: Record<string, any> = {};
+        try {
+            if (auditStr) {
+                const audit = JSON.parse(auditStr);
+                allAnswers = { ...allAnswers, ...audit.answers };
+            }
+            if (triageStr) {
+                const triage = JSON.parse(triageStr);
+                const triageData = localStorage.getItem("247gbs_triage_progress");
+                if (triageData) {
+                    const t = JSON.parse(triageData);
+                    if (t.data) allAnswers = { ...allAnswers, ...t.data };
+                }
+            }
+        } catch {}
+
+        // Simulate generation delay
+        setTimeout(() => {
+            const result = generateDiagnosis(allAnswers);
+            setDiagnosis(result);
+            localStorage.setItem("247gbs_diagnosis", JSON.stringify(result));
+            setGenerating(false);
+            setLoading(false);
+        }, 2500);
     }, []);
 
+    // Resume saved diagnosis
     useEffect(() => {
-        if (!auditId) return;
-        authFetch(`${API_BASE_URL}/audit/${auditId}`).then(res => {
-            if (res.ok) {
-                res.json().then(data => setAuditData(data));
-            }
-        });
-    }, [auditId, authFetch]);
-
-    const auditType = (auditData?.auditType as AuditType) || "SHORT_FORM";
-    const sectorId = auditData?.sectorId;
-    const strategy = AUDIT_STRATEGIES[auditType as AuditType] || AUDIT_STRATEGIES.SHORT_FORM;
-
-    const activeSector = useMemo(() => SECTORS.find(s => s.id === sectorId), [sectorId]);
-
-    // Read Engine Results from fetched DB row
-    const capacityDrain = auditData?.calculatedMetrics?.capacityDrainPct || 0;
-    const annualRecovery = auditData?.calculatedMetrics?.annualRecovery || 0;
-    const impactScore = auditData?.calculatedMetrics?.impactScore || 0;
-
-    const handleSave = () => {
-        setIsSaving(true);
-        // The data is already saved to the DB via previous PUT requests.
-        // We just pretend to finalize it here for UX consistency.
-        setTimeout(() => {
-            setIsSaving(false);
-            setSaveComplete(true);
-
-            setTimeout(() => {
-                router.push("/dashboard");
-            }, 1000);
-        }, 1000);
-    };
-
-    // Simple 'Engine' to find matching recommendations from config
-    const matches = useMemo(() => {
-        if (!activeSector) return [];
-        return activeSector.recommendationTemplates;
-    }, [activeSector]);
-
-    const containerVars = {
-        hidden: { opacity: 0 },
-        visible: {
-            opacity: 1,
-            transition: { staggerChildren: 0.1 }
+        const saved = localStorage.getItem("247gbs_diagnosis");
+        if (saved) {
+            try {
+                setDiagnosis(JSON.parse(saved));
+                setGenerating(false);
+                setLoading(false);
+            } catch {}
         }
+    }, []);
+
+    const handlePrint = () => {
+        window.print();
     };
 
-    const itemVars = {
-        hidden: { opacity: 0, y: 20 },
-        visible: { opacity: 1, y: 0 }
-    };
+    const statusColor = diagnosis?.overallScore && diagnosis.overallScore >= 60 ? 'bg-green-500' :
+        diagnosis?.overallScore && diagnosis.overallScore >= 40 ? 'bg-orange-500' : 'bg-red-500';
+
+    const statusBgColor = diagnosis?.overallScore && diagnosis.overallScore >= 60 ? 'bg-green-50 border-green-200' :
+        diagnosis?.overallScore && diagnosis.overallScore >= 40 ? 'bg-orange-50 border-orange-200' : 'bg-red-50 border-red-200';
+
+    // ============== LOADING ==============
+    if (generating && !diagnosis) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/30 flex items-center justify-center p-4 pt-24 sm:pt-28">
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="w-full max-w-lg bg-white rounded-3xl shadow-2xl p-8 sm:p-12 text-center"
+                >
+                    <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                        <Loader2 size={32} className="text-orange-500 animate-spin" />
+                    </div>
+                    <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-4">
+                        Preparing Your Business Diagnosis
+                    </h2>
+                    <p className="text-slate-600 text-sm sm:text-base leading-relaxed mb-6">
+                        We have completed the analysis of your Business Audit. Your diagnosis has been prepared based on:
+                    </p>
+                    <div className="grid grid-cols-2 gap-2 text-left max-w-xs mx-auto">
+                        {[
+                            "Your Business Profile",
+                            "Your Business Sector",
+                            "Your Business Audit",
+                            "Business Performance Indicators",
+                            "Operational Assessment"
+                        ].map((item, i) => (
+                            <div key={i} className={`flex items-center gap-2 text-xs sm:text-sm ${i < 3 ? 'text-slate-700' : 'text-slate-400'} font-medium`}>
+                                <CheckCircle2 size={14} className={i < 3 ? 'text-green-500' : 'text-slate-300'} />
+                                {item}
+                            </div>
+                        ))}
+                    </div>
+                </motion.div>
+            </div>
+        );
+    }
+
+    // ============== NO DATA ==============
+    if (!diagnosis) {
+        return (
+            <div className="min-h-screen flex items-center justify-center p-4 pt-24 sm:pt-28">
+                <div className="text-center">
+                    <AlertCircle size={48} className="text-slate-300 mx-auto mb-4" />
+                    <h2 className="text-xl font-bold text-slate-900 mb-2">No Diagnosis Available</h2>
+                    <p className="text-slate-500 text-sm mb-6">Complete the Business Audit first to generate your diagnosis.</p>
+                    <a href="/dashboard" className="text-orange-500 font-bold text-sm hover:underline">Return to Dashboard</a>
+                </div>
+            </div>
+        );
+    }
+
+    const businessName = user?.name || "Your Business";
 
     return (
-        <div className="min-h-screen bg-slate-50 py-12 px-4 selection:bg-orange-100 font-sans">
-            <motion.div
-                variants={containerVars}
-                initial="hidden"
-                animate="visible"
-                className="max-w-6xl mx-auto"
-            >
-
-                {/* Dashboard Header */}
-                <header className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
-                    <motion.div variants={itemVars}>
-                        <div className="flex items-center gap-2 text-orange-600 font-bold text-[10px] uppercase tracking-[0.3em] mb-3">
-                            <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-                            Decision Engine Output | {strategy.depth}
-                        </div>
-                        <h1 className="text-4xl md:text-5xl font-bold text-slate-900 leading-tight">
-                            Strategic Growth <span className="text-orange-500">Roadmap</span>
-                        </h1>
-                        <p className="text-slate-500 font-medium mt-2 flex items-center gap-2">
-                            Sector Profile: <span className="text-slate-900 font-bold underline decoration-slate-200 decoration-2 underline-offset-4">{activeSector?.name || "General Business"}</span>
-                        </p>
-                    </motion.div>
-
-                    <motion.div variants={itemVars} className="flex flex-wrap gap-3">
-                        <button
-                            onClick={handleSave}
-                            disabled={isSaving || saveComplete}
-                            className={`flex items-center gap-2 px-8 py-3 rounded-2xl font-bold transition-all shadow-xl shadow-orange-100 ${saveComplete
-                                ? "bg-green-500 text-white"
-                                : "bg-orange-500 text-white hover:bg-orange-600 active:scale-95"
-                                }`}
-                        >
-                            {isSaving ? (
-                                <>
-                                    <div className="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin" />
-                                    Saving...
-                                </>
-                            ) : saveComplete ? (
-                                <>
-                                    <ShieldCheck size={18} />
-                                    Saved to Vault
-                                </>
-                            ) : (
-                                <>
-                                    <Zap size={18} fill="currentColor" />
-                                    Save to Vault
-                                </>
-                            )}
-                        </button>
-                        <button className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 rounded-2xl font-bold text-slate-700 hover:bg-slate-50 transition-all shadow-sm">
-                            <Download size={18} />
-                            Export PDF
-                        </button>
-                    </motion.div>
-                </header>
-
-                {/* Executive Metrics Overview */}
-                <div className="grid md:grid-cols-4 gap-4 mb-12">
-                    <motion.div variants={itemVars} className="md:col-span-2 bg-slate-900 p-8 rounded-[2.5rem] text-white overflow-hidden relative group">
-                        <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-700">
-                            <TrendingUp size={120} />
-                        </div>
-                        <div className="relative z-10">
-                            <div className="flex justify-between items-start mb-6">
-                                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Recovery Value (Annual)</span>
-                                <Zap size={20} className="text-orange-500" fill="currentColor" />
-                            </div>
-                            <div className="text-6xl font-bold text-white mb-2 tracking-tighter">
-                                £{annualRecovery.toLocaleString()}
-                            </div>
-                            <p className="text-slate-400 text-sm font-medium leading-relaxed max-w-xs">
-                                This is your <span className="text-white font-bold">Unrealised Growth potential</span>—locked in {activeSector?.name} operational gaps.
-                            </p>
-                        </div>
-                    </motion.div>
-
-                    <motion.div variants={itemVars} className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm">
-                        <div className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-6">Capacity Drain</div>
-                        <div className="text-4xl font-bold text-slate-900 mb-2">{capacityDrain}%</div>
-                        <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mb-6">
-                            <div className="bg-orange-500 h-full" style={{ width: `${capacityDrain}%` }} />
-                        </div>
-                        <p className="text-[10px] text-slate-500 font-bold uppercase flex items-center gap-2">
-                            <ArrowUpRight size={14} className="text-red-500" />
-                            Critical Leakage Area
-                        </p>
-                    </motion.div>
-
-                    <motion.div variants={itemVars} className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm">
-                        <div className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-6">Efficiency Rank</div>
-                        <div className="text-4xl font-bold text-slate-900 mb-2">{100 - impactScore}/100</div>
-                        <div className="flex gap-1 mt-4">
-                            {[1, 2, 3, 4, 5].map(i => (
-                                <div key={i} className={`h-1.5 flex-1 rounded-full ${i <= (100 - impactScore) / 20 ? 'bg-green-500' : 'bg-slate-100'}`} />
-                            ))}
-                        </div>
-                        <p className="text-[10px] text-slate-500 font-bold uppercase mt-6">Versus Industry Avg</p>
-                    </motion.div>
+        <div className="min-h-screen bg-slate-50">
+            <div ref={printRef}>
+                {/* Print Header (visible only when printing) */}
+                <div className="hidden print:block p-8 border-b mb-8">
+                    <h1 className="text-3xl font-bold">Business Diagnosis</h1>
+                    <p className="text-slate-500">{businessName}</p>
+                    <p className="text-slate-400 text-sm">{new Date(diagnosis.completedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                 </div>
 
-                <div className="grid lg:grid-cols-3 gap-8">
-                    {/* Main Action Engine */}
-                    <div className="lg:col-span-2 space-y-8">
+                {/* Top Nav */}
+                <nav className="bg-white border-b border-slate-100 px-4 sm:px-6 py-3 flex items-center justify-between print:hidden">
+                    <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
+                            <span className="text-white font-bold text-sm">A</span>
+                        </div>
+                        <div>
+                            <div className="font-bold text-slate-900 text-sm tracking-tight">247GBS Audit</div>
+                            <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Business Diagnosis</div>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button onClick={handlePrint} className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors" title="Print">
+                            <Printer size={16} />
+                        </button>
+                        <button onClick={() => {}} className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors" title="Download PDF">
+                            <Download size={16} />
+                        </button>
+                        <button onClick={() => {}} className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors" title="Share">
+                            <Share2 size={16} />
+                        </button>
+                    </div>
+                </nav>
 
-                        <motion.div variants={itemVars} className="bg-white rounded-[2.5rem] p-10 shadow-xl border border-slate-100 overflow-hidden">
-                            <header className="flex justify-between items-center mb-12">
-                                <h3 className="text-2xl font-bold text-slate-900 flex items-center gap-4">
-                                    <Target size={28} className="text-orange-500" />
-                                    Execution Plan
-                                </h3>
-                                <span className="px-4 py-2 bg-orange-50 text-orange-600 rounded-full text-[10px] font-bold uppercase tracking-widest">
-                                    3 High-Impact Moves
+                <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-8 print:py-0">
+                    
+                    {/* ========== EXECUTIVE SUMMARY ========== */}
+                    <motion.section
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden"
+                    >
+                        <div className="bg-slate-900 px-6 sm:px-10 py-6 sm:py-8">
+                            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1">Business Diagnosis</h1>
+                            <p className="text-slate-400 text-sm">Comprehensive analysis of your business health</p>
+                        </div>
+                        <div className="px-6 sm:px-10 py-6 sm:py-8 space-y-4">
+                            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                                <div>
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Business Name</span>
+                                    <p className="font-bold text-slate-900 mt-1">{businessName}</p>
+                                </div>
+                                <div>
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Audit Type</span>
+                                    <p className="font-bold text-slate-900 mt-1">
+                                        {(localStorage.getItem("247gbs_audit_completed") ? JSON.parse(localStorage.getItem("247gbs_audit_completed") || "{}").auditType : "") === "LONG_FORM" ? "Long Business Audit" : "Short Business Audit"}
+                                    </p>
+                                </div>
+                                <div>
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Date</span>
+                                    <p className="font-bold text-slate-900 mt-1">{new Date(diagnosis.completedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                                </div>
+                                <div>
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Completed By</span>
+                                    <p className="font-bold text-slate-900 mt-1">{user?.name || "Business Owner"}</p>
+                                </div>
+                            </div>
+
+                            <div className="pt-4 border-t border-slate-100">
+                                <h3 className="font-bold text-slate-900 text-sm mb-2">Executive Summary</h3>
+                                <p className="text-slate-600 text-sm leading-relaxed">{diagnosis.executiveSummary}</p>
+                            </div>
+                        </div>
+                    </motion.section>
+
+                    {/* ========== OVERALL HEALTH SCORE ========== */}
+                    <motion.section
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.05 }}
+                        className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 sm:p-10"
+                    >
+                        <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-10">
+                            <div className="relative w-32 h-32">
+                                <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
+                                    <circle cx="60" cy="60" r="54" fill="none" stroke="#f1f5f9" strokeWidth="8" />
+                                    <circle cx="60" cy="60" r="54" fill="none" stroke="currentColor" strokeWidth="8"
+                                        strokeDasharray={`${(diagnosis.overallScore / 100) * 339.292} 339.292`}
+                                        className={diagnosis.overallScore >= 60 ? 'text-green-500' : diagnosis.overallScore >= 40 ? 'text-orange-500' : 'text-red-500'} />
+                                </svg>
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <div className="text-center">
+                                        <span className={`text-3xl font-bold ${diagnosis.overallScore >= 60 ? 'text-green-600' : diagnosis.overallScore >= 40 ? 'text-orange-600' : 'text-red-600'}`}>
+                                            {diagnosis.overallScore}%
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <h2 className="text-xl font-bold text-slate-900 mb-2">Overall Business Health</h2>
+                                <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${statusBgColor} ${diagnosis.overallScore >= 60 ? 'text-green-600' : diagnosis.overallScore >= 40 ? 'text-orange-600' : 'text-red-600'}`}>
+                                    {getOverallStatusLabel(diagnosis.overallStatus)}
                                 </span>
-                            </header>
+                                <p className="text-slate-500 text-sm mt-2 leading-relaxed max-w-md">
+                                    {diagnosis.overallScore >= 70
+                                        ? "Your business is in a healthy position with strong fundamentals."
+                                        : diagnosis.overallScore >= 50
+                                            ? "Your business has a solid foundation but several areas need attention."
+                                            : "Your business requires significant improvements in key areas."}
+                                </p>
+                            </div>
+                        </div>
+                    </motion.section>
 
-                            <div className="space-y-10">
-                                {matches.map((rec: RecommendationTemplate, idx) => (
-                                    <div key={rec.id} className="relative pl-16 group/item">
-                                        <div className="absolute left-0 top-0 w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center font-bold text-slate-400 group-hover/item:bg-orange-500 group-hover/item:text-white transition-all">
-                                            0{idx + 1}
-                                        </div>
-                                        {idx < matches.length - 1 && (
-                                            <div className="absolute left-6 top-14 bottom-[-2.5rem] w-px bg-slate-100" />
-                                        )}
-                                        <h4 className="text-xl font-bold mb-3 text-slate-900">{rec.title}</h4>
-                                        <p className="text-slate-500 mb-6 font-medium leading-relaxed ">
-                                            "{rec.description}"
-                                        </p>
-                                        <div className="flex items-center gap-3">
-                                            <div className="flex-1 p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm font-bold text-slate-700 flex items-center gap-3">
-                                                <ArrowBigRightDash className="text-orange-500" />
-                                                {rec.actionItem}
+                    {/* ========== HEALTH CATEGORIES ========== */}
+                    <motion.section
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.1 }}
+                        className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden"
+                    >
+                        <div className="px-6 sm:px-10 py-6 sm:py-8">
+                            <h2 className="text-xl font-bold text-slate-900 mb-6">Health Categories</h2>
+                            <div className="grid sm:grid-cols-2 gap-4">
+                                {diagnosis.healthCategories.map((cat) => (
+                                    <div
+                                        key={cat.id}
+                                        className={`rounded-2xl border p-4 sm:p-5 cursor-pointer transition-all ${getRatingBgColor(cat.rating)}`}
+                                        onClick={() => setExpandedCat(expandedCat === cat.id ? null : cat.id)}
+                                    >
+                                        <div className="flex items-start justify-between mb-2">
+                                            <div>
+                                                <h3 className="font-bold text-slate-900 text-sm">{cat.name}</h3>
+                                                <span className={`text-xs font-bold ${getRatingTextColor(cat.rating)}`}>
+                                                    {cat.rating.charAt(0).toUpperCase() + cat.rating.slice(1)}
+                                                </span>
                                             </div>
-                                            <button className="px-4 py-4 bg-slate-900 text-white rounded-xl hover:bg-black transition-colors">
-                                                <ChevronRight size={18} />
-                                            </button>
+                                            <div className={`w-3 h-3 rounded-full ${getRatingColor(cat.rating)}`} />
+                                        </div>
+                                        <p className="text-xs text-slate-600 leading-relaxed">{cat.explanation}</p>
+                                        {expandedCat === cat.id && (
+                                            <motion.div
+                                                initial={{ opacity: 0, height: 0 }}
+                                                animate={{ opacity: 1, height: 'auto' }}
+                                                className="mt-3 pt-3 border-t border-slate-200/50"
+                                            >
+                                                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 block">Business Impact</span>
+                                                <ul className="space-y-1">
+                                                    {cat.impact.map((imp, i) => (
+                                                        <li key={i} className="flex items-start gap-2 text-xs text-slate-600">
+                                                            <AlertCircle size={10} className="text-slate-400 mt-0.5 shrink-0" />
+                                                            {imp}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </motion.div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </motion.section>
+
+                    {/* ========== STRENGTHS & CHALLENGES ========== */}
+                    <div className="grid lg:grid-cols-2 gap-6">
+                        {/* Strengths */}
+                        <motion.section
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.15 }}
+                            className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 sm:p-8"
+                        >
+                            <h2 className="text-lg font-bold text-slate-900 mb-5 flex items-center gap-2">
+                                <Star size={20} className="text-green-500" />
+                                Business Strengths
+                            </h2>
+                            <div className="space-y-4">
+                                {diagnosis.strengths.map((s) => (
+                                    <div key={s.id} className="border border-green-100 bg-green-50/50 rounded-xl p-4">
+                                        <h3 className="font-bold text-slate-900 text-sm mb-1">{s.title}</h3>
+                                        <p className="text-xs text-slate-600 mb-2">{s.description}</p>
+                                        <p className="text-[10px] text-green-700 font-medium">
+                                            <span className="font-bold">Why it matters: </span>
+                                            {s.whyItMatters}
+                                        </p>
+                                    </div>
+                                ))}
+                                {diagnosis.strengths.length === 0 && (
+                                    <p className="text-sm text-slate-400 text-center py-8">No specific strengths identified yet.</p>
+                                )}
+                            </div>
+                        </motion.section>
+
+                        {/* Challenges */}
+                        <motion.section
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.2 }}
+                            className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 sm:p-8"
+                        >
+                            <h2 className="text-lg font-bold text-slate-900 mb-5 flex items-center gap-2">
+                                <AlertTriangle size={20} className="text-orange-500" />
+                                Key Challenges
+                            </h2>
+                            <div className="space-y-4">
+                                {diagnosis.challenges.map((c) => (
+                                    <div key={c.id} className="border border-orange-100 bg-orange-50/50 rounded-xl p-4">
+                                        <div className="flex items-start justify-between mb-1">
+                                            <h3 className="font-bold text-slate-900 text-sm">{c.title}</h3>
+                                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${getSeverityColor(c.severity)}`}>
+                                                {c.severity}
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-slate-600">{c.description}</p>
+                                    </div>
+                                ))}
+                                {diagnosis.challenges.length === 0 && (
+                                    <p className="text-sm text-slate-400 text-center py-8">No significant challenges identified.</p>
+                                )}
+                            </div>
+                        </motion.section>
+                    </div>
+
+                    {/* ========== GROWTH OPPORTUNITIES ========== */}
+                    <motion.section
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.25 }}
+                        className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden"
+                    >
+                        <div className="px-6 sm:px-10 py-6 sm:py-8">
+                            <h2 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
+                                <Target size={20} className="text-orange-500" />
+                                Growth Opportunities
+                            </h2>
+                            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {diagnosis.opportunities.map((opp) => (
+                                    <div key={opp.id} className="border border-slate-200 rounded-2xl p-5 hover:border-orange-200 hover:shadow-md transition-all">
+                                        <h3 className="font-bold text-slate-900 text-sm mb-3">{opp.title}</h3>
+                                        <div className="space-y-2 text-xs">
+                                            <div>
+                                                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Current Situation</span>
+                                                <p className="text-slate-600 mt-0.5">{opp.currentSituation}</p>
+                                            </div>
+                                            <div>
+                                                <span className="text-[10px] font-bold uppercase tracking-widest text-green-600">Potential Outcome</span>
+                                                <p className="text-slate-600 mt-0.5">{opp.potentialOutcome}</p>
+                                            </div>
+                                            <div>
+                                                <span className="text-[10px] font-bold uppercase tracking-widest text-blue-600">Business Benefit</span>
+                                                <p className="text-slate-600 mt-0.5">{opp.businessBenefit}</p>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}
+                            </div>
+                        </div>
+                    </motion.section>
 
-                                {matches.length === 0 && (
-                                    <div className="text-center py-20 opacity-30">
-                                        <BarChart className="mx-auto mb-4" size={48} />
-                                        <p className="font-bold">No specific recommendations for this sector subset.</p>
+                    {/* ========== PRIORITY MATRIX ========== */}
+                    <motion.section
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 }}
+                        className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden"
+                    >
+                        <div className="px-6 sm:px-10 py-6 sm:py-8">
+                            <h2 className="text-lg font-bold text-slate-900 mb-6">Priority Matrix</h2>
+                            <div className="grid sm:grid-cols-3 gap-4">
+                                {(['immediate', 'medium', 'long-term'] as const).map((level) => (
+                                    <div key={level} className="border border-slate-200 rounded-2xl overflow-hidden">
+                                        <div className={`px-4 py-2.5 ${getPriorityColor(level)} text-white text-xs font-bold uppercase tracking-widest`}>
+                                            {getPriorityLabel(level)}
+                                        </div>
+                                        <div className="p-4 space-y-2">
+                                            {diagnosis.priorities.filter(p => p.level === level).map((p) => (
+                                                <div key={p.id} className="text-sm text-slate-700">
+                                                    <span className="font-bold">{p.title}</span>
+                                                    <p className="text-xs text-slate-500 mt-0.5">{p.description}</p>
+                                                </div>
+                                            ))}
+                                            {diagnosis.priorities.filter(p => p.level === level).length === 0 && (
+                                                <p className="text-xs text-slate-400">No items</p>
+                                            )}
+                                        </div>
                                     </div>
-                                )}
+                                ))}
                             </div>
-                        </motion.div>
+                        </div>
+                    </motion.section>
 
-                        {/* Value Framing: Cost of Inaction */}
-                        <motion.div variants={itemVars} className="grid md:grid-cols-2 gap-6">
-                            <div className="bg-red-50 p-8 rounded-[2rem] border border-red-100">
-                                <h4 className="text-red-900 font-bold mb-4 flex items-center gap-2 text-sm uppercase tracking-widest">
-                                    <Clock size={16} />
-                                    Cost of Inaction
-                                </h4>
-                                <div className="text-3xl font-bold text-red-600 mb-2">
-                                    £{Math.round(annualRecovery / 12).toLocaleString()} /mo
+                    {/* ========== RISK ASSESSMENT ========== */}
+                    {diagnosis.risks.length > 0 && (
+                        <motion.section
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.35 }}
+                            className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden"
+                        >
+                            <div className="px-6 sm:px-10 py-6 sm:py-8">
+                                <h2 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
+                                    <Shield size={20} className="text-red-500" />
+                                    Risk Assessment
+                                </h2>
+                                <div className="space-y-4">
+                                    {diagnosis.risks.map((risk) => (
+                                        <div key={risk.id} className="border border-slate-200 rounded-2xl p-5">
+                                            <div className="flex items-start justify-between mb-3">
+                                                <div>
+                                                    <h3 className="font-bold text-slate-900 text-sm">{risk.title}</h3>
+                                                    <p className="text-xs text-slate-500 mt-0.5">{risk.description}</p>
+                                                </div>
+                                                <span className={`px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider ${getSeverityColor(risk.severity)}`}>
+                                                    {risk.severity}
+                                                </span>
+                                            </div>
+                                            <div className="grid sm:grid-cols-2 gap-4 pt-3 border-t border-slate-100 text-xs">
+                                                <div>
+                                                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Potential Impact</span>
+                                                    <p className="text-slate-600 mt-0.5">{risk.potentialImpact}</p>
+                                                </div>
+                                                <div>
+                                                    <span className="text-[10px] font-bold uppercase tracking-widest text-red-500">Urgency</span>
+                                                    <p className="text-slate-600 mt-0.5">{risk.urgency}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
-                                <p className="text-red-800/60 text-xs font-medium leading-relaxed">
-                                    Every month you delay these {activeSector?.name} optimizations, you effectively witness this amount of net profit leakage.
+                            </div>
+                        </motion.section>
+                    )}
+
+                    {/* ========== BUSINESS READINESS ========== */}
+                    <motion.section
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.4 }}
+                        className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden"
+                    >
+                        <div className="px-6 sm:px-10 py-6 sm:py-8">
+                            <h2 className="text-lg font-bold text-slate-900 mb-4">Business Readiness</h2>
+                            <div className={`rounded-2xl border p-5 sm:p-6 ${
+                                diagnosis.readiness.status === 'ready-for-growth' ? 'bg-green-50 border-green-200' :
+                                diagnosis.readiness.status === 'needs-improvements' ? 'bg-orange-50 border-orange-200' :
+                                'bg-red-50 border-red-200'
+                            }`}>
+                                <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold mb-3 ${
+                                    diagnosis.readiness.status === 'ready-for-growth' ? 'bg-green-500 text-white' :
+                                    diagnosis.readiness.status === 'needs-improvements' ? 'bg-orange-500 text-white' :
+                                    'bg-red-500 text-white'
+                                }`}>
+                                    {getReadinessLabel(diagnosis.readiness.status)}
+                                </span>
+                                <p className="text-sm text-slate-700 leading-relaxed">{diagnosis.readiness.explanation}</p>
+                            </div>
+                        </div>
+                    </motion.section>
+
+                    {/* ========== WHAT WE FOUND ========== */}
+                    <motion.section
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.45 }}
+                        className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden"
+                    >
+                        <div className="px-6 sm:px-10 py-6 sm:py-8">
+                            <h2 className="text-lg font-bold text-slate-900 mb-4">What We Found</h2>
+                            <div className="bg-slate-50 rounded-2xl p-5 sm:p-6">
+                                <p className="text-sm sm:text-base text-slate-700 leading-relaxed">
+                                    {diagnosis.whatWeFound}
                                 </p>
                             </div>
-                            <div className="bg-green-50 p-8 rounded-[2rem] border border-green-100">
-                                <h4 className="text-green-900 font-bold mb-4 flex items-center gap-2 text-sm uppercase tracking-widest">
-                                    <Target size={16} />
-                                    Growth Potential
-                                </h4>
-                                <div className="text-3xl font-bold text-green-600 mb-2">
-                                    +{((annualRecovery / 50000) * 100).toFixed(1)}%
-                                </div>
-                                <p className="text-green-800/60 text-xs font-medium leading-relaxed">
-                                    Projected increase in gross operating margin after 247GBS ecological redistribution implementation.
+                        </div>
+                    </motion.section>
+
+                    {/* ========== DIAGNOSIS TIMELINE ========== */}
+                    <motion.section
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.5 }}
+                        className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden"
+                    >
+                        <div className="px-6 sm:px-10 py-6 sm:py-8">
+                            <h2 className="text-lg font-bold text-slate-900 mb-6">Your Business Journey</h2>
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-0">
+                                {[
+                                    { label: 'Business Audit', status: 'complete' },
+                                    { label: 'Business Diagnosis', status: 'complete' },
+                                    { label: 'Recommended Solutions', status: 'ready' },
+                                    { label: 'Implementation Roadmap', status: 'pending' },
+                                    { label: 'Account Manager Review', status: 'pending' }
+                                ].map((step, i) => (
+                                    <React.Fragment key={step.label}>
+                                        <div className="flex items-center gap-3 sm:flex-col sm:items-center text-center">
+                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                                                step.status === 'complete' ? 'bg-green-500' :
+                                                step.status === 'ready' ? 'bg-orange-500' : 'bg-slate-200'
+                                            }`}>
+                                                {step.status === 'complete' ? <CheckCircle2 size={16} className="text-white" /> :
+                                                 step.status === 'ready' ? <Clock size={14} className="text-white" /> :
+                                                 <div className="w-2 h-2 bg-slate-400 rounded-full" />}
+                                            </div>
+                                            <span className={`text-[10px] sm:text-xs font-bold ${
+                                                step.status === 'complete' ? 'text-green-600' :
+                                                step.status === 'ready' ? 'text-orange-600' : 'text-slate-400'
+                                            }`}>
+                                                {step.label}
+                                            </span>
+                                        </div>
+                                        {i < 4 && (
+                                            <div className="hidden sm:block flex-1 h-px bg-slate-200 mx-2 mb-6" />
+                                        )}
+                                    </React.Fragment>
+                                ))}
+                            </div>
+                        </div>
+                    </motion.section>
+
+                    {/* ========== NEXT STEPS ========== */}
+                    <motion.section
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.55 }}
+                        className="bg-slate-900 rounded-3xl shadow-sm p-6 sm:p-10 text-white"
+                    >
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+                            <div>
+                                <h2 className="text-xl font-bold mb-2">Ready for the Next Step?</h2>
+                                <p className="text-slate-400 text-sm max-w-lg">
+                                    Now that you understand your business health, view recommended solutions tailored to your specific needs.
                                 </p>
                             </div>
-                        </motion.div>
-                    </div>
-
-                    {/* Decision Timeline Sidebar */}
-                    <div className="space-y-6">
-                        <motion.div variants={itemVars} className="bg-orange-500 text-white rounded-[2.5rem] p-8 shadow-2xl shadow-orange-100 relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-150 transition-transform duration-700">
-                                <Sparkles size={100} />
-                            </div>
-                            <h4 className="text-3xl font-bold mb-4 leading-tight">
-                                Ready to Monetise?
-                            </h4>
-                            <p className="text-orange-100 mb-10 text-sm leading-relaxed font-bold">
-                                Connect your {activeSector?.name} audit data to the 247GBS network and turn these findings into active cashflow.
-                            </p>
-                            <button className="w-full py-5 bg-white text-orange-600 rounded-3xl font-bold text-lg shadow-xl hover:bg-orange-50 transition-all active:scale-95 flex items-center justify-center gap-2">
-                                Begin Monetisation
-                                <ArrowUpRight size={20} />
-                            </button>
-                        </motion.div>
-
-                        <motion.div variants={itemVars} className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm relative">
-                            <h5 className="font-bold text-slate-900 mb-6 text-xs uppercase tracking-[0.2em]">Next Audit Cycle</h5>
-                            <div className="flex items-center gap-4 mb-8">
-                                <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400">
-                                    <Calendar size={20} />
-                                </div>
-                                <div>
-                                    <p className="text-sm font-bold text-slate-900">April 22nd, 2026</p>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Q2 Forecast Refresh</p>
-                                </div>
-                            </div>
-                            <div className="text-[10px] text-slate-400 leading-relaxed font-medium">
-                                Frequent auditing prevents "efficiency decay" as your business scales.
-                            </div>
-                        </motion.div>
-
-                        <motion.div variants={itemVars} className="text-center">
-                            <Link
-                                href="/"
-                                className="inline-flex items-center justify-center gap-2 text-slate-400 font-bold text-xs uppercase tracking-widest hover:text-slate-900 transition-colors"
+                            <button
+                                onClick={() => {
+                                    localStorage.setItem("247gbs_diagnosis_viewed", "true");
+                                    window.location.href = "/solutions";
+                                }}
+                                className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-xl font-bold text-sm flex items-center gap-2 shrink-0 transition-all"
                             >
-                                Archive and New Entry <ChevronRight size={16} />
-                            </Link>
-                        </motion.div>
-                    </div>
-                </div>
+                                View Recommended Solutions
+                                <ArrowRight size={16} />
+                            </button>
+                        </div>
+                    </motion.section>
 
-            </motion.div>
+                </div>
+            </div>
         </div>
     );
 }

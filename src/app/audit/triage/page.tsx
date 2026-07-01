@@ -1,878 +1,643 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     ChevronRight,
     ChevronLeft,
-    TrendingUp,
-    Package,
     Clock,
-    AlertCircle,
     CheckCircle2,
-    ShieldCheck,
     ArrowRight,
-    Zap,
+    AlertCircle,
+    TrendingUp,
     TrendingDown,
-    Activity,
-    Lock,
-    Cpu,
-    Briefcase,
-    EyeOff,
-    HelpCircle,
-    ShieldAlert,
-    User,
-    Mail,
-    Building2,
-    Eye,
-    Zap as ActivityIcon // Fallback for stage icons
+    Target,
+    Users,
+    Zap,
+    BarChart3,
+    ShieldCheck,
+    Loader2,
+    ArrowRightCircle,
+    AlertTriangle,
+    Lightbulb
 } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { API_BASE_URL } from "@/lib/api";
-import { refreshAccessToken } from "@/lib/auth";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import type { TriageData, TriageStageId } from "@/types/audit";
+
+const TRIAGE_STAGES: TriageStageId[] = [
+    'business-performance',
+    'operations',
+    'customers-marketing',
+    'growth-technology',
+    'business-priorities'
+];
+
+const STAGE_META: Record<TriageStageId, { title: string; icon: React.ReactNode; description: string }> = {
+    'business-performance': { title: 'Business Performance', icon: <BarChart3 size={20} />, description: 'Understanding the overall condition of your business' },
+    'operations': { title: 'Operations', icon: <Zap size={20} />, description: 'Identifying operational inefficiencies' },
+    'customers-marketing': { title: 'Customers & Marketing', icon: <Users size={20} />, description: 'Understanding customer acquisition and retention' },
+    'growth-technology': { title: 'Growth & Technology', icon: <Target size={20} />, description: 'Understanding your growth readiness' },
+    'business-priorities': { title: 'Business Priorities', icon: <Lightbulb size={20} />, description: 'Identifying your immediate concerns' },
+    'processing': { title: 'Processing', icon: <Loader2 size={20} />, description: '' },
+    'result': { title: 'Result', icon: <CheckCircle2 size={20} />, description: '' },
+};
+
+// Questions per stage — each stage shows one question at a time
+const STAGE_QUESTIONS: Record<string, { id: string; text: string; options: { id: string; label: string; sub?: string; icon?: React.ReactNode }[] }[]> = {
+    'business-performance': [
+        {
+            id: 'businessPerformance',
+            text: 'How would you describe your business performance today?',
+            options: [
+                { id: 'good', label: 'Good', sub: 'We are growing and hitting targets', icon: <TrendingUp size={20} /> },
+                { id: 'stable', label: 'Stable', sub: 'Holding steady but not growing', icon: <CheckCircle2 size={20} /> },
+                { id: 'declining', label: 'Declining', sub: 'Sales or profit are falling', icon: <TrendingDown size={20} /> },
+                { id: 'not-sure', label: 'Not sure', sub: 'I don\'t regularly track performance', icon: <AlertCircle size={20} /> }
+            ]
+        },
+        {
+            id: 'salesTrend',
+            text: 'Are your sales increasing, stable, or declining?',
+            options: [
+                { id: 'increasing', label: 'Increasing', sub: 'Sales are growing month on month', icon: <TrendingUp size={20} /> },
+                { id: 'stable', label: 'Stable', sub: 'Sales remain roughly the same', icon: <CheckCircle2 size={20} /> },
+                { id: 'declining', label: 'Declining', sub: 'Sales are dropping', icon: <TrendingDown size={20} /> },
+                { id: 'not-sure', label: 'Not sure', sub: 'I don\'t measure this regularly', icon: <AlertCircle size={20} /> }
+            ]
+        },
+        {
+            id: 'isProfitable',
+            text: 'Are you currently profitable?',
+            options: [
+                { id: 'yes', label: 'Yes', sub: 'We are making a profit', icon: <TrendingUp size={20} /> },
+                { id: 'no', label: 'No', sub: 'We are breaking even or losing money', icon: <TrendingDown size={20} /> },
+                { id: 'not-sure', label: 'Not sure', sub: 'I don\'t have clear visibility', icon: <AlertCircle size={20} /> }
+            ]
+        },
+        {
+            id: 'measuresPerformance',
+            text: 'Do you regularly measure business performance?',
+            options: [
+                { id: 'yes', label: 'Yes', sub: 'I review financials and KPIs regularly', icon: <CheckCircle2 size={20} /> },
+                { id: 'no', label: 'No', sub: 'I don\'t track performance formally', icon: <AlertCircle size={20} /> },
+                { id: 'sometimes', label: 'Sometimes', sub: 'I check occasionally but not consistently', icon: <AlertCircle size={20} /> }
+            ]
+        }
+    ],
+    'operations': [
+        {
+            id: 'hasExcessStock',
+            text: 'Do you currently have excess or slow-moving stock?',
+            options: [
+                { id: 'yes', label: 'Yes', sub: 'We have stock that isn\'t selling', icon: <AlertTriangle size={20} /> },
+                { id: 'no', label: 'No', sub: 'Our stock moves quickly', icon: <CheckCircle2 size={20} /> },
+                { id: 'not-sure', label: 'Not sure', sub: 'I haven\'t checked recently', icon: <AlertCircle size={20} /> }
+            ]
+        },
+        {
+            id: 'hasUnusedCapacity',
+            text: 'Do you have unused operational capacity?',
+            options: [
+                { id: 'yes', label: 'Yes', sub: 'Staff, equipment, or space sit idle', icon: <AlertTriangle size={20} /> },
+                { id: 'no', label: 'No', sub: 'We run at full capacity', icon: <CheckCircle2 size={20} /> },
+                { id: 'not-sure', label: 'Not sure', sub: 'I haven\'t measured this', icon: <AlertCircle size={20} /> }
+            ]
+        },
+        {
+            id: 'operationalChallenges',
+            text: 'Are there operational challenges affecting profitability?',
+            options: [
+                { id: 'yes', label: 'Yes', sub: 'Several things are holding us back', icon: <AlertTriangle size={20} /> },
+                { id: 'no', label: 'No', sub: 'Operations run smoothly', icon: <CheckCircle2 size={20} /> },
+                { id: 'not-sure', label: 'Not sure', sub: 'I suspect there are issues', icon: <AlertCircle size={20} /> }
+            ]
+        },
+        {
+            id: 'processImprovements',
+            text: 'Are there processes you believe could be improved?',
+            options: [
+                { id: 'yes', label: 'Yes', sub: 'Many processes feel inefficient', icon: <Lightbulb size={20} /> },
+                { id: 'no', label: 'No', sub: 'Our processes work well', icon: <CheckCircle2 size={20} /> },
+                { id: 'not-sure', label: 'Not sure', sub: 'I haven\'t thought about it', icon: <AlertCircle size={20} /> }
+            ]
+        }
+    ],
+    'customers-marketing': [
+        {
+            id: 'hasLoyaltyProgramme',
+            text: 'Do you currently have a loyalty programme?',
+            options: [
+                { id: 'yes', label: 'Yes', sub: 'We reward repeat customers', icon: <CheckCircle2 size={20} /> },
+                { id: 'no', label: 'No', sub: 'We don\'t have one', icon: <AlertCircle size={20} /> },
+                { id: 'considering', label: 'Considering', sub: 'We want to set one up', icon: <Lightbulb size={20} /> }
+            ]
+        },
+        {
+            id: 'activelyMarketing',
+            text: 'Are you actively marketing your business?',
+            options: [
+                { id: 'yes', label: 'Yes', sub: 'We have ongoing marketing efforts', icon: <CheckCircle2 size={20} /> },
+                { id: 'no', label: 'No', sub: 'We rely mostly on word of mouth', icon: <AlertCircle size={20} /> },
+                { id: 'sometimes', label: 'Sometimes', sub: 'We market occasionally', icon: <AlertCircle size={20} /> }
+            ]
+        },
+        {
+            id: 'knowsCustomerAcquisition',
+            text: 'Do you know how new customers find your business?',
+            options: [
+                { id: 'yes', label: 'Yes', sub: 'I know our main channels', icon: <CheckCircle2 size={20} /> },
+                { id: 'no', label: 'No', sub: 'I have no idea', icon: <AlertCircle size={20} /> },
+                { id: 'partially', label: 'Partially', sub: 'I have a rough idea', icon: <AlertCircle size={20} /> }
+            ]
+        },
+        {
+            id: 'hasRepeatCustomers',
+            text: 'Do you experience repeat customers?',
+            options: [
+                { id: 'yes', label: 'Yes', sub: 'Many customers come back', icon: <CheckCircle2 size={20} /> },
+                { id: 'no', label: 'No', sub: 'Most customers are one-time', icon: <AlertCircle size={20} /> },
+                { id: 'not-sure', label: 'Not sure', sub: 'I don\'t track this', icon: <AlertCircle size={20} /> }
+            ]
+        }
+    ],
+    'growth-technology': [
+        {
+            id: 'sellsOnline',
+            text: 'Do you currently sell online?',
+            options: [
+                { id: 'yes', label: 'Yes', sub: 'We have an online store or platform', icon: <CheckCircle2 size={20} /> },
+                { id: 'no', label: 'No', sub: 'We only sell in-person', icon: <AlertCircle size={20} /> },
+                { id: 'planning', label: 'Planning to', sub: 'We want to start selling online', icon: <Lightbulb size={20} /> }
+            ]
+        },
+        {
+            id: 'usesBusinessSoftware',
+            text: 'Do you use business software?',
+            options: [
+                { id: 'yes', label: 'Yes', sub: 'We use accounting, CRM, or other tools', icon: <CheckCircle2 size={20} /> },
+                { id: 'no', label: 'No', sub: 'We manage everything manually', icon: <AlertCircle size={20} /> },
+                { id: 'limited', label: 'Limited', sub: 'We use basic tools like spreadsheets', icon: <AlertCircle size={20} /> }
+            ]
+        },
+        {
+            id: 'planningGrowth',
+            text: 'Are you planning to grow within the next 12 months?',
+            options: [
+                { id: 'yes', label: 'Yes', sub: 'Growth is a key priority', icon: <TrendingUp size={20} /> },
+                { id: 'no', label: 'No', sub: 'We are focusing on stabilising', icon: <CheckCircle2 size={20} /> },
+                { id: 'unsure', label: 'Unsure', sub: 'It depends on conditions', icon: <AlertCircle size={20} /> }
+            ]
+        },
+        {
+            id: 'lookingForNewCustomers',
+            text: 'Are you looking for new customers?',
+            options: [
+                { id: 'yes', label: 'Yes', sub: 'Acquiring new customers is a priority', icon: <TrendingUp size={20} /> },
+                { id: 'no', label: 'No', sub: 'We have enough customers', icon: <CheckCircle2 size={20} /> },
+                { id: 'always', label: 'Always', sub: 'We are always looking', icon: <TrendingUp size={20} /> }
+            ]
+        }
+    ],
+    'business-priorities': [
+        {
+            id: 'biggestChallenge',
+            text: 'What is your biggest business challenge today?',
+            options: [
+                { id: 'cashflow', label: 'Cash flow', sub: 'Managing money coming in and going out', icon: <TrendingDown size={20} /> },
+                { id: 'customers', label: 'Getting customers', sub: 'Finding and keeping customers', icon: <Users size={20} /> },
+                { id: 'costs', label: 'High costs', sub: 'Expenses are eating into profits', icon: <AlertTriangle size={20} /> },
+                { id: 'operations', label: 'Operations', sub: 'Processes are slow or inefficient', icon: <Zap size={20} /> },
+                { id: 'growth', label: 'Growth', sub: 'Struggling to scale the business', icon: <TrendingUp size={20} /> },
+                { id: 'other', label: 'Other', sub: 'Something else entirely', icon: <AlertCircle size={20} /> }
+            ]
+        },
+        {
+            id: 'priorityArea',
+            text: 'Which area would you most like to improve first?',
+            options: [
+                { id: 'stock', label: 'Stock management', sub: 'Reduce excess and slow-moving inventory', icon: <AlertTriangle size={20} /> },
+                { id: 'capacity', label: 'Capacity utilisation', sub: 'Make better use of staff and resources', icon: <Zap size={20} /> },
+                { id: 'customers', label: 'Customer retention', sub: 'Keep existing customers coming back', icon: <Users size={20} /> },
+                { id: 'marketing', label: 'Marketing', sub: 'Attract more new customers', icon: <Target size={20} /> },
+                { id: 'technology', label: 'Technology', sub: 'Modernise systems and tools', icon: <BarChart3 size={20} /> },
+                { id: 'efficiency', label: 'Efficiency', sub: 'Streamline operations and reduce waste', icon: <Zap size={20} /> }
+            ]
+        },
+        {
+            id: 'desiredOutcome',
+            text: 'What outcome would make the biggest difference to your business?',
+            options: [
+                { id: 'more-revenue', label: 'More revenue', sub: 'Increase sales and income', icon: <TrendingUp size={20} /> },
+                { id: 'lower-costs', label: 'Lower costs', sub: 'Reduce expenses and waste', icon: <TrendingDown size={20} /> },
+                { id: 'better-retention', label: 'Better retention', sub: 'Keep customers longer', icon: <Users size={20} /> },
+                { id: 'clear-plan', label: 'A clear plan', sub: 'Know exactly what to do next', icon: <Target size={20} /> },
+                { id: 'more-time', label: 'More time', sub: 'Free up time to focus on growth', icon: <Clock size={20} /> }
+            ]
+        }
+    ]
+};
+
+// Estimate time remaining based on current position
+function estimateTimeRemaining(currentStageIdx: number, currentQuestionIdx: number, totalQuestions: number): string {
+    let questionsLeft = 0;
+    for (let i = currentStageIdx; i < TRIAGE_STAGES.length; i++) {
+        const stageId = TRIAGE_STAGES[i];
+        const questions = STAGE_QUESTIONS[stageId] || [];
+        if (i === currentStageIdx) {
+            questionsLeft += questions.length - currentQuestionIdx - 1;
+        } else {
+            questionsLeft += questions.length;
+        }
+    }
+    const minutes = Math.max(1, Math.ceil(questionsLeft * 0.3));
+    return `~${minutes} min`;
+}
+
+// Determine audit type based on responses
+function determineAuditType(data: TriageData): 'SHORT_FORM' | 'LONG_FORM' {
+    let score = 0;
+
+    // Business Performance signals
+    if (data.businessPerformance === 'declining') score += 3;
+    if (data.salesTrend === 'declining') score += 2;
+    if (data.isProfitable === 'no') score += 3;
+    if (data.measuresPerformance === 'no') score += 1;
+
+    // Operations signals
+    if (data.hasExcessStock === 'yes') score += 2;
+    if (data.hasUnusedCapacity === 'yes') score += 2;
+    if (data.operationalChallenges === 'yes') score += 2;
+    if (data.processImprovements === 'yes') score += 1;
+
+    // Customers & Marketing signals
+    if (data.hasLoyaltyProgramme === 'no') score += 1;
+    if (data.activelyMarketing === 'no') score += 1;
+    if (data.knowsCustomerAcquisition === 'no') score += 1;
+    if (data.hasRepeatCustomers === 'no') score += 1;
+
+    // Growth & Technology signals
+    if (data.sellsOnline === 'no') score += 1;
+    if (data.usesBusinessSoftware === 'no') score += 1;
+    if (data.planningGrowth === 'yes') score += 1;
+
+    // Threshold: 8+ = Long Form, else Short Form
+    return score >= 8 ? 'LONG_FORM' : 'SHORT_FORM';
+}
+
+function getExplanation(auditType: 'SHORT_FORM' | 'LONG_FORM'): string {
+    if (auditType === 'LONG_FORM') {
+        return 'Your responses indicate that your business would benefit from a more comprehensive assessment covering multiple operational areas. A Long Business Audit will provide deeper analysis and a detailed recovery roadmap.';
+    }
+    return 'Based on your responses, a focused assessment will effectively identify your key opportunities. A Short Business Audit will deliver clear, actionable insights efficiently.';
+}
+
+// ============================================================
+// MAIN COMPONENT
+// ============================================================
 
 export default function AuditTriagePage() {
     const router = useRouter();
-    const searchParams = useSearchParams();
-    const [stage, setStage] = useState<TriageStageId>('stock-awareness');
+    const { user, signOut } = useAuth();
+    const [stage, setStage] = useState<TriageStageId>('business-performance');
     const [data, setData] = useState<TriageData>({});
+    const [questionIdx, setQuestionIdx] = useState(0);
     const [loading, setLoading] = useState(false);
+    const [hydrated, setHydrated] = useState(false);
+    const navRef = useRef<HTMLDivElement>(null);
 
-    const updateData = (updates: Partial<TriageData>) => {
-        setData(prev => ({ ...prev, ...updates }));
-    };
-
-    const nextStage = () => {
-        switch (stage) {
-            case 'stock-awareness':
-                if (data.hasExcessStock === 'no') setStage('capacity-awareness');
-                else setStage('stock-extent');
-                break;
-            case 'stock-extent':
-                if ((data.stockExtent || 0) >= 7) setStage('stock-impact');
-                else setStage('capacity-awareness');
-                break;
-            case 'stock-impact':
-                setStage('capacity-awareness');
-                break;
-            case 'capacity-awareness':
-                if (data.hasSpareCapacity === 'no') setStage('validation');
-                else setStage('capacity-extent');
-                break;
-            case 'capacity-extent':
-                if ((data.capacityExtent || 0) >= 7) setStage('capacity-impact');
-                else setStage('validation');
-                break;
-            case 'capacity-impact':
-                setStage('validation');
-                break;
-            case 'validation':
-                setStage('financials');
-                break;
-            case 'financials':
-                setStage('decision');
-                break;
-            case 'decision':
-                setStage('readiness');
-                break;
-            case 'readiness':
-                handleFinalRedirect();
-                break;
-        }
-    };
-
-    const prevStage = () => {
-        const stageOrder: TriageStageId[] = [
-            'stock-awareness', 'stock-extent', 'stock-impact',
-            'capacity-awareness', 'capacity-extent', 'capacity-impact',
-            'validation', 'financials', 'decision', 'readiness'
-        ];
-        const idx = stageOrder.indexOf(stage);
-        if (idx > 0) setStage(stageOrder[idx - 1]);
-    };
-
-    const handleFinalRedirect = async () => {
-        setLoading(true);
-        try {
-            const token = typeof window !== "undefined" ? localStorage.getItem("247gbs_token") : null;
-            const headers: Record<string, string> = { 
-                "Content-Type": "application/json",
-                "Accept": "application/json" 
-            };
-            if (token) headers["Authorization"] = `Bearer ${token}`;
-
-            let res = await fetch(`${API_BASE_URL}/triage`, {
-                method: "POST",
-                headers,
-                body: JSON.stringify(data)
-            });
-
-            if (res.status === 401) {
-                const newToken = await refreshAccessToken();
-                if (newToken) {
-                    headers["Authorization"] = `Bearer ${newToken}`;
-                    res = await fetch(`${API_BASE_URL}/triage`, {
-                        method: "POST",
-                        headers,
-                        body: JSON.stringify(data)
-                    });
+    // Restore progress from cookies on mount
+    useEffect(() => {
+        const saved = localStorage.getItem("247gbs_triage_progress");
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                if (parsed.type === "triage" && TRIAGE_STAGES.includes(parsed.stage)) {
+                    setStage(parsed.stage);
+                    setData(parsed.data || {});
+                    setQuestionIdx(parsed.questionIdx || 0);
                 }
-            }
+            } catch {}
+        }
+        setHydrated(true);
+    }, []);
 
-            if (!res.ok) {
-                throw new Error("Failed to submit triage data.");
-            }
+    // Save progress on changes
+    useEffect(() => {
+        if (!hydrated) return;
+        if (stage === 'processing' || stage === 'result') return;
+        localStorage.setItem("247gbs_triage_progress", JSON.stringify({
+            type: "triage",
+            stage,
+            data,
+            questionIdx
+        }));
+    }, [stage, data, questionIdx, hydrated]);
 
-            const responseData = await res.json();
-            
-            if (responseData.decision === 'NO_AUDIT') {
-                setStage('healthy');
+    const stageIdx = TRIAGE_STAGES.indexOf(stage);
+    const stageQuestions = STAGE_QUESTIONS[stage] || [];
+    const currentQuestion = stageQuestions[questionIdx];
+    const totalQuestions = TRIAGE_STAGES.reduce((sum, s) => sum + (STAGE_QUESTIONS[s]?.length || 0), 0);
+    const answeredQuestions = TRIAGE_STAGES.slice(0, stageIdx).reduce((sum, s) => sum + (STAGE_QUESTIONS[s]?.length || 0), 0) + questionIdx;
+
+    const handleSignOut = () => {
+        signOut();
+        router.push("/auth/signin");
+    };
+
+    const handleSelect = (questionId: string, optionId: string) => {
+        setData(prev => ({ ...prev, [questionId]: optionId }));
+
+        // Auto-advance after short delay
+        setTimeout(() => {
+            if (questionIdx < stageQuestions.length - 1) {
+                // More questions in this stage
+                setQuestionIdx(prev => prev + 1);
+            } else if (stageIdx < TRIAGE_STAGES.length - 1) {
+                // Move to next stage
+                setStage(TRIAGE_STAGES[stageIdx + 1]);
+                setQuestionIdx(0);
             } else {
-                const type = responseData.auditType;
-                const sectorId = searchParams.get("sector") || data.sectorId;
-                const hasStock = (data.stockExtent || 0) >= 7 || data.hasExcessStock === 'yes' ? 'true' : 'false';
-                const hasCapacity = (data.capacityExtent || 0) >= 7 || data.hasSpareCapacity === 'yes' ? 'true' : 'false';
-
-                // Now redirecting to selection page to let user pick thier depth based on triage result
-                router.push(`/audit/selection?id=${responseData.auditSessionId}&type=${type}&sector=${sectorId}&stock=${hasStock}&capacity=${hasCapacity}`);
+                // All questions done → processing
+                setStage('processing');
+                // After processing, determine audit type
+                setTimeout(() => {
+                    const auditType = determineAuditType(data);
+                    setData(prev => ({ ...prev, assignedAudit: auditType }));
+                    setStage('result');
+                    localStorage.removeItem("247gbs_triage_progress");
+                    localStorage.setItem("247gbs_triage_result", JSON.stringify({
+                        assignedAudit: auditType,
+                        completedAt: new Date().toISOString()
+                    }));
+                }, 3000);
             }
-        } catch (error) {
-            console.error("Triage submission error:", error);
-        } finally {
-            setLoading(false);
+        }, 300);
+    };
+
+    const handleBack = () => {
+        if (questionIdx > 0) {
+            setQuestionIdx(prev => prev - 1);
+        } else if (stageIdx > 0) {
+            const prevStage = TRIAGE_STAGES[stageIdx - 1];
+            setStage(prevStage);
+            setQuestionIdx((STAGE_QUESTIONS[prevStage]?.length || 1) - 1);
+        } else {
+            router.push('/');
         }
     };
 
-    const progress = useMemo(() => {
-        const stages: TriageStageId[] = ['stock-awareness', 'capacity-awareness', 'validation', 'financials', 'decision', 'readiness'];
-        const idx = stages.indexOf(stage);
-        return ((idx + 1) / stages.length) * 100;
-    }, [stage]);
-
-    const isStepValid = useMemo(() => {
-        switch (stage) {
-            case 'stock-awareness': return !!data.hasExcessStock;
-            case 'stock-extent': return true;
-            case 'stock-impact': return !!data.stockImpact;
-            case 'capacity-awareness': return !!data.hasSpareCapacity;
-            case 'capacity-extent': return true;
-            case 'capacity-impact': return !!data.capacityImpact;
-            case 'validation': return !!data.confidenceStock;
-            case 'financials': return !!data.monthlyTurnover && !!data.stockValue;
-            case 'decision': return true;
-            case 'readiness': return !!data.isReady;
-            default: return true;
-        }
-    }, [stage, data]);
-
-    return (
-        <div className="min-h-screen bg-slate-50 font-sans selection:bg-orange-100 flex flex-col">
-            <header className="h-16 md:h-24 bg-white border-b border-slate-100 flex items-center justify-between px-4 md:px-8 sticky top-0 z-50">
-                <div className="flex items-center gap-2 md:gap-3">
-                    <div className="w-8 h-8 md:w-10 md:h-10 bg-slate-900 rounded-lg md:rounded-xl flex items-center justify-center text-white font-bold text-lg md:text-xl shadow-lg shadow-slate-200">
-                        A
+    // ==================== PROCESSING SCREEN ====================
+    if (stage === 'processing') {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/30 flex items-center justify-center p-4 pt-24 sm:pt-28">
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="w-full max-w-lg bg-white rounded-3xl shadow-2xl p-8 sm:p-12 text-center"
+                >
+                    <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                        <Loader2 size={32} className="text-orange-500 animate-spin" />
                     </div>
-                    <div>
-                        <span className="font-bold text-sm md:text-lg tracking-tight text-slate-900 leading-none">247GBS Audit</span>
-                        <div className="text-[8px] md:text-[10px] font-bold uppercase tracking-widest text-slate-400 leading-none mt-0.5">Business Check</div>
+                    <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-4">
+                        Analysing Your Business Assessment
+                    </h2>
+                    <p className="text-slate-600 text-sm sm:text-base leading-relaxed mb-6">
+                        Please wait while we analyse your responses and determine the most appropriate audit for your business.
+                    </p>
+                    <p className="text-slate-400 text-xs sm:text-sm">
+                        This usually takes only a few moments.
+                    </p>
+                    <div className="mt-8 flex justify-center gap-1">
+                        {[0, 1, 2].map((i) => (
+                            <motion.div
+                                key={i}
+                                className="w-2 h-2 bg-orange-500 rounded-full"
+                                animate={{ opacity: [0.3, 1, 0.3] }}
+                                transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.4 }}
+                            />
+                        ))}
                     </div>
-                </div>
+                </motion.div>
+            </div>
+        );
+    }
 
-                <div className="flex-1 max-w-2xl mx-4 md:mx-12">
-                    <div className="flex justify-between mb-1.5 md:mb-2">
-                        <span className="text-[8px] md:text-[10px] font-bold uppercase tracking-[0.2em] text-orange-500">Progress Status</span>
-                        <span className="text-[8px] md:text-[10px] font-bold text-slate-400">{Math.round(progress)}%</span>
-                    </div>
-                    <div className="w-full h-1 md:h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                        <motion.div
-                            className="h-full bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.3)]"
-                            initial={{ width: 0 }}
-                            animate={{ width: `${progress}%` }}
-                        />
-                    </div>
-                </div>
+    // ==================== RESULT SCREEN ====================
+    if (stage === 'result') {
+        const auditType = data.assignedAudit || 'SHORT_FORM';
+        const isLong = auditType === 'LONG_FORM';
 
-                <div className="hidden sm:flex items-center gap-4">
-                    <div className="px-3 py-1.5 md:px-4 md:py-2 bg-slate-50 border border-slate-100 rounded-lg md:rounded-xl flex items-center gap-2">
-                        <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-green-500 animate-pulse" />
-                        <span className="text-[8px] md:text-[10px] font-bold uppercase tracking-widest text-slate-500">Node: Active</span>
-                    </div>
-                </div>
-            </header>
-
-            <main className="flex-1 flex items-start md:items-center justify-center p-4 md:p-6 lg:p-12 relative overflow-hidden">
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full pointer-events-none overflow-hidden opacity-30">
-                    <div className="absolute top-0 right-0 w-64 h-64 md:w-96 md:h-96 bg-orange-200 rounded-full blur-[80px] md:blur-[120px]" />
-                    <div className="absolute bottom-0 left-0 w-64 h-64 md:w-96 md:h-96 bg-slate-200 rounded-full blur-[80px] md:blur-[120px]" />
-                </div>
-
-                <div className="w-full max-w-4xl bg-white rounded-3xl md:rounded-[3rem] shadow-2xl shadow-slate-200/50 border md:border border-slate-50 relative z-10 overflow-hidden flex flex-col md:flex-row min-h-[500px] md:min-h-[600px]">
-                    <div className="w-full md:w-[320px] bg-slate-900 pt-8 pb-6 px-6 md:p-10 flex flex-col justify-between text-white relative">
-                        <div className="absolute top-0 right-0 p-6 md:p-10 opacity-5 text-orange-500">
-                            <Cpu size={80} className="md:w-[120px] md:h-[120px]" />
-                        </div>
-
-                        <div className="relative z-10">
-                            <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-500 mb-4 md:mb-8 ">Help Guide</h3>
-                            <AnimatePresence mode="wait">
-                                <motion.div
-                                    key={stage}
-                                    initial={{ opacity: 0, x: -10 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    exit={{ opacity: 0, x: 10 }}
-                                    className="space-y-4 md:space-y-6"
-                                >
-                                    <HelperContent stage={stage} data={data} />
-                                </motion.div>
-                            </AnimatePresence>
-                        </div>
-
-                        <div className="hidden md:block pt-10 border-t border-white/5 relative z-10">
-                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest leading-relaxed">
-                                Our decision engine uses the **Henry Model** to determine the necessity and depth of your audit.
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/30 flex items-center justify-center p-4 pt-24 sm:pt-28">
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="w-full max-w-2xl"
+                >
+                    <div className="bg-white rounded-3xl shadow-2xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+                        {/* Header */}
+                        <div className="bg-slate-900 px-6 sm:px-10 py-8 sm:py-12 text-center">
+                            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-green-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                                <CheckCircle2 size={32} className="text-white" />
+                            </div>
+                            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-3">
+                                Business Triage Complete
+                            </h1>
+                            <p className="text-slate-400 text-sm sm:text-base max-w-md mx-auto">
+                                Thank you for completing your Business Triage.
                             </p>
                         </div>
+
+                        <div className="px-6 sm:px-10 py-8 sm:py-10">
+                            <p className="text-slate-600 text-sm sm:text-base text-center mb-8">
+                                Based on your responses, we have identified the most appropriate audit for your business.
+                            </p>
+
+                            {/* Assigned Audit Card */}
+                            <div className={`border-2 rounded-2xl p-6 sm:p-8 mb-6 ${isLong ? 'border-orange-500 bg-orange-50' : 'border-blue-500 bg-blue-50'}`}>
+                                <div className="text-center">
+                                    <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-slate-500 mb-2 block">
+                                        Recommended Audit
+                                    </span>
+                                    <h2 className={`text-xl sm:text-2xl font-bold mb-4 ${isLong ? 'text-orange-600' : 'text-blue-600'}`}>
+                                        {isLong ? 'Long Business Audit' : 'Short Business Audit'}
+                                    </h2>
+                                    <div className="grid grid-cols-3 gap-4 text-center">
+                                        <div>
+                                            <div className="text-xs text-slate-500 mb-1">Estimated Time</div>
+                                            <div className="font-bold text-slate-900">{isLong ? '30 min' : '10 min'}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-xs text-slate-500 mb-1">Stages</div>
+                                            <div className="font-bold text-slate-900">{isLong ? '10' : '6'}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-xs text-slate-500 mb-1">Questions</div>
+                                            <div className="font-bold text-slate-900">~{isLong ? '60' : '20'}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Explanation */}
+                            <div className="bg-slate-50 rounded-xl p-4 sm:p-5 mb-8">
+                                <p className="text-sm text-slate-600 leading-relaxed">
+                                    {getExplanation(auditType)}
+                                </p>
+                            </div>
+
+                            {/* CTA */}
+                            <button
+                                onClick={() => {
+                                    markAssessmentCompleted();
+                                    router.push('/dashboard');
+                                }}
+                                className="w-full bg-slate-900 hover:bg-black text-white px-6 py-4 rounded-2xl font-bold text-base sm:text-lg flex items-center justify-center gap-3 shadow-xl transition-all hover:-translate-y-1 active:translate-y-0"
+                            >
+                                Continue to My Audit Dashboard
+                                <ArrowRight size={18} />
+                            </button>
+                        </div>
+                    </div>
+                </motion.div>
+            </div>
+        );
+    }
+
+    // ==================== TRIAGE QUESTIONS ====================
+    const meta = STAGE_META[stage];
+    const stageNumber = stageIdx + 1;
+    const totalStages = TRIAGE_STAGES.length;
+
+    return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/30">
+            {/* Top Navbar */}
+            <nav className="bg-white border-b border-slate-100 px-4 sm:px-6 py-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
+                        <span className="text-white font-bold text-sm">A</span>
+                    </div>
+                    <div>
+                        <div className="font-bold text-slate-900 text-sm tracking-tight">247GBS Audit</div>
+                        <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Business Check</div>
+                    </div>
+                </div>
+                <div className="relative" ref={navRef}>
+                    <button
+                        onClick={() => {}}
+                        className="w-9 h-9 bg-slate-900 rounded-full flex items-center justify-center text-white font-bold text-xs"
+                    >
+                        {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                    </button>
+                </div>
+            </nav>
+
+            <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+                {/* Progress Header */}
+                <div className="mb-6 sm:mb-10">
+                    <div className="flex items-center justify-between mb-3">
+                        <h2 className="text-xs sm:text-sm font-bold text-slate-900">Business Triage</h2>
+                        <span className="text-[10px] sm:text-xs font-bold text-orange-600 bg-orange-50 px-2.5 py-1 rounded-full">
+                            Stage {stageNumber} of {totalStages}
+                        </span>
                     </div>
 
-                    <div className="flex-1 p-6 md:p-10 lg:p-14 flex flex-col justify-between relative bg-white rounded-t-[2rem] md:rounded-none -mt-6 md:mt-0 shadow-[0_-20px_40px_rgba(0,0,0,0.05)] md:shadow-none">
+                    {/* Progress bar */}
+                    <div className="w-full bg-slate-100 rounded-full h-1.5 mb-3">
+                        <motion.div
+                            className="bg-orange-500 h-1.5 rounded-full"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${((answeredQuestions) / totalQuestions) * 100}%` }}
+                            transition={{ duration: 0.5 }}
+                        />
+                    </div>
+
+                    <div className="flex items-center justify-between text-[10px] sm:text-xs text-slate-500">
+                        <span>Question {answeredQuestions + 1} of {totalQuestions}</span>
+                        <span className="flex items-center gap-1">
+                            <Clock size={12} />
+                            {estimateTimeRemaining(stageIdx, questionIdx, totalQuestions)} remaining
+                        </span>
+                    </div>
+                </div>
+
+                {/* Card */}
+                <div className="bg-white rounded-3xl shadow-2xl shadow-slate-200/50 border border-slate-50 relative z-10 overflow-hidden">
+                    <div className="p-6 sm:p-10 lg:p-14">
                         <AnimatePresence mode="wait">
                             <motion.div
-                                key={stage}
+                                key={`${stage}-${questionIdx}`}
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -10 }}
-                                className="flex-1 flex flex-col"
+                                transition={{ duration: 0.3 }}
                             >
-                                <StageContent stage={stage} data={data} updateData={updateData} next={nextStage} />
+                                {/* Stage label */}
+                                <div className="flex items-center gap-2 mb-4">
+                                    <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center text-orange-500">
+                                        {meta.icon}
+                                    </div>
+                                    <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">{meta.title}</span>
+                                </div>
+
+                                {/* Question */}
+                                <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 mb-6 sm:mb-8 leading-tight">
+                                    {currentQuestion?.text}
+                                </h2>
+
+                                {/* Options */}
+                                <div className="grid gap-3 sm:gap-4">
+                                    {currentQuestion?.options.map((opt) => {
+                                        const isSelected = data[currentQuestion.id as keyof TriageData] === opt.id;
+                                        return (
+                                            <motion.button
+                                                key={opt.id}
+                                                whileHover={{ scale: 1.01, y: -2 }}
+                                                whileTap={{ scale: 0.98 }}
+                                                onClick={() => handleSelect(currentQuestion.id, opt.id)}
+                                                className={`flex items-center gap-4 p-4 sm:p-5 rounded-2xl border-2 transition-all text-left group relative overflow-hidden ${
+                                                    isSelected
+                                                        ? "bg-white border-orange-500 shadow-[0_8px_30px_rgb(249,115,22,0.12)] ring-1 ring-orange-500 ring-offset-2"
+                                                        : "bg-white border-slate-100 hover:border-slate-300 hover:shadow-lg hover:shadow-slate-200/50"
+                                                }`}
+                                            >
+                                                {isSelected && (
+                                                    <motion.div layoutId="activeBg" className="absolute inset-0 bg-gradient-to-r from-orange-50/30 to-transparent pointer-events-none" />
+                                                )}
+                                                <div className={`relative z-10 w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center shrink-0 transition-all duration-300 ${
+                                                    isSelected ? "bg-orange-500 text-white shadow-lg shadow-orange-500/30 scale-110" : "bg-slate-50 text-slate-400 group-hover:bg-orange-100 group-hover:text-orange-500"
+                                                }`}>
+                                                    {opt.icon}
+                                                </div>
+                                                <div className="relative z-10">
+                                                    <div className="font-bold text-base sm:text-lg leading-tight transition-colors duration-300 group-hover:text-orange-600 text-slate-900">{opt.label}</div>
+                                                    {opt.sub && <div className="text-xs sm:text-sm text-slate-400 font-medium mt-0.5">{opt.sub}</div>}
+                                                </div>
+                                            </motion.button>
+                                        );
+                                    })}
+                                </div>
                             </motion.div>
                         </AnimatePresence>
+                    </div>
 
-                        <div className="mt-8 md:mt-12 flex justify-between items-center border-t border-slate-50 pt-6 md:pt-8">
-                            {stage !== 'healthy' && (
-                                <button
-                                    onClick={prevStage}
-                                    disabled={stage === 'stock-awareness'}
-                                    className="flex items-center gap-2 text-slate-400 hover:text-slate-900 font-bold text-[10px] md:text-xs uppercase tracking-widest disabled:opacity-30 transition-all"
-                                >
-                                    <ChevronLeft size={14} className="md:w-[16px] md:h-[16px]" />
-                                    Back
-                                </button>
-                            )}
-                            
-                            {stage === 'healthy' ? (
-                                <button
-                                    onClick={() => router.push('/dashboard')}
-                                    className="px-6 py-4 md:px-10 md:py-5 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm flex items-center gap-2 md:gap-3 transition-all active:scale-95 group bg-slate-900 text-white shadow-xl hover:bg-black hover:-translate-y-1 ml-auto"
-                                >
-                                    Return to Dashboard
-                                    <ChevronRight size={16} className="md:w-[18px] md:h-[18px] transition-transform text-orange-500 group-hover:translate-x-1" />
-                                </button>
-                            ) : (
-                                <button
-                                    onClick={nextStage}
-                                    disabled={!isStepValid}
-                                    className={`px-6 py-4 md:px-10 md:py-5 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm flex items-center gap-2 md:gap-3 transition-all active:scale-95 group ${isStepValid
-                                        ? "bg-slate-900 text-white shadow-xl hover:bg-black hover:-translate-y-1"
-                                        : "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
-                                        }`}
-                                >
-                                    {stage === 'readiness' ? 'Complete Check' : 'Continue'}
-                                    <ChevronRight size={16} className={`md:w-[18px] md:h-[18px] transition-transform ${isStepValid ? "text-orange-500 group-hover:translate-x-1" : "text-slate-400"}`} />
-                                </button>
-                            )}
-                        </div>
+                    {/* Footer */}
+                    <div className="px-6 sm:px-10 py-5 sm:py-6 border-t border-slate-50 flex justify-between items-center">
+                        <button
+                            onClick={handleBack}
+                            className="flex items-center gap-2 text-slate-400 hover:text-slate-900 font-bold text-[10px] sm:text-xs uppercase tracking-widest transition-all"
+                        >
+                            <ChevronLeft size={14} />
+                            Back
+                        </button>
                     </div>
                 </div>
             </main>
-
-            <AnimatePresence>
-                {loading && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[100] flex items-center justify-center p-6"
-                    >
-                        <div className="max-w-md w-full text-center space-y-8">
-                            <div className="relative">
-                                <motion.div
-                                    className="w-24 h-24 border-4 border-orange-500 border-t-transparent rounded-full mx-auto"
-                                    animate={{ rotate: 360 }}
-                                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                                />
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                    <Cpu size={32} className="text-orange-500 animate-pulse" />
-                                </div>
-                            </div>
-                            <div>
-                                <h2 className="text-white text-3xl font-bold mb-4 tracking-tight">Simulating Audit Depth</h2>
-                                <p className="text-slate-400 font-medium ">Assigning required audit protocols based on identified waste thresholds...</p>
-                            </div>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
         </div>
     );
 }
 
-function HelperContent({ stage, data }: { stage: TriageStageId, data: TriageData }) {
-    if (stage.startsWith('stock')) {
-        return (
-            <div className="space-y-4">
-                <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 md:w-12 md:h-12 bg-orange-500 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0">
-                        <Package size={20} className="md:w-[24px] md:h-[24px]" />
-                    </div>
-                    <h4 className="text-base md:text-xl font-bold text-white leading-tight">Stage 1: Excess Stock</h4>
-                </div>
-                <div>
-                    <p className="text-slate-400 text-xs md:text-sm leading-relaxed">
-                        Excess inventory isn't just space—it's <strong className="text-slate-200">trapped liquidity</strong>. We need to determine if your leak is significant.
-                    </p>
-                </div>
-            </div>
-        );
-    }
-    if (stage.startsWith('capacity')) {
-        return (
-            <div className="space-y-4">
-                <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 md:w-12 md:h-12 bg-orange-500 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0">
-                        <Clock size={20} className="md:w-[24px] md:h-[24px]" />
-                    </div>
-                    <h4 className="text-base md:text-xl font-bold text-white leading-tight">Stage 2: Spare Capacity</h4>
-                </div>
-                <div>
-                    <p className="text-slate-400 text-xs md:text-sm leading-relaxed">
-                        Unused hours or empty seats are <strong className="text-slate-200">guaranteed losses</strong>. We analyze these assets to define recovery potential.
-                    </p>
-                </div>
-            </div>
-        );
-    }
-    if (stage === 'validation') {
-        return (
-            <div className="space-y-4">
-                <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 md:w-12 md:h-12 bg-orange-500 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0">
-                        <ShieldCheck size={20} className="md:w-[24px] md:h-[24px]" />
-                    </div>
-                    <h4 className="text-base md:text-xl font-bold text-white leading-tight">Stage 3: Validation</h4>
-                </div>
-                <div>
-                    <p className="text-slate-400 text-xs md:text-sm leading-relaxed">
-                        Precision matters. We cross-verify your confidence levels to decide if AI should ask clarifying questions.
-                    </p>
-                </div>
-            </div>
-        );
-    }
-    if (stage === 'healthy') {
-        return (
-            <div className="space-y-4">
-                <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 md:w-12 md:h-12 bg-green-500 rounded-xl md:rounded-2xl flex items-center justify-center text-white shrink-0">
-                        <CheckCircle2 size={20} className="md:w-[24px] md:h-[24px]" />
-                    </div>
-                    <h4 className="text-base md:text-xl font-bold text-white leading-tight">Check Complete</h4>
-                </div>
-                <div>
-                    <p className="text-slate-400 text-xs md:text-sm leading-relaxed">
-                        Your efficiency metrics indicate a highly stable operation. No further audit allocation recommended.
-                    </p>
-                </div>
-            </div>
-        );
-    }
-    return (
-        <div className="space-y-4">
-            <div className="flex items-center gap-4">
-                <div className="w-10 h-10 md:w-12 md:h-12 bg-orange-500 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0">
-                    <Activity size={20} className="md:w-[24px] md:h-[24px]" />
-                </div>
-                <h4 className="text-base md:text-xl font-bold text-white leading-tight">Strategic Mapping</h4>
-            </div>
-            <div>
-                <p className="text-slate-400 text-xs md:text-sm leading-relaxed">
-                    Finalizing the financial context to convert operational waste into a hard currency roadmap.
-                </p>
-            </div>
-        </div>
-    );
+function markAssessmentCompleted() {
+    localStorage.setItem("247gbs_assessment_completed", "true");
 }
-
-function StageContent({
-    stage,
-    data,
-    updateData,
-    next
-}: {
-    stage: TriageStageId,
-    data: TriageData,
-    updateData: (u: Partial<TriageData>) => void,
-    next: () => void
-}) {
-    switch (stage) {
-        case 'stock-awareness':
-            return (
-                <div className="space-y-6 md:space-y-10 py-4 md:py-10">
-                    <div>
-                        <h2 className="text-xl md:text-3xl font-bold text-slate-900 mb-2 md:mb-4 leading-tight">Stock awareness screening</h2>
-                        <p className="text-slate-500 text-sm md:text-lg font-medium leading-relaxed">
-                            Do you believe your business currently has excess or slow-moving stock?
-                        </p>
-                    </div>
-                    <div className="grid gap-3 md:gap-4">
-                        {[
-                            { id: 'yes', label: 'Yes, definitely', icon: CheckCircle2, sub: 'I have identified specific items or ranges.' },
-                            { id: 'not-sure', label: 'Not sure', icon: AlertCircle, sub: 'I suspect there is a leak but haven\'t measured it.' },
-                            { id: 'no', label: 'No, my stock is lean', icon: TrendingUp, sub: 'I move inventory as fast as I get it.' }
-                        ].map((opt) => (
-                            <button
-                                key={opt.id}
-                                onClick={() => { updateData({ hasExcessStock: opt.id as any }); next(); }}
-                                className={`flex items-center gap-4 md:gap-6 p-4 md:p-6 rounded-2xl md:rounded-3xl border-2 transition-all text-left group ${data.hasExcessStock === opt.id
-                                    ? "bg-orange-50 border-orange-500"
-                                    : "bg-white border-slate-100 hover:border-slate-300"
-                                    }`}
-                            >
-                                <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0 transition-colors ${data.hasExcessStock === opt.id ? "bg-orange-500 text-white" : "bg-slate-50 text-slate-400 group-hover:bg-slate-100"
-                                    }`}>
-                                    <opt.icon size={20} className="md:w-[24px] md:h-[24px]" />
-                                </div>
-                                <div>
-                                    <div className="font-bold text-slate-900 text-base md:text-lg leading-tight">{opt.label}</div>
-                                    <div className="text-[10px] md:text-sm text-slate-400 font-medium mt-0.5">{opt.sub}</div>
-                                </div>
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            );
-
-        case 'stock-extent':
-            return (
-                <div className="space-y-8 md:space-y-12 py-4 md:py-10">
-                    <div>
-                        <h2 className="text-xl md:text-3xl font-bold text-slate-900 mb-2 md:mb-4 leading-tight">Quantifying the Leak</h2>
-                        <p className="text-slate-500 text-sm md:text-lg font-medium">
-                            What do you estimate is the extent of your excess or unsold stock?
-                        </p>
-                    </div>
-
-                    <div className="bg-slate-50 p-6 md:p-10 rounded-2xl md:rounded-[2.5rem] space-y-8 md:space-y-12">
-                        <div className="text-center">
-                            <span className="text-5xl md:text-7xl font-bold text-slate-900 ">{data.stockExtent || 0}%</span>
-                            <p className="text-[8px] md:text-[10px] font-bold uppercase tracking-[0.3em] text-orange-500 mt-2 md:mt-4">Calculated Extent</p>
-                        </div>
-
-                        <div className="relative pt-6 md:pt-10">
-                            <motion.div
-                                className="absolute -top-2 left-0 w-full flex justify-center pointer-events-none"
-                                animate={{ x: [0, 20, 0] }}
-                                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                            >
-                                <div className="flex items-center gap-1.5 md:gap-2 text-[8px] md:text-[10px] font-bold uppercase tracking-widest text-orange-500/50 bg-white/50 px-2 py-1 md:px-3 md:py-1.5 rounded-full backdrop-blur-sm">
-                                    <ChevronLeft size={8} className="md:w-[10px] md:h-[10px]" />
-                                    Slide to adjust
-                                    <ChevronRight size={8} className="md:w-[10px] md:h-[10px]" />
-                                </div>
-                            </motion.div>
-                            <input
-                                type="range"
-                                min="0"
-                                max="100"
-                                step="1"
-                                className="w-full h-2 md:h-3 bg-slate-200 rounded-full appearance-none cursor-pointer accent-orange-500 hover:h-4 transition-all"
-                                value={data.stockExtent || 0}
-                                onChange={(e) => updateData({ stockExtent: parseInt(e.target.value) })}
-                            />
-                            <div className="flex justify-between mt-3 md:mt-4 px-1 text-[8px] md:text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                                <span>Minimum Leak</span>
-                                <span>High Priority Leak</span>
-                            </div>
-                        </div>
-
-                        <div className="bg-white p-4 md:p-6 rounded-xl md:rounded-2xl border border-slate-100 flex items-center gap-3 md:gap-4 text-[10px] md:text-xs font-bold text-slate-500 leading-relaxed ">
-                            <Zap size={16} className="text-orange-500 shrink-0 md:w-[20px] md:h-[20px]" />
-                            Include items unsold for &gt; 60 days.
-                        </div>
-                    </div>
-                </div>
-            );
-
-        case 'stock-impact':
-            return (
-                <div className="space-y-6 md:space-y-10 py-4 md:py-10">
-                    <div>
-                        <h2 className="text-xl md:text-3xl font-bold text-slate-900 mb-2 md:mb-4 leading-tight">Operational Friction</h2>
-                        <p className="text-slate-500 text-sm md:text-lg font-medium leading-relaxed">
-                            Is this excess stock affecting your cash flow or storage space?
-                        </p>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-                        {[
-                            { id: 'serious', label: 'Yes, seriously', sub: 'It is a major bottleneck.' },
-                            { id: 'little', label: 'Yes, a little', sub: 'Moderate pressure applied.' },
-                            { id: 'not-yet', label: 'Not yet', sub: 'Low priority currently.' },
-                            { id: 'not-sure', label: 'Not sure', sub: 'Need measurement.' }
-                        ].map((opt) => (
-                            <button
-                                key={opt.id}
-                                onClick={() => { updateData({ stockImpact: opt.id as any }); next(); }}
-                                className={`flex flex-col gap-2 md:gap-4 p-5 md:p-8 rounded-2xl md:rounded-3xl border-2 transition-all text-left ${data.stockImpact === opt.id
-                                    ? "bg-slate-900 border-slate-900 text-white shadow-xl"
-                                    : "bg-white border-slate-100 hover:border-slate-300 shadow-sm"
-                                    }`}
-                            >
-                                <div className="font-bold text-base md:text-xl leading-tight">{opt.label}</div>
-                                <div className={`text-[10px] md:text-sm font-medium ${data.stockImpact === opt.id ? "text-slate-400" : "text-slate-400"}`}>{opt.sub}</div>
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            );
-
-        case 'capacity-awareness':
-            return (
-                <div className="space-y-6 md:space-y-10 py-4 md:py-10">
-                    <div>
-                        <h2 className="text-xl md:text-3xl font-bold text-slate-900 mb-2 md:mb-4 leading-tight">Spare Capacity Screening</h2>
-                        <p className="text-slate-500 text-sm md:text-lg font-medium leading-relaxed">
-                            Do you believe your business has unused staff time, equipment, or space?
-                        </p>
-                    </div>
-                    <div className="grid gap-3 md:gap-4">
-                        {[
-                            { id: 'yes', label: 'Yes, absolutely', icon: Clock },
-                            { id: 'not-sure', label: 'Not sure / Suspicious', icon: AlertCircle },
-                            { id: 'no', label: 'Maximum Utilization', icon: TrendingUp }
-                        ].map((opt) => (
-                            <button
-                                key={opt.id}
-                                onClick={() => { updateData({ hasSpareCapacity: opt.id as any }); next(); }}
-                                className={`flex items-center gap-4 md:gap-6 p-4 md:p-8 rounded-2xl md:rounded-[2.5rem] border-2 transition-all text-left group ${data.hasSpareCapacity === opt.id
-                                    ? "bg-orange-50 border-orange-500"
-                                    : "bg-white border-slate-100 hover:border-slate-300 shadow-sm"
-                                    }`}
-                            >
-                                <div className={`w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0 transition-colors ${data.hasSpareCapacity === opt.id ? "bg-orange-500 text-white" : "bg-slate-50 text-slate-400 group-hover:bg-slate-100"
-                                    }`}>
-                                    <opt.icon size={20} className="md:w-[28px] md:h-[28px]" />
-                                </div>
-                                <div className="font-bold text-slate-900 text-base md:text-xl leading-tight">{opt.label}</div>
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            );
-
-        case 'capacity-extent':
-            return (
-                <div className="space-y-8 md:space-y-12 py-4 md:py-10">
-                    <div>
-                        <h2 className="text-xl md:text-3xl font-bold text-slate-900 mb-2 md:mb-4 leading-tight">Unused Potential</h2>
-                        <p className="text-slate-500 text-sm md:text-lg font-medium">
-                            What percentage of your available capacity is unused?
-                        </p>
-                    </div>
-
-                    <div className="bg-slate-900 p-6 md:p-10 py-10 md:py-16 rounded-2xl md:rounded-[3rem] space-y-8 md:space-y-12 text-white">
-                        <div className="text-center">
-                            <span className="text-6xl md:text-8xl font-bold ">{data.capacityExtent || 0}%</span>
-                            <p className="text-[8px] md:text-[10px] font-bold uppercase tracking-[0.4em] text-orange-500 mt-2 md:mt-4 ">Efficiency Gap Identified</p>
-                        </div>
-
-                        <div className="relative pt-6 md:pt-10 px-2 md:px-4">
-                            <motion.div
-                                className="absolute -top-2 left-0 w-full flex justify-center pointer-events-none"
-                                animate={{ x: [0, -20, 0] }}
-                                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                            >
-                                <div className="flex items-center gap-1.5 md:gap-2 text-[8px] md:text-[10px] font-bold uppercase tracking-widest text-orange-500 bg-white/10 px-2 py-1 md:px-3 md:py-1.5 rounded-full backdrop-blur-sm border border-white/10">
-                                    <ChevronLeft size={8} className="md:w-[10px] md:h-[10px]" />
-                                    Slide to adjust
-                                    <ChevronRight size={8} className="md:w-[10px] md:h-[10px]" />
-                                </div>
-                            </motion.div>
-                            <input
-                                type="range"
-                                min="0"
-                                max="100"
-                                step="1"
-                                className="w-full h-2 md:h-3 bg-white/10 rounded-full appearance-none cursor-pointer accent-orange-500 hover:bg-white/20 transition-all"
-                                value={data.capacityExtent || 0}
-                                onChange={(e) => updateData({ capacityExtent: parseInt(e.target.value) })}
-                            />
-                            <div className="flex justify-between mt-4 md:mt-6 text-[8px] md:text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                                <span>Optimization</span>
-                                <span className="text-orange-500">Threshold</span>
-                            </div>
-                        </div>
-
-                        <div className="bg-white/5 p-4 md:p-6 rounded-xl md:rounded-2xl border border-white/5 flex items-center gap-3 md:gap-4 text-[10px] md:text-xs font-bold text-slate-400 leading-relaxed ">
-                            <CheckCircle2 size={16} className="text-orange-500 shrink-0 md:w-[20px] md:h-[20px]" />
-                            Include idle staff, machines, and quiet windows.
-                        </div>
-                    </div>
-                </div>
-            );
-
-        case 'capacity-impact':
-            return (
-                <div className="space-y-6 md:space-y-10 py-4 md:py-10">
-                    <div>
-                        <h2 className="text-xl md:text-3xl font-bold text-slate-900 mb-2 md:mb-4 leading-tight">Wasted Momentum</h2>
-                        <p className="text-slate-500 text-sm md:text-lg font-medium leading-relaxed">
-                            Is this unused capacity costing you money?
-                        </p>
-                    </div>
-                    <div className="grid gap-3 md:gap-4">
-                        {[
-                            { id: 'serious', label: 'Yes, clearly costing us prime profit', icon: TrendingDown },
-                            { id: 'little', label: 'Possibly, but manageable', icon: ActivityIcon },
-                            { id: 'not-yet', label: 'Not currently a financial drag', icon: Briefcase }
-                        ].map((opt) => (
-                            <button
-                                key={opt.id}
-                                onClick={() => { updateData({ capacityImpact: opt.id as any }); next(); }}
-                                className={`flex items-center gap-4 md:gap-6 p-5 md:p-8 rounded-2xl md:rounded-3xl border-2 transition-all text-left group ${data.capacityImpact === opt.id
-                                    ? "bg-orange-50 border-orange-500 shadow-xl"
-                                    : "bg-white border-slate-100 hover:border-slate-300 shadow-sm"
-                                    }`}
-                            >
-                                <div className={`w-10 h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl flex items-center justify-center shrink-0 transition-colors ${data.capacityImpact === opt.id ? "bg-orange-500 text-white" : "bg-slate-50 text-slate-400"
-                                    }`}>
-                                    <opt.icon size={18} className="md:w-[22px] md:h-[22px]" />
-                                </div>
-                                <div className="font-bold text-slate-900 text-base md:text-lg leading-tight">{opt.label}</div>
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            );
-
-        case 'validation':
-            return (
-                <div className="space-y-8 md:space-y-12 py-4 md:py-10">
-                    <div>
-                        <h2 className="text-xl md:text-3xl font-bold text-slate-900 mb-2 md:mb-4 leading-tight">Accuracy Check</h2>
-                        <p className="text-slate-500 text-sm md:text-lg font-medium">
-                            How confident are you in these estimates?
-                        </p>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 pb-6 md:pb-10">
-                        {[
-                            { id: 'very', label: 'Scientific', icon: CheckCircle2, tooltip: 'Based on hard data or recent stocktakes.' },
-                            { id: 'fairly', label: 'Guesstimate', icon: ActivityIcon, tooltip: 'An educated guess based on daily observations.' },
-                            { id: 'guessing', label: 'Blind Spot', icon: EyeOff, tooltip: 'Suspicion of waste without clear visibility.' },
-                            { id: 'not-sure', label: 'No Data', icon: HelpCircle, tooltip: 'Complete uncertainty regarding this metric.' }
-                        ].map(opt => (
-                            <button
-                                key={opt.id}
-                                onClick={() => updateData({ confidenceStock: opt.id as any })}
-                                className={`relative group p-5 md:p-8 rounded-2xl md:rounded-[2rem] border-2 transition-all text-left flex items-start gap-4 md:gap-6 ${data.confidenceStock === opt.id
-                                    ? "bg-slate-900 border-slate-900 text-white shadow-2xl scale-[1.02] z-20"
-                                    : "bg-white border-slate-100 hover:border-orange-500 shadow-sm"
-                                    }`}
-                            >
-                                <div className={`w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0 transition-colors ${data.confidenceStock === opt.id ? "bg-orange-500 text-white" : "bg-slate-50 text-slate-400 group-hover:bg-orange-50 group-hover:text-orange-500"
-                                    }`}>
-                                    <opt.icon size={20} className="md:w-[28px] md:h-[28px]" />
-                                </div>
-                                <div className="space-y-0.5 md:space-y-1">
-                                    <div className="font-bold text-base md:text-xl tracking-tight leading-tight">{opt.label}</div>
-                                    <div className={`text-[10px] md:text-sm font-medium ${data.confidenceStock === opt.id ? "text-slate-400" : "text-slate-400"}`}>
-                                        {opt.id === 'very' ? 'High' : opt.id === 'fairly' ? 'Medium' : 'Low'} Confidence
-                                    </div>
-                                </div>
-
-                                <div className="hidden md:block absolute bottom-full left-1/2 -translate-x-1/2 mb-4 w-48 p-4 bg-slate-900 text-white text-[10px] font-bold rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-xl border border-white/10 z-20 text-center">
-                                    <div className="relative">
-                                        {opt.tooltip}
-                                        <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-900 rotate-45 mt-1" />
-                                    </div>
-                                </div>
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            );
-
-        case 'financials':
-            return (
-                <div className="space-y-8 md:space-y-10 py-4 md:py-10">
-                    <div>
-                        <h2 className="text-xl md:text-3xl font-bold text-slate-900 mb-2 md:mb-4 leading-tight">Financial Reality Check</h2>
-                        <p className="text-slate-500 text-sm md:text-lg font-medium leading-relaxed">
-                            Convert operational leaks into financial recovery targets.
-                        </p>
-                    </div>
-
-                    <div className="space-y-6 md:space-y-8">
-                        <div className="space-y-3 md:space-y-4">
-                            <label className="text-[8px] md:text-[10px] font-bold uppercase tracking-widest text-slate-400 block px-1">Average Monthly Turnover</label>
-                            <div className="grid grid-cols-2 gap-2 md:gap-3">
-                                {[
-                                    { id: 'under10k', label: 'Under £10k' },
-                                    { id: '10k-50k', label: '£10k – £50k' },
-                                    { id: '50k-100k', label: '£50k – £100k' },
-                                    { id: '100k+', label: '£100k+' }
-                                ].map(opt => (
-                                    <button
-                                        key={opt.id}
-                                        onClick={() => updateData({ monthlyTurnover: opt.id as any })}
-                                        className={`py-3 md:py-5 rounded-xl md:rounded-2xl font-bold text-[10px] md:text-xs uppercase tracking-widest border-2 transition-all ${data.monthlyTurnover === opt.id ? "bg-orange-500 border-orange-500 text-white shadow-xl" : "bg-slate-50 border-transparent text-slate-400 hover:border-slate-200"
-                                            }`}
-                                    >
-                                        {opt.label}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="space-y-3 md:space-y-4">
-                            <label className="text-[8px] md:text-[10px] font-bold uppercase tracking-widest text-slate-400 block px-1">Approximate Stock Value</label>
-                            <div className="grid grid-cols-2 gap-2 md:gap-3">
-                                {[
-                                    { id: 'under5k', label: 'Under £5k' },
-                                    { id: '5k-20k', label: '£5k – £20k' },
-                                    { id: '20k-50k', label: '£20k – £50k' },
-                                    { id: '50k+', label: '£50k+' }
-                                ].map(opt => (
-                                    <button
-                                        key={opt.id}
-                                        onClick={() => updateData({ stockValue: opt.id as any })}
-                                        className={`py-3 md:py-5 rounded-xl md:rounded-2xl font-bold text-[10px] md:text-xs uppercase tracking-widest border-2 transition-all ${data.stockValue === opt.id ? "bg-slate-900 border-slate-900 text-white shadow-xl" : "bg-slate-50 border-transparent text-slate-400 hover:border-slate-200"
-                                            }`}
-                                    >
-                                        {opt.label}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
-
-        case 'decision':
-            const stock = data.stockExtent || 0;
-            const capacity = data.capacityExtent || 0;
-            const isCritical = stock >= 31 || capacity >= 31;
-            const isHigh = stock >= 16 || capacity >= 16;
-            const isPartial = stock >= 7 || capacity >= 7;
-
-            return (
-                <div className="space-y-6 md:space-y-10 py-4 md:py-10 flex-1 flex flex-col justify-center">
-                    <div className="text-center space-y-2 md:space-y-4">
-                        <div className={`inline-flex items-center gap-1.5 md:gap-2 px-3 py-1.5 md:px-4 md:py-2 rounded-full text-[8px] md:text-xs font-bold uppercase tracking-widest ${isCritical ? "bg-red-50 text-red-600 border border-red-100" :
-                            isHigh ? "bg-orange-50 text-orange-600 border border-orange-100" :
-                                isPartial ? "bg-blue-50 text-blue-600 border border-blue-100" :
-                                    "bg-green-50 text-green-600 border border-green-100"
-                            }`}>
-                            <Activity size={12} className="md:w-[14px] md:h-[14px]" />
-                            Status: {isCritical ? "Critical" : isHigh ? "High Priority" : isPartial ? "Tactical" : "Stable"}
-                        </div>
-                        <h3 className="text-2xl md:text-4xl font-bold text-slate-900 leading-tight">Check Result</h3>
-                    </div>
-
-                    <div className="bg-slate-50 p-6 md:p-10 rounded-2xl md:rounded-[3rem] border border-slate-100 relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 p-6 md:p-8 opacity-5 text-slate-900 group-hover:scale-110 transition-transform">
-                            <Cpu size={80} className="md:w-[120px] md:h-[120px]" />
-                        </div>
-                        <div className="relative z-10 space-y-4 md:space-y-6 text-center md:text-left">
-                            <h4 className="text-base md:text-xl font-bold text-slate-900 leading-relaxed md:leading-tight">
-                                {isCritical || isHigh ? (
-                                    <>Based on your <span className="text-orange-500 decoration-slate-200 underline underline-offset-4 md:underline-offset-8">Business Check</span>, your business requires a <strong className="text-slate-900">Full High-Depth Audit</strong>.</>
-                                ) : isPartial ? (
-                                    <>Your leak thresholds are moderate. We recommend a <strong className="text-slate-900">Short-Form Audit</strong> to stabilize margins.</>
-                                ) : (
-                                    <>You currently do not meet the minimum thresholds for a full audit. We suggest a <strong className="text-slate-900">Monitoring Cycle</strong>.</>
-                                )}
-                            </h4>
-                            <div className="flex flex-wrap justify-center md:justify-start gap-3 md:gap-4 pt-2 md:pt-4">
-                                <div className="bg-white px-4 py-2 md:px-6 md:py-3 rounded-xl md:rounded-2xl border border-slate-200 flex items-center gap-2 md:gap-3">
-                                    <div className="w-6 h-6 md:w-8 md:h-8 bg-orange-100 text-orange-600 rounded-lg flex items-center justify-center font-bold text-[10px] md:text-xs">
-                                        !
-                                    </div>
-                                    <div className="text-[8px] md:text-[10px] font-bold uppercase tracking-widest text-slate-400">Potential</div>
-                                    <div className="text-xs md:text-sm font-bold text-slate-900 ">Significant</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
-
-        case 'readiness':
-            return (
-                <div className="space-y-8 md:space-y-12 py-4 md:py-10 flex-1 flex flex-col justify-center">
-                    <div className="text-center space-y-4 md:space-y-6">
-                        <div className="w-16 h-16 md:w-20 md:h-20 bg-orange-100 text-orange-500 rounded-2xl md:rounded-[2rem] flex items-center justify-center mx-auto shadow-xl shadow-orange-500/10">
-                            <ShieldCheck size={32} className="md:w-[40px] md:h-[40px]" />
-                        </div>
-                        <div>
-                            <h2 className="text-2xl md:text-4xl font-bold text-slate-900 leading-tight">Ready for Change?</h2>
-                            <p className="text-slate-500 text-sm md:text-lg font-medium mt-2 md:mt-4 leading-relaxed">
-                                Audits require a commitment to change. Are you prepared to take action?
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
-                        {[
-                            { id: 'yes', label: 'Ready', icon: Zap },
-                            { id: 'maybe', label: 'Possibly', icon: ActivityIcon },
-                            { id: 'not-yet', label: 'Not Yet', icon: Lock }
-                        ].map(opt => (
-                            <button
-                                key={opt.id}
-                                onClick={() => updateData({ isReady: opt.id as any })}
-                                className={`flex items-center md:flex-col gap-4 md:gap-4 p-5 md:p-8 rounded-2xl md:rounded-[2.5rem] border-2 transition-all ${data.isReady === opt.id
-                                    ? `bg-slate-900 border-slate-900 text-white scale-[1.02] md:scale-105 shadow-xl md:shadow-2xl`
-                                    : "bg-white border-slate-100 hover:border-slate-200 shadow-sm"
-                                    }`}
-                            >
-                                <div className={`w-10 h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl flex items-center justify-center shrink-0 ${data.isReady === opt.id ? "bg-orange-500 text-white" : "bg-slate-50 text-slate-400"
-                                    }`}>
-                                    <opt.icon size={20} className="md:w-[24px] md:h-[24px]" />
-                                </div>
-                                <span className="font-bold text-[10px] md:text-sm uppercase tracking-widest">{opt.label}</span>
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            );
-
-        case 'healthy':
-            return (
-                <div className="space-y-8 md:space-y-12 py-4 md:py-10 flex-1 flex flex-col justify-center text-center">
-                    <motion.div 
-                        initial={{ scale: 0.8, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        transition={{ type: "spring", bounce: 0.5 }}
-                        className="w-16 h-16 md:w-24 md:h-24 bg-green-100 text-green-500 rounded-2xl md:rounded-[2rem] flex items-center justify-center mx-auto shadow-xl md:shadow-2xl shadow-green-500/20"
-                    >
-                        <CheckCircle2 size={32} className="md:w-[48px] md:h-[48px]" />
-                    </motion.div>
-                    <div className="space-y-4 md:space-y-6">
-                        <div className="inline-flex items-center gap-1.5 md:gap-2 px-3 py-1.5 md:px-4 md:py-2 rounded-full text-[8px] md:text-xs font-bold uppercase tracking-widest bg-green-50 text-green-600 border border-green-100 mb-2">
-                            <Activity size={12} className="md:w-[14px] md:h-[14px]" />
-                            Status Stable
-                        </div>
-                        <h2 className="text-2xl md:text-4xl font-bold text-slate-900 leading-tight">No Audit Required</h2>
-                        <p className="text-slate-500 text-sm md:text-lg font-medium max-w-lg mx-auto leading-relaxed px-4">
-                            Based on your inputs, your business is operating with minimal waste. 
-                            We recommend a <span className="text-slate-900 font-bold">Monitoring Cycle</span>.
-                        </p>
-                    </div>
-                </div>
-            );
-
-        default:
-            return <div>Flow Logic Incomplete. Please contact Node Administrator.</div>;
-    }
-}
-

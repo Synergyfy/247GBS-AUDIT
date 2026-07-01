@@ -42,7 +42,7 @@ export default function SignInPage() {
             if (role === 'Administrator') {
                 router.push("/admin");
             } else {
-                router.push("/dashboard");
+                router.push("/audit/welcome");
             }
         }
     };
