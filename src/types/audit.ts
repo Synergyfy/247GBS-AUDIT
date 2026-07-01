@@ -1,8 +1,10 @@
 import { z } from 'zod';
 
-export type AuditCategory = 'SPARE_CAPACITY' | 'EXCESS_STOCK';
+export type AuditCategory = 'SPARE_CAPACITY' | 'EXCESS_STOCK' | 'CUSTOMERS' | 'MARKETING' | 'TECHNOLOGY' | 'FINANCE';
 
 export type AuditType = 'SHORT_FORM' | 'LONG_FORM';
+
+export type QuestionType = 'multiple-choice' | 'multi-select' | 'rating' | 'number' | 'percentage' | 'currency' | 'text' | 'long-text' | 'boolean';
 
 export interface VisualConfig {
     backgroundImage: string;
@@ -44,17 +46,32 @@ export interface Sector {
     recommendationTemplates: RecommendationTemplate[];
 }
 
+export interface QuestionOption {
+    id: string;
+    label: string;
+    sub?: string;
+    value?: number;
+}
+
 export interface Question {
     id: string;
     text: string;
-    type: 'number' | 'percentage' | 'boolean' | 'text' | 'currency';
+    type: QuestionType;
     category: AuditCategory;
+    options?: QuestionOption[]; // For multiple-choice, multi-select, rating
     isLongFormOnly?: boolean;
     helpText?: string;
-    weight?: number; // For weighted calculations in Long Form
-    sectorSpecific?: string[]; // Sector IDs this question applies to
-    groupId?: string; // Optinal Group ID (Category)
-    typeId?: string; // Optional Type ID (Subcategory)
+    placeholder?: string; // For text/number inputs
+    min?: number; // For number/rating
+    max?: number; // For number/rating
+    weight?: number;
+    sectorSpecific?: string[];
+    groupId?: string;
+    typeId?: string;
+    conditionalOn?: { // Show this question only if condition is met
+        questionId: string;
+        value: string | string[];
+    };
 }
 
 export interface AuditStrategy {
@@ -212,34 +229,49 @@ export interface DashboardStats {
 }
 
 // ============================================================
-// AUDIT TRIAGE (ONBOARDING)
+// AUDIT TRIAGE (MODULE 1 - BUSINESS TRIAGE)
 // ============================================================
 
 export type TriageStageId =
-    | 'stock-awareness'
-    | 'stock-extent'
-    | 'stock-impact'
-    | 'capacity-awareness'
-    | 'capacity-extent'
-    | 'capacity-impact'
-    | 'validation'
-    | 'financials'
-    | 'decision'
-    | 'readiness'
-    | 'healthy';
+    | 'business-performance'
+    | 'operations'
+    | 'customers-marketing'
+    | 'growth-technology'
+    | 'business-priorities'
+    | 'processing'
+    | 'result';
 
 export interface TriageData {
-    sectorId?: string;
+    // Stage 1: Business Performance
+    businessPerformance?: 'good' | 'stable' | 'declining' | 'not-sure';
+    salesTrend?: 'increasing' | 'stable' | 'declining' | 'not-sure';
+    isProfitable?: 'yes' | 'no' | 'not-sure';
+    measuresPerformance?: 'yes' | 'no' | 'sometimes';
+
+    // Stage 2: Operations
     hasExcessStock?: 'yes' | 'no' | 'not-sure';
-    stockExtent?: number;
-    stockImpact?: 'serious' | 'little' | 'not-yet' | 'not-sure';
-    hasSpareCapacity?: 'yes' | 'no' | 'not-sure';
-    capacityExtent?: number;
-    capacityImpact?: 'serious' | 'little' | 'not-yet' | 'not-sure';
-    confidenceStock?: 'very' | 'fairly' | 'guessing' | 'not-sure';
-    confidenceCapacity?: 'very' | 'fairly' | 'guessing' | 'not-sure';
-    staffCost?: 'under' | 'around' | 'above' | 'not-sure';
-    stockValue?: 'under5k' | '5k-20k' | '20k-50k' | '50k+';
-    monthlyTurnover?: 'under10k' | '10k-50k' | '50k-100k' | '100k+';
-    isReady?: 'yes' | 'maybe' | 'not-yet';
+    hasUnusedCapacity?: 'yes' | 'no' | 'not-sure';
+    operationalChallenges?: 'yes' | 'no' | 'not-sure';
+    processImprovements?: 'yes' | 'no' | 'not-sure';
+
+    // Stage 3: Customers & Marketing
+    hasLoyaltyProgramme?: 'yes' | 'no' | 'considering';
+    activelyMarketing?: 'yes' | 'no' | 'sometimes';
+    knowsCustomerAcquisition?: 'yes' | 'no' | 'partially';
+    hasRepeatCustomers?: 'yes' | 'no' | 'not-sure';
+
+    // Stage 4: Growth & Technology
+    sellsOnline?: 'yes' | 'no' | 'planning';
+    usesBusinessSoftware?: 'yes' | 'no' | 'limited';
+    planningGrowth?: 'yes' | 'no' | 'unsure';
+    lookingForNewCustomers?: 'yes' | 'no' | 'always';
+
+    // Stage 5: Business Priorities
+    biggestChallenge?: string;
+    priorityArea?: 'stock' | 'capacity' | 'customers' | 'marketing' | 'technology' | 'efficiency' | 'other';
+    desiredOutcome?: string;
+
+    // System
+    assignedAudit?: 'SHORT_FORM' | 'LONG_FORM';
+    sectorId?: string;
 }

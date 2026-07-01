@@ -13,6 +13,7 @@ import { TOURISM_QUESTIONS } from "./questions/tourism";
 import { AGRICULTURE_QUESTIONS } from "./questions/agriculture";
 import { COMMUNITY_QUESTIONS } from "./questions/community";
 import { ONLINE_QUESTIONS } from "./questions/online";
+import { ALL_NEW_QUESTIONS } from "./questions/general-stages";
 
 const GENERAL_QUESTIONS: Question[] = [
     // SPARE CAPACITY - SHORT FORM (GENERAL)
@@ -60,6 +61,7 @@ const GENERAL_QUESTIONS: Question[] = [
 
 export const AUDIT_QUESTIONS: Question[] = [
     ...GENERAL_QUESTIONS,
+    ...ALL_NEW_QUESTIONS,
     ...HOSPITALITY_QUESTIONS,
     ...RETAIL_QUESTIONS,
     ...MANUFACTURING_QUESTIONS,

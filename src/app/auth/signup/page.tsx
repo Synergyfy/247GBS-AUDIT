@@ -70,7 +70,7 @@ export default function SignUpPage() {
         if (success) {
             const { success: signinSuccess } = await signIn({ email, password });
             if (signinSuccess) {
-                router.push("/audit/sector");
+                router.push("/audit/welcome");
             } else {
                 router.push("/auth/signin");
             }
