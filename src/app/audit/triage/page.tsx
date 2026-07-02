@@ -298,7 +298,7 @@ function getExplanation(auditType: 'SHORT_FORM' | 'LONG_FORM'): string {
 
 export default function AuditTriagePage() {
     const router = useRouter();
-    const { user, signOut } = useAuth();
+    const { user, signOut, isAuthenticated } = useAuth();
     const [stage, setStage] = useState<TriageStageId>('business-performance');
     const [data, setData] = useState<TriageData>({});
     const [questionIdx, setQuestionIdx] = useState(0);
@@ -345,33 +345,48 @@ export default function AuditTriagePage() {
         router.push("/auth/signin");
     };
 
+    const handleSaveAndContinue = () => {
+        if (!isAuthenticated) {
+            router.push("/auth/signin?callbackUrl=/audit/triage");
+            return;
+        }
+        // If authenticated, we just save current state (already saved by useEffect)
+        // and optionally show a toast or message.
+        // For now, let's just advance to next question as a "continue" action
+        advance();
+    };
+
+    const advance = () => {
+        if (questionIdx < stageQuestions.length - 1) {
+            // More questions in this stage
+            setQuestionIdx(prev => prev + 1);
+        } else if (stageIdx < TRIAGE_STAGES.length - 1) {
+            // Move to next stage
+            setStage(TRIAGE_STAGES[stageIdx + 1]);
+            setQuestionIdx(0);
+        } else {
+            // All questions done → processing
+            setStage('processing');
+            // After processing, determine audit type
+            setTimeout(() => {
+                const auditType = determineAuditType(data);
+                setData(prev => ({ ...prev, assignedAudit: auditType }));
+                setStage('result');
+                localStorage.removeItem("247gbs_triage_progress");
+                localStorage.setItem("247gbs_triage_result", JSON.stringify({
+                    assignedAudit: auditType,
+                    completedAt: new Date().toISOString()
+                }));
+            }, 3000);
+        }
+    }
+
     const handleSelect = (questionId: string, optionId: string) => {
         setData(prev => ({ ...prev, [questionId]: optionId }));
 
         // Auto-advance after short delay
         setTimeout(() => {
-            if (questionIdx < stageQuestions.length - 1) {
-                // More questions in this stage
-                setQuestionIdx(prev => prev + 1);
-            } else if (stageIdx < TRIAGE_STAGES.length - 1) {
-                // Move to next stage
-                setStage(TRIAGE_STAGES[stageIdx + 1]);
-                setQuestionIdx(0);
-            } else {
-                // All questions done → processing
-                setStage('processing');
-                // After processing, determine audit type
-                setTimeout(() => {
-                    const auditType = determineAuditType(data);
-                    setData(prev => ({ ...prev, assignedAudit: auditType }));
-                    setStage('result');
-                    localStorage.removeItem("247gbs_triage_progress");
-                    localStorage.setItem("247gbs_triage_result", JSON.stringify({
-                        assignedAudit: auditType,
-                        completedAt: new Date().toISOString()
-                    }));
-                }, 3000);
-            }
+            advance();
         }, 300);
     };
 
@@ -383,7 +398,7 @@ export default function AuditTriagePage() {
             setStage(prevStage);
             setQuestionIdx((STAGE_QUESTIONS[prevStage]?.length || 1) - 1);
         } else {
-            router.push('/');
+            router.push('/audit/welcome');
         }
     };
 
@@ -630,6 +645,14 @@ export default function AuditTriagePage() {
                         >
                             <ChevronLeft size={14} />
                             Back
+                        </button>
+
+                        <button
+                            onClick={handleSaveAndContinue}
+                            className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-xl font-bold text-[10px] sm:text-xs uppercase tracking-widest transition-all hover:bg-black"
+                        >
+                            Save & Continue
+                            <ChevronRight size={14} />
                         </button>
                     </div>
                 </div>

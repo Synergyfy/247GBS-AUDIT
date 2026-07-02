@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { SECTORS } from "@/data/sectors";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -33,6 +34,7 @@ export default function DashboardPage() {
     const { user } = useAuth();
     const router = useRouter();
     const [triageResult, setTriageResult] = useState<TriageResult | null>(null);
+    const [sectorInfo, setSectorInfo] = useState<{ sectorId: string; groupId: string; typeId: string } | null>(null);
     const [auditCompleted, setAuditCompleted] = useState<AuditCompleted | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -53,6 +55,14 @@ export default function DashboardPage() {
             }
         } else if (completed) {
             setTriageResult({ assignedAudit: 'SHORT_FORM', completedAt: new Date().toISOString() });
+        }
+
+        // Check sector info
+        const sectorStr = localStorage.getItem("247gbs_audit_sector");
+        if (sectorStr) {
+            try {
+                setSectorInfo(JSON.parse(sectorStr));
+            } catch {}
         }
 
         // Check audit completion
@@ -92,6 +102,10 @@ export default function DashboardPage() {
         );
     }
 
+    // Find sector and type names
+    const sectorName = sectorInfo ? SECTORS.find(s => s.id === sectorInfo.sectorId)?.name : null;
+    const typeName = sectorInfo ? SECTORS.find(s => s.id === sectorInfo.sectorId)?.groups.find(g => g.id === sectorInfo.groupId)?.types.find(t => t.id === sectorInfo.typeId)?.name : null;
+
     return (
         <div className="space-y-8">
             {/* Header */}
@@ -102,8 +116,13 @@ export default function DashboardPage() {
             >
                 <div>
                     <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-1">
-                        {user?.name || 'Your Business'}
+                        Welcome {user?.name?.split(" ")[0] || 'User'}!
                     </h1>
+                    {sectorName && typeName && (
+                        <p className="text-orange-600 font-bold text-sm mb-2">
+                            {sectorName} • {typeName}
+                        </p>
+                    )}
                     <div className="flex items-center gap-3 text-sm text-slate-500">
                         <span className="flex items-center gap-1.5">
                             <span className={`w-2 h-2 rounded-full ${triageResult ? 'bg-green-500' : 'bg-slate-300'}`} />
