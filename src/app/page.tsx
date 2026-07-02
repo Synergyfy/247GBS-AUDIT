@@ -401,6 +401,27 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Pricing CTA */}
+      <section className="py-16 lg:py-24 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 text-center">
+          <motion.div {...fadeIn} className="max-w-3xl mx-auto">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
+              Choose a Plan That <span className="text-orange-500">Fits Your Business</span>
+            </h2>
+            <p className="text-slate-600 text-lg mb-8 max-w-2xl mx-auto">
+              From free triage to enterprise-grade diagnostics — pick the level of support your business needs.
+            </p>
+            <Link
+              href="/pricing"
+              className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-4 rounded-2xl font-bold text-base lg:text-lg inline-flex items-center gap-2 shadow-xl shadow-orange-500/30 transition-all hover:-translate-y-1"
+            >
+              View Pricing Plans
+              <ArrowRight size={18} />
+            </Link>
+          </motion.div>
+        </div>
+      </section>
+
       {/* Footer */}
       <footer className="py-16 lg:py-24 bg-slate-900 text-white relative font-sans">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
