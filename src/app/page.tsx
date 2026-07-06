@@ -156,12 +156,7 @@ export default function LandingPage() {
   const router = useRouter();
 
   const handleStartReview = () => {
-    if (!isAuthenticated) {
-      router.push("/auth/signin");
-      return;
-    }
-
-    // Authenticated → go to Welcome screen (Module 1 flow)
+    // Triage is now public
     router.push("/audit/welcome");
   };
 
