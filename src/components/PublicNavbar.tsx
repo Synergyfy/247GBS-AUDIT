@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { LogOut, User, ChevronDown, Menu, X } from "lucide-react";
 
@@ -65,6 +65,7 @@ export function PublicNavbar() {
                 <div className="hidden md:flex items-center gap-8 text-sm font-semibold">
                     <a href="/#comparison" className="hover:text-orange-500 transition-colors">Compare Audits</a>
                     <a href="/#why" className="hover:text-orange-500 transition-colors">Why Seasonal?</a>
+                    <Link href="/pricing" className="hover:text-orange-500 transition-colors">Pricing</Link>
 
                     {isAuthenticated && user ? (
                         /* Avatar Dropdown for Authenticated Users */
@@ -172,15 +173,19 @@ export function PublicNavbar() {
             </div>
 
             {/* Mobile Menu */}
-            {isMobileMenuOpen && (
+            <AnimatePresence>
+              {isMobileMenuOpen && (
                 <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="md:hidden bg-white border-t border-orange-100 px-6 py-4 space-y-4"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.3, ease: "easeInOut" }}
+                  className="md:hidden bg-white border-t border-orange-100 px-6 overflow-hidden"
                 >
+                  <div className="py-4 space-y-4">
                     <a href="/#comparison" className="block py-2 text-sm font-semibold hover:text-orange-500 transition-colors">Compare Audits</a>
                     <a href="/#why" className="block py-2 text-sm font-semibold hover:text-orange-500 transition-colors">Why Seasonal?</a>
+                    <Link href="/pricing" className="block py-2 text-sm font-semibold hover:text-orange-500 transition-colors">Pricing</Link>
 
                     {isAuthenticated && user ? (
                         <div className="pt-4 border-t border-slate-100 space-y-3">
@@ -216,8 +221,10 @@ export function PublicNavbar() {
                             </Link>
                         </div>
                     )}
+                </div>
                 </motion.div>
             )}
+            </AnimatePresence>
         </nav>
     );
 }

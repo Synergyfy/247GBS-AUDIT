@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -21,6 +21,7 @@ import { useAuthActions } from "@/services/auth/useAuthActions";
 
 export default function SignInPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { signIn: contextSignIn } = useAuth();
     const { signIn, isLoading, error: apiError } = useAuthActions();
     const [email, setEmail] = useState("");
@@ -42,7 +43,8 @@ export default function SignInPage() {
             if (role === 'Administrator') {
                 router.push("/admin");
             } else {
-                router.push("/audit/welcome");
+                const callbackUrl = searchParams.get('callbackUrl');
+                router.push(callbackUrl || "/audit/welcome");
             }
         }
     };

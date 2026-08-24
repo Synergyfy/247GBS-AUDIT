@@ -1,497 +1,299 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
-  CheckCircle2,
-  X,
-  Zap,
-  ShieldCheck,
-  Crown,
-  Star,
-  ArrowRight,
+  Check, Star, Zap, ArrowRight, Shield, Award, Crown, Medal, Sparkles, ChevronDown, ChevronUp, CheckCircle2, Minus
 } from "lucide-react";
+import { PRICING_PLANS, PricingPlan, PlanTier, TierId } from "@/data/pricing";
+import { cn } from "@/lib/utils";
 
-const plans = [
-  {
-    name: "Bronze",
-    price: "Free",
-    period: "forever",
-    description: "Get started with a basic business health check.",
-    icon: <Zap size={24} />,
-    color: "slate",
-    popular: false,
-    features: [
-      { text: "2 Business Assessments", included: true },
-      { text: "Quick Review Only", included: true },
-      { text: "Basic Health Score", included: true },
-      { text: "Email Results", included: true },
-      { text: "Sector-Specific Audit", included: false },
-      { text: "AI-Powered Insights", included: false },
-      { text: "Growth Roadmap", included: false },
-      { text: "Priority Support", included: false },
-      { text: "Account Manager", included: false },
-    ],
-    cta: "Get Started Free",
-    href: "/auth/signup",
-  },
-  {
-    name: "Silver",
-    price: "£49",
-    period: "one-time",
-    description: "A full audit with actionable recommendations.",
-    icon: <Star size={24} />,
-    color: "slate",
-    popular: false,
-    features: [
-      { text: "4 Business Assessments", included: true },
-      { text: "Quick & Strategic Reviews", included: true },
-      { text: "Full Health Dashboard", included: true },
-      { text: "Email & PDF Results", included: true },
-      { text: "Sector-Specific Audit", included: true },
-      { text: "AI-Powered Insights", included: true },
-      { text: "Growth Roadmap", included: false },
-      { text: "Priority Support", included: false },
-      { text: "Account Manager", included: false },
-    ],
-    cta: "Choose Silver",
-    href: "/auth/signup?plan=silver",
-  },
-  {
-    name: "Gold",
-    price: "£149",
-    period: "per quarter",
-    description: "Ongoing monitoring with expert guidance.",
-    icon: <ShieldCheck size={24} />,
-    color: "orange",
-    popular: true,
-    features: [
-      { text: "Unlimited Assessments", included: true },
-      { text: "Quick & Strategic Reviews", included: true },
-      { text: "Full Health Dashboard", included: true },
-      { text: "Email & PDF Results", included: true },
-      { text: "Sector-Specific Audit", included: true },
-      { text: "AI-Powered Insights", included: true },
-      { text: "Growth Roadmap", included: true },
-      { text: "Priority Support", included: true },
-      { text: "Account Manager", included: false },
-    ],
-    cta: "Choose Gold",
-    href: "/auth/signup?plan=gold",
-  },
-  {
-    name: "Platinum",
-    price: "£399",
-    period: "per quarter",
-    description: "Full consultancy with dedicated account management.",
-    icon: <Crown size={24} />,
-    color: "orange",
-    popular: false,
-    features: [
-      { text: "Unlimited Assessments", included: true },
-      { text: "Quick & Strategic Reviews", included: true },
-      { text: "Full Health Dashboard", included: true },
-      { text: "Email & PDF Results", included: true },
-      { text: "Sector-Specific Audit", included: true },
-      { text: "AI-Powered Insights", included: true },
-      { text: "Growth Roadmap", included: true },
-      { text: "Priority Support", included: true },
-      { text: "Dedicated Account Manager", included: true },
-    ],
-    cta: "Choose Platinum",
-    href: "/auth/signup?plan=platinum",
-  },
-];
-
-const fadeIn = {
-  initial: { opacity: 0, y: 20 },
-  whileInView: { opacity: 1, y: 0 },
-  viewport: { once: true },
-  transition: { duration: 0.6 },
+const ICON_MAP: Record<string, React.ReactNode> = {
+  Award: <Award className="w-full h-full" />,
+  Medal: <Medal className="w-full h-full" />,
+  Star: <Star className="w-full h-full" />,
+  Crown: <Crown className="w-full h-full" />
 };
 
-export default function PricingPage() {
-  return (
-    <div className="min-h-screen bg-white text-slate-900 selection:bg-orange-100 selection:text-orange-900">
-      {/* Header */}
-      <section className="pt-28 pb-12 lg:pt-36 lg:pb-16 px-4 sm:px-6">
-        <div className="max-w-7xl mx-auto text-center">
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="inline-flex items-center gap-2 bg-orange-50 border border-orange-100 px-4 py-2 rounded-full text-orange-600 font-bold text-xs sm:text-sm mb-5 lg:mb-6"
-          >
-            <span>Simple, Transparent Pricing</span>
-          </motion.div>
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4 lg:mb-6"
-          >
-            Choose Your <span className="text-orange-500">Growth Plan</span>
-          </motion.h1>
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="text-base lg:text-lg text-slate-500 max-w-2xl mx-auto"
-          >
-            Start free and upgrade as your business grows. Every plan includes access to our business diagnostic platform.
-          </motion.p>
-        </div>
-      </section>
+type BillingCycle = 'monthly' | 'quarterly' | 'annual';
 
-      {/* Pricing Cards */}
-      <section className="pb-16 lg:pb-24 px-4 sm:px-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 lg:gap-6">
-            {plans.map((plan, i) => (
+function parsePrice(priceStr: string): number {
+  if (priceStr.toLowerCase() === 'free') return 0;
+  const numStr = priceStr.replace(/[^0-9.]/g, '');
+  return parseFloat(numStr) || 0;
+}
+
+function getDiscountedPrice(basePrice: number, cycle: BillingCycle): number {
+  if (basePrice === 0) return 0;
+  if (cycle === 'quarterly') return Math.floor(basePrice * 0.9);
+  if (cycle === 'annual') return Math.floor(basePrice * 0.8);
+  return basePrice;
+}
+
+function formatPrice(price: number, originalStr: string): string {
+  if (price === 0 && originalStr.toLowerCase() === 'free') return 'Free';
+  if (price === 0) return '£0';
+  const symbol = originalStr.replace(/[0-9.,]/g, '').trim() || '£';
+  return `${symbol}${price.toLocaleString()}`;
+}
+
+function getComparisonTableData(selectedSubTier: TierId) {
+  const allFeatures = new Set<string>();
+  
+  PRICING_PLANS.forEach(plan => {
+    const tierData = plan.tiers.find(t => t.id === selectedSubTier);
+    if (tierData) {
+      tierData.features.forEach(f => {
+        if (!f.toLowerCase().startsWith('everything in')) {
+          allFeatures.add(f);
+        }
+      });
+    }
+  });
+
+  return Array.from(allFeatures);
+}
+
+export default function PricingPage() {
+  const [selectedSubTier, setSelectedSubTier] = useState<TierId>('normal');
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
+  const [showComparison, setShowComparison] = useState(false);
+  const comparisonFeatures = getComparisonTableData(selectedSubTier);
+
+  return (
+    <div className="pt-32 pb-24 bg-white min-h-screen">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6">
+        <div className="text-center max-w-3xl mx-auto mb-12 md:mb-20">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-orange-50 text-orange-600 text-sm font-semibold mb-6">
+              <Sparkles className="w-4 h-4" />
+              Pricing Plans
+            </div>
+            <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold text-slate-900 mb-6 tracking-tight">
+              Choose Your <span className="text-orange-500">Plan</span>
+            </h1>
+            <p className="text-lg sm:text-xl text-slate-600 font-medium">
+              Every plan includes a free Business Triage. Upgrade to unlock deeper diagnostics, recommendations, and dedicated support.
+            </p>
+          </motion.div>
+
+          <div className="mt-8 md:mt-12 flex flex-col items-center gap-6">
+            {/* Billing Cycle Toggle */}
+            <div className="flex p-1 bg-slate-100 rounded-full">
+              {(['monthly', 'quarterly', 'annual'] as BillingCycle[]).map((cycle) => (
+                <button
+                  key={cycle}
+                  onClick={() => setBillingCycle(cycle)}
+                  className={cn(
+                    "px-5 py-2.5 rounded-full text-sm font-semibold transition-all flex items-center",
+                    billingCycle === cycle ? "bg-white text-orange-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  )}
+                >
+                  <span className="capitalize">{cycle}</span>
+                  {cycle === 'quarterly' && <span className="ml-2 text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider hidden sm:inline-block">Save 10%</span>}
+                  {cycle === 'annual' && <span className="ml-2 text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider hidden sm:inline-block">Save 20%</span>}
+                </button>
+              ))}
+            </div>
+
+            {/* Sub-tier Toggle */}
+            <div className="flex gap-2 p-1.5 bg-orange-500/5 rounded-2xl border border-orange-500/10 overflow-x-auto w-full sm:w-auto">
+              {(['normal', 'pro', 'pro-plus'] as TierId[]).map((tier) => (
+                <button
+                  key={tier}
+                  onClick={() => setSelectedSubTier(tier)}
+                  className={cn(
+                    "px-4 md:px-6 py-3 rounded-xl text-sm font-semibold transition-all flex flex-col items-center min-w-[90px] md:min-w-[120px]",
+                    selectedSubTier === tier 
+                      ? "bg-orange-500 text-white shadow-lg shadow-orange-500/30" 
+                      : "text-orange-500/60 hover:text-orange-500 hover:bg-orange-500/10"
+                  )}
+                >
+                  {tier === 'normal' ? 'Normal' : tier === 'pro' ? 'Pro' : 'Pro+'}
+                  <span className="text-[10px] opacity-80 font-normal mt-1">
+                    {tier === 'normal' && 'Basic Access'}
+                    {tier === 'pro' && 'More Growth'}
+                    {tier === 'pro-plus' && 'Max Visibility'}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Membership Cards */}
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-16 md:mb-32">
+          {PRICING_PLANS.map((plan, index) => {
+            const isGold = plan.id === 'gold';
+            const tierData = plan.tiers.find(t => t.id === selectedSubTier) || plan.tiers[0];
+            const PlanIcon = ICON_MAP[plan.icon] || ICON_MAP['Star'];
+            
+            const basePrice = parsePrice(tierData.price);
+            const discountedPrice = getDiscountedPrice(basePrice, billingCycle);
+            const displayPrice = formatPrice(discountedPrice, tierData.price);
+            const totalBilled = billingCycle === 'annual' ? discountedPrice * 12 : billingCycle === 'quarterly' ? discountedPrice * 3 : discountedPrice;
+
+            return (
               <motion.div
-                key={plan.name}
-                {...fadeIn}
-                transition={{ delay: 0.1 + i * 0.1 }}
-                className={`relative rounded-[2rem] lg:rounded-[2.5rem] p-6 lg:p-8 border-2 transition-all duration-300 flex flex-col ${
-                  plan.popular
-                    ? "bg-slate-900 text-white border-orange-500 shadow-2xl shadow-orange-200 scale-[1.02] lg:scale-105 z-10"
-                    : "bg-white text-slate-900 border-slate-100 hover:border-slate-300 shadow-sm hover:shadow-xl"
-                }`}
+                key={plan.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.08 }}
+                className={cn(
+                  "relative p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] flex flex-col transition-all duration-500",
+                  isGold 
+                    ? "bg-slate-900 text-white shadow-2xl shadow-slate-900/40 scale-[1.02] md:scale-105 z-10" 
+                    : "bg-white border border-slate-100 hover:border-orange-500/20 hover:shadow-2xl"
+                )}
               >
-                {plan.popular && (
-                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-orange-500 text-white text-[10px] font-bold px-4 py-1.5 rounded-full uppercase tracking-widest whitespace-nowrap">
-                    Most Popular
+                {isGold && (
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-amber-400 text-amber-900 font-bold px-3 md:px-4 py-1 rounded-full text-xs flex items-center gap-1 shadow-lg whitespace-nowrap">
+                    <Star className="w-3 h-3 fill-current" /> MOST POPULAR
                   </div>
                 )}
 
-                <div className="mb-6 lg:mb-8">
-                  <div
-                    className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 ${
-                      plan.popular
-                        ? "bg-orange-500 text-white"
-                        : plan.color === "orange"
-                        ? "bg-orange-100 text-orange-600"
-                        : "bg-slate-100 text-slate-600"
-                    }`}
-                  >
-                    {plan.icon}
+                <div className="flex items-center justify-between mb-6 md:mb-8">
+                  <div className={cn("w-12 h-12 md:w-14 md:h-14 rounded-2xl flex items-center justify-center p-2.5 md:p-3 shadow-sm transition-transform group-hover:scale-110", isGold ? "bg-white/10 text-white" : plan.badgeColor)}>
+                    {PlanIcon}
                   </div>
-                  <h3 className="text-xl font-bold mb-1">{plan.name}</h3>
-                  <p
-                    className={`text-sm ${
-                      plan.popular ? "text-slate-400" : "text-slate-500"
-                    }`}
-                  >
-                    {plan.description}
-                  </p>
+                  <div className={cn("text-xs font-semibold uppercase tracking-widest", isGold ? "text-slate-300" : "text-slate-400")}>
+                    {plan.name}
+                  </div>
                 </div>
 
-                <div className="mb-6 lg:mb-8">
-                  <span className="text-4xl lg:text-5xl font-bold">
-                    {plan.price}
-                  </span>
-                  <span
-                    className={`text-sm ml-1 ${
-                      plan.popular ? "text-slate-400" : "text-slate-500"
-                    }`}
-                  >
-                    / {plan.period}
-                  </span>
+                <div className="mb-4">
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-3xl md:text-4xl font-bold">{displayPrice}</span>
+                    {tierData.priceSuffix && <span className={cn("text-sm", isGold ? "text-slate-400" : "text-slate-500")}>{tierData.priceSuffix}</span>}
+                  </div>
+                  {basePrice > 0 && billingCycle !== 'monthly' && (
+                    <div className={cn("text-xs font-bold mt-1", isGold ? "text-green-400" : "text-green-600")}>
+                      Billed {formatPrice(totalBilled, tierData.price)} {billingCycle === 'annual' ? 'yearly' : 'quarterly'}
+                    </div>
+                  )}
                 </div>
 
-                <ul className="space-y-3 mb-8 lg:mb-10 flex-1">
-                  {plan.features.map((feature, fi) => (
-                    <li key={fi} className="flex items-start gap-3">
-                      {feature.included ? (
-                        <CheckCircle2
-                          size={16}
-                          className={`mt-0.5 shrink-0 ${
-                            plan.popular ? "text-orange-500" : "text-orange-500"
-                          }`}
-                        />
-                      ) : (
-                        <X
-                          size={16}
-                          className={`mt-0.5 shrink-0 ${
-                            plan.popular
-                              ? "text-slate-600"
-                              : "text-slate-300"
-                          }`}
-                        />
-                      )}
-                      <span
-                        className={`text-sm ${
-                          feature.included
-                            ? ""
-                            : plan.popular
-                            ? "text-slate-600"
-                            : "text-slate-400"
-                        }`}
-                      >
-                        {feature.text}
-                      </span>
-                    </li>
+                <p className={cn("mb-6 md:mb-8 text-sm font-medium leading-relaxed", isGold ? "text-slate-300" : "text-slate-500")}>
+                  {plan.description}
+                </p>
+
+                <div className={cn("h-px w-full mb-6 md:mb-8", isGold ? "bg-white/20" : "bg-slate-100")} />
+
+                <div className="space-y-3 md:space-y-4 mb-8 md:mb-10 flex-1">
+                  <div className={cn("text-xs font-bold uppercase tracking-widest", isGold ? "text-slate-400" : "text-slate-400")}>Features</div>
+                  {tierData.features.map((f, i) => (
+                    <div key={i} className="flex items-start gap-3">
+                      <Check className={cn("w-4 h-4 shrink-0 mt-0.5", isGold ? "text-orange-400" : "text-orange-500")} />
+                      <span className={cn("text-sm font-semibold", isGold ? "text-white" : "text-slate-700")}>{f}</span>
+                    </div>
                   ))}
-                </ul>
+                </div>
 
-                <Link
-                  href={plan.href}
-                  className={`block w-full py-3.5 rounded-xl font-bold text-sm text-center transition-all ${
-                    plan.popular
-                      ? "bg-orange-500 text-white hover:bg-orange-600 shadow-xl shadow-orange-950/20"
-                      : plan.color === "orange"
-                      ? "bg-orange-500 text-white hover:bg-orange-600 shadow-lg shadow-orange-200"
-                      : "bg-slate-100 text-slate-900 hover:bg-slate-200"
-                  }`}
-                >
-                  {plan.cta}
+                <Link 
+                  href="/auth/signup"
+                  className={cn(
+                  "w-full py-3 md:py-4 rounded-2xl font-black text-base md:text-lg transition-all active:scale-95 shadow-lg text-center",
+                  isGold ? "bg-orange-500 text-white hover:bg-orange-600 shadow-orange-500/20" : "bg-slate-900 text-white hover:bg-black shadow-slate-900/20"
+                )}>
+                  Select Plan
                 </Link>
+
               </motion.div>
-            ))}
-          </div>
+            );
+          })}
         </div>
-      </section>
 
-      {/* Feature Comparison */}
-      <section className="py-16 lg:py-24 bg-slate-50 px-4 sm:px-6">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-10 lg:mb-16">
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-4">
-              Compare Plans in Detail
-            </h2>
-            <p className="text-slate-500 text-sm lg:text-base">
-              See exactly what you get with each plan.
-            </p>
+        {/* Comparison Table Section */}
+        <div className="max-w-5xl mx-auto px-4 mb-16 md:mb-32">
+          <div className="text-center mb-8">
+            <button
+              onClick={() => setShowComparison(!showComparison)}
+              className="inline-flex items-center gap-2 text-slate-900 font-bold text-lg sm:text-xl hover:text-orange-600 transition-colors"
+            >
+              Compare All Features
+              {showComparison ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
+            </button>
+            <p className="text-slate-500 text-sm mt-2">See exactly what's included in each plan at the {selectedSubTier === 'normal' ? 'Normal' : selectedSubTier === 'pro' ? 'Pro' : 'Pro+'} tier level.</p>
           </div>
 
-          <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
-            {/* Desktop Table */}
-            <div className="hidden lg:block overflow-x-auto">
-              <table className="w-full">
+          <motion.div
+            initial={false}
+            animate={{ height: showComparison ? "auto" : 0, opacity: showComparison ? 1 : 0 }}
+            className="overflow-hidden"
+          >
+            <div className="bg-white rounded-3xl border border-slate-200 overflow-x-auto shadow-xl">
+              <table className="w-full text-left border-collapse min-w-[800px]">
                 <thead>
-                  <tr className="border-b border-slate-100">
-                    <th className="text-left py-5 px-8 text-sm font-bold text-slate-500 uppercase tracking-widest w-1/3">
-                      Feature
+                  <tr>
+                    <th className="p-6 border-b border-slate-200 bg-slate-50 w-1/3">
+                      <span className="text-sm font-bold text-slate-500 uppercase tracking-widest">Features</span>
                     </th>
-                    {plans.map((plan) => (
-                      <th
-                        key={plan.name}
-                        className={`py-5 px-6 text-center text-sm font-bold ${
-                          plan.popular ? "text-orange-600 bg-orange-50/50" : "text-slate-900"
-                        }`}
-                      >
-                        {plan.name}
+                    {PRICING_PLANS.map(plan => (
+                      <th key={plan.id} className="p-6 border-b border-slate-200 text-center w-1/6">
+                        <span className={cn("text-lg font-bold", plan.id === 'gold' ? "text-orange-500" : "text-slate-900")}>
+                          {plan.name}
+                        </span>
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {plans[0].features.map((_, fi) => (
-                    <tr
-                      key={fi}
-                      className="border-b border-slate-50 last:border-0"
-                    >
-                      <td className="py-4 px-8 text-sm font-medium text-slate-700">
-                        {plans[0].features[fi].text}
+                  {comparisonFeatures.map((feature, i) => (
+                    <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="p-4 sm:p-6 border-b border-slate-100 text-sm font-medium text-slate-700">
+                        {feature}
                       </td>
-                      {plans.map((plan) => (
-                        <td
-                          key={plan.name}
-                          className={`py-4 px-6 text-center ${
-                            plan.popular ? "bg-orange-50/50" : ""
-                          }`}
-                        >
-                          {plan.features[fi].included ? (
-                            <CheckCircle2
-                              size={18}
-                              className="text-orange-500 mx-auto"
-                            />
-                          ) : (
-                            <X
-                              size={18}
-                              className="text-slate-300 mx-auto"
-                            />
-                          )}
-                        </td>
-                      ))}
+                      {PRICING_PLANS.map(plan => {
+                        const tierData = plan.tiers.find(t => t.id === selectedSubTier);
+                        const hasFeature = tierData?.features.includes(feature);
+                        return (
+                          <td key={plan.id} className="p-4 sm:p-6 border-b border-slate-100 text-center">
+                            {hasFeature ? (
+                              <CheckCircle2 size={20} className="text-orange-500 mx-auto" />
+                            ) : (
+                              <Minus size={20} className="text-slate-200 mx-auto" />
+                            )}
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
-                  {/* Price Row */}
-                  <tr className="border-t border-slate-200 bg-slate-50">
-                    <td className="py-5 px-8 text-sm font-bold text-slate-900 uppercase tracking-widest">
-                      Price
-                    </td>
-                    {plans.map((plan) => (
-                      <td
-                        key={plan.name}
-                        className={`py-5 px-6 text-center ${
-                          plan.popular ? "bg-orange-50/50" : ""
-                        }`}
-                      >
-                        <span className="text-lg font-bold text-slate-900">
-                          {plan.price}
-                        </span>
-                        <span className="text-xs text-slate-500 block">
-                          / {plan.period}
-                        </span>
-                      </td>
-                    ))}
-                  </tr>
                 </tbody>
               </table>
             </div>
-
-            {/* Mobile Stacked Comparison */}
-            <div className="lg:hidden divide-y divide-slate-100">
-              {plans[0].features.map((_, fi) => (
-                <div key={fi} className="p-4">
-                  <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">
-                    {plans[0].features[fi].text}
-                  </div>
-                  <div className="grid grid-cols-4 gap-2">
-                    {plans.map((plan) => (
-                      <div
-                        key={plan.name}
-                        className={`text-center py-2 rounded-lg ${
-                          plan.popular ? "bg-orange-50" : "bg-slate-50"
-                        }`}
-                      >
-                        <div className="text-[10px] font-bold text-slate-400 mb-1">
-                          {plan.name.slice(0, 3)}
-                        </div>
-                        {plan.features[fi].included ? (
-                          <CheckCircle2
-                            size={14}
-                            className="text-orange-500 mx-auto"
-                          />
-                        ) : (
-                          <X size={14} className="text-slate-300 mx-auto" />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-              {/* Mobile Price Row */}
-              <div className="p-4 bg-slate-50">
-                <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">
-                  Price
-                </div>
-                <div className="grid grid-cols-4 gap-2">
-                  {plans.map((plan) => (
-                    <div
-                      key={plan.name}
-                      className={`text-center py-2 rounded-lg ${
-                        plan.popular ? "bg-orange-50" : "bg-white"
-                      }`}
-                    >
-                      <div className="text-[10px] font-bold text-slate-400 mb-1">
-                        {plan.name.slice(0, 3)}
-                      </div>
-                      <span className="text-xs font-bold text-slate-900">
-                        {plan.price}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
+          </motion.div>
         </div>
-      </section>
 
-      {/* FAQ / CTA */}
-      <section className="py-16 lg:py-24 px-4 sm:px-6">
-        <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-4 lg:mb-6">
-            Not Sure Which Plan?
-          </h2>
-          <p className="text-slate-500 text-sm lg:text-base mb-8 lg:mb-10 max-w-xl mx-auto">
-            Start with our free Bronze plan. You can upgrade at any time when you&apos;re ready for deeper insights and expert support.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              href="/auth/signup"
-              className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-4 rounded-2xl font-bold text-base flex items-center justify-center gap-2 shadow-xl shadow-orange-200 transition-all hover:-translate-y-1 active:translate-y-0"
-            >
-              Start Free
-              <ArrowRight size={18} />
-            </Link>
-            <Link
-              href="/"
-              className="bg-slate-100 hover:bg-slate-200 text-slate-900 px-8 py-4 rounded-2xl font-bold text-base transition-all text-center"
-            >
-              Learn More
+        {/* Compare Plans CTA */}
+        <div className="text-center mb-16 md:mb-32">
+          <div className="max-w-2xl mx-auto bg-slate-50 rounded-[2rem] md:rounded-[3rem] p-8 md:p-12 border border-slate-100">
+            <Shield className="w-10 h-10 text-orange-500 mx-auto mb-4" />
+            <h3 className="text-2xl md:text-3xl font-bold text-slate-900 mb-3">Not sure which plan fits?</h3>
+            <p className="text-slate-500 mb-8 max-w-md mx-auto">Start with a free Business Triage. We'll recommend the right plan based on your business needs.</p>
+            <Link href="/auth/signin" className="inline-flex items-center gap-2 bg-orange-500 text-white px-8 py-4 rounded-full font-bold hover:bg-orange-600 transition-all shadow-lg shadow-orange-500/20 active:scale-95">
+              Start Free Triage <ArrowRight className="w-5 h-5" />
             </Link>
           </div>
         </div>
-      </section>
 
-      {/* Footer */}
-      <footer className="py-16 lg:py-24 bg-slate-900 text-white relative font-sans">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-8 lg:gap-12 mb-12 lg:mb-20">
-            <div className="sm:col-span-2">
-              <div className="flex items-center gap-2 mb-5 lg:mb-6">
-                <div className="w-9 h-9 lg:w-10 lg:h-10 bg-orange-500 rounded-lg lg:rounded-xl flex items-center justify-center font-bold text-base lg:text-xl text-white">
-                  A
-                </div>
-                <span className="font-bold text-xl lg:text-2xl tracking-tighter uppercase">
-                  247GBS
-                </span>
+        {/* Trust Points */}
+        <div className="grid sm:grid-cols-3 gap-8 md:gap-12">
+          {[
+            { title: 'Built for real businesses', desc: 'Every tool is optimized for actual market performance and real-world growth.' },
+            { title: 'Easy to upgrade anytime', desc: 'Scale your membership as your business grows. No lock-ins, just flexibility.' },
+            { title: 'Designed to scale with you', desc: 'From startups to enterprises, our ecosystem scales alongside your success.' },
+          ].map((item, i) => (
+            <div key={i} className="text-center p-6 md:p-8">
+              <div className="w-14 h-14 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-5">
+                <Check className="w-7 h-7 text-orange-500" />
               </div>
-              <p className="text-slate-400 max-w-sm font-medium leading-relaxed text-sm lg:text-base">
-                Transforming global business waste into measurable growth
-                through structured redistribution. Simple. Transparent.
-                Scalable.
-              </p>
+              <h3 className="text-lg md:text-xl font-bold text-slate-900 mb-3">{item.title}</h3>
+              <p className="text-sm md:text-base text-slate-500">{item.desc}</p>
             </div>
-            <div>
-              <h5 className="font-bold text-slate-500 uppercase text-[10px] tracking-[0.3em] mb-5 lg:mb-8">
-                Platform
-              </h5>
-              <div className="flex flex-col gap-3 lg:gap-4 font-bold text-sm lg:text-base text-slate-300">
-                <a href="/#comparison" className="hover:text-orange-500 transition-colors">
-                  How it Works
-                </a>
-                <a href="/pricing" className="hover:text-orange-500 transition-colors">
-                  Pricing
-                </a>
-                <a href="/#why" className="hover:text-orange-500 transition-colors">
-                  Why Seasonal?
-                </a>
-              </div>
-            </div>
-            <div>
-              <h5 className="font-bold text-slate-500 uppercase text-[10px] tracking-[0.3em] mb-5 lg:mb-8">
-                Support
-              </h5>
-              <div className="flex flex-col gap-3 lg:gap-4 font-bold text-sm lg:text-base text-slate-300">
-                <a href="#" className="hover:text-orange-500 transition-colors">
-                  Help Center
-                </a>
-                <a href="#" className="hover:text-orange-500 transition-colors">
-                  Book a Partner
-                </a>
-                <a href="#" className="hover:text-orange-500 transition-colors">
-                  Terms
-                </a>
-              </div>
-            </div>
-          </div>
-          <div className="pt-8 lg:pt-10 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-4 sm:gap-6 text-[10px] font-bold uppercase tracking-widest text-slate-500">
-            <p>&copy; 2026 247 Global Business Solutions Ltd. Business Growth Platform.</p>
-            <div className="flex gap-6 sm:gap-10">
-              <a href="#" className="hover:text-white transition-all">
-                Privacy
-              </a>
-              <a href="#" className="hover:text-white transition-all">
-                Terms of Access
-              </a>
-            </div>
-          </div>
+          ))}
         </div>
-      </footer>
+      </div>
     </div>
   );
 }
