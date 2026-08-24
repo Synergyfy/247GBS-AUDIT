@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -433,8 +434,8 @@ export default function LandingPage() {
             <div>
               <h5 className="font-bold text-slate-500 uppercase text-[10px] tracking-[0.3em] mb-5 lg:mb-8">Platform</h5>
               <div className="flex flex-col gap-3 lg:gap-4 font-bold text-sm lg:text-base text-slate-300">
-                <a href="#" className="hover:text-orange-500 transition-colors">How it Works</a>
-                <a href="#" className="hover:text-orange-500 transition-colors">Expert Directory</a>
+                <Link href="/#how-it-works" className="hover:text-orange-500 transition-colors">How it Works</Link>
+                <Link href="/pricing" className="hover:text-orange-500 transition-colors">Pricing</Link>
                 <a href="#" className="hover:text-orange-500 transition-colors">Review Tokens</a>
               </div>
             </div>
