@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -22,6 +22,7 @@ import { useAuthActions } from "@/services/auth/useAuthActions";
 
 export default function SignUpPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { signUp, signIn, isLoading, error: apiError } = useAuthActions();
     const [step, setStep] = useState(1);
     
@@ -70,7 +71,8 @@ export default function SignUpPage() {
         if (success) {
             const { success: signinSuccess } = await signIn({ email, password });
             if (signinSuccess) {
-                router.push("/audit/welcome");
+                const callbackUrl = searchParams.get('callbackUrl');
+                router.push(callbackUrl || "/audit/welcome");
             } else {
                 router.push("/auth/signin");
             }

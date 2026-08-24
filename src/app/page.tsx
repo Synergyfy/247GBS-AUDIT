@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -156,12 +157,7 @@ export default function LandingPage() {
   const router = useRouter();
 
   const handleStartReview = () => {
-    if (!isAuthenticated) {
-      router.push("/auth/signin");
-      return;
-    }
-
-    // Authenticated → go to Welcome screen (Module 1 flow)
+    // Triage is now public
     router.push("/audit/welcome");
   };
 
@@ -401,6 +397,27 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Pricing CTA */}
+      <section className="py-16 lg:py-24 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 text-center">
+          <motion.div {...fadeIn} className="max-w-3xl mx-auto">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
+              Choose a Plan That <span className="text-orange-500">Fits Your Business</span>
+            </h2>
+            <p className="text-slate-600 text-lg mb-8 max-w-2xl mx-auto">
+              From free triage to enterprise-grade diagnostics — pick the level of support your business needs.
+            </p>
+            <Link
+              href="/pricing"
+              className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-4 rounded-2xl font-bold text-base lg:text-lg inline-flex items-center gap-2 shadow-xl shadow-orange-500/30 transition-all hover:-translate-y-1"
+            >
+              View Pricing Plans
+              <ArrowRight size={18} />
+            </Link>
+          </motion.div>
+        </div>
+      </section>
+
       {/* Footer */}
       <footer className="py-16 lg:py-24 bg-slate-900 text-white relative font-sans">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
@@ -417,8 +434,8 @@ export default function LandingPage() {
             <div>
               <h5 className="font-bold text-slate-500 uppercase text-[10px] tracking-[0.3em] mb-5 lg:mb-8">Platform</h5>
               <div className="flex flex-col gap-3 lg:gap-4 font-bold text-sm lg:text-base text-slate-300">
-                <a href="#" className="hover:text-orange-500 transition-colors">How it Works</a>
-                <a href="#" className="hover:text-orange-500 transition-colors">Expert Directory</a>
+                <Link href="/#how-it-works" className="hover:text-orange-500 transition-colors">How it Works</Link>
+                <Link href="/pricing" className="hover:text-orange-500 transition-colors">Pricing</Link>
                 <a href="#" className="hover:text-orange-500 transition-colors">Review Tokens</a>
               </div>
             </div>

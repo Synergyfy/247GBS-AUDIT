@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useRef, useEffect } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     ChevronRight,
@@ -19,7 +20,11 @@ import {
     Loader2,
     ArrowRightCircle,
     AlertTriangle,
-    Lightbulb
+    Lightbulb,
+    LogIn,
+    UserPlus,
+    X,
+    Bookmark
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
@@ -298,12 +303,14 @@ function getExplanation(auditType: 'SHORT_FORM' | 'LONG_FORM'): string {
 
 export default function AuditTriagePage() {
     const router = useRouter();
-    const { user, signOut } = useAuth();
+    const { user, signOut, isAuthenticated } = useAuth();
     const [stage, setStage] = useState<TriageStageId>('business-performance');
     const [data, setData] = useState<TriageData>({});
     const [questionIdx, setQuestionIdx] = useState(0);
     const [loading, setLoading] = useState(false);
     const [hydrated, setHydrated] = useState(false);
+    const [showAuthModal, setShowAuthModal] = useState(false);
+    const [showSavedToast, setShowSavedToast] = useState(false);
     const navRef = useRef<HTMLDivElement>(null);
 
     // Restore progress from cookies on mount
@@ -345,33 +352,55 @@ export default function AuditTriagePage() {
         router.push("/auth/signin");
     };
 
+    const handleContinueLater = () => {
+        if (!isAuthenticated) {
+            // Show auth prompt modal for public/guest users
+            setShowAuthModal(true);
+            return;
+        }
+        // Authenticated user — progress is already saved by useEffect.
+        // Show a brief toast confirmation and redirect to dashboard.
+        setShowSavedToast(true);
+        setTimeout(() => {
+            router.push('/dashboard');
+        }, 1200);
+    };
+
+    const handleSkip = () => {
+        advance();
+    };
+
+    const advance = () => {
+        if (questionIdx < stageQuestions.length - 1) {
+            // More questions in this stage
+            setQuestionIdx(prev => prev + 1);
+        } else if (stageIdx < TRIAGE_STAGES.length - 1) {
+            // Move to next stage
+            setStage(TRIAGE_STAGES[stageIdx + 1]);
+            setQuestionIdx(0);
+        } else {
+            // All questions done → processing
+            setStage('processing');
+            // After processing, determine audit type
+            setTimeout(() => {
+                const auditType = determineAuditType(data);
+                setData(prev => ({ ...prev, assignedAudit: auditType }));
+                setStage('result');
+                localStorage.removeItem("247gbs_triage_progress");
+                localStorage.setItem("247gbs_triage_result", JSON.stringify({
+                    assignedAudit: auditType,
+                    completedAt: new Date().toISOString()
+                }));
+            }, 3000);
+        }
+    }
+
     const handleSelect = (questionId: string, optionId: string) => {
         setData(prev => ({ ...prev, [questionId]: optionId }));
 
         // Auto-advance after short delay
         setTimeout(() => {
-            if (questionIdx < stageQuestions.length - 1) {
-                // More questions in this stage
-                setQuestionIdx(prev => prev + 1);
-            } else if (stageIdx < TRIAGE_STAGES.length - 1) {
-                // Move to next stage
-                setStage(TRIAGE_STAGES[stageIdx + 1]);
-                setQuestionIdx(0);
-            } else {
-                // All questions done → processing
-                setStage('processing');
-                // After processing, determine audit type
-                setTimeout(() => {
-                    const auditType = determineAuditType(data);
-                    setData(prev => ({ ...prev, assignedAudit: auditType }));
-                    setStage('result');
-                    localStorage.removeItem("247gbs_triage_progress");
-                    localStorage.setItem("247gbs_triage_result", JSON.stringify({
-                        assignedAudit: auditType,
-                        completedAt: new Date().toISOString()
-                    }));
-                }, 3000);
-            }
+            advance();
         }, 300);
     };
 
@@ -383,7 +412,7 @@ export default function AuditTriagePage() {
             setStage(prevStage);
             setQuestionIdx((STAGE_QUESTIONS[prevStage]?.length || 1) - 1);
         } else {
-            router.push('/');
+            router.push('/audit/welcome');
         }
     };
 
@@ -631,8 +660,104 @@ export default function AuditTriagePage() {
                             <ChevronLeft size={14} />
                             Back
                         </button>
+
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={handleContinueLater}
+                                className="flex items-center gap-2 border border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-400 px-4 py-2 rounded-xl font-bold text-[10px] sm:text-xs uppercase tracking-widest transition-all"
+                            >
+                                <Bookmark size={12} />
+                                Continue Later
+                            </button>
+                            <button
+                                onClick={handleSkip}
+                                className="flex items-center gap-2 text-slate-400 hover:text-orange-600 font-bold text-[10px] sm:text-xs uppercase tracking-widest transition-all"
+                            >
+                                Skip
+                                <ChevronRight size={14} />
+                            </button>
+                        </div>
                     </div>
                 </div>
+
+                {/* Saved Toast */}
+                <AnimatePresence>
+                    {showSavedToast && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 20 }}
+                            className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 z-50"
+                        >
+                            <CheckCircle2 size={18} className="text-green-400" />
+                            <span className="font-bold text-sm">Progress saved! Redirecting to dashboard…</span>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* Auth Prompt Modal — for unauthenticated users */}
+                <AnimatePresence>
+                    {showAuthModal && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                            onClick={() => setShowAuthModal(false)}
+                        >
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.92, y: 20 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.92, y: 20 }}
+                                transition={{ type: "spring", bounce: 0.15, duration: 0.4 }}
+                                className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden relative"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                {/* Close button */}
+                                <button
+                                    onClick={() => setShowAuthModal(false)}
+                                    className="absolute top-4 right-4 w-8 h-8 bg-slate-100 hover:bg-slate-200 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors z-10"
+                                >
+                                    <X size={16} />
+                                </button>
+
+                                {/* Modal header */}
+                                <div className="bg-slate-900 px-6 sm:px-8 py-6 sm:py-8 text-center">
+                                    <div className="w-14 h-14 bg-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                                        <Bookmark size={24} className="text-white" />
+                                    </div>
+                                    <h3 className="text-xl sm:text-2xl font-bold text-white mb-2">
+                                        Save Your Progress
+                                    </h3>
+                                    <p className="text-slate-400 text-sm max-w-xs mx-auto">
+                                        Sign in or create an account to save your triage progress and continue anytime.
+                                    </p>
+                                </div>
+
+                                {/* Modal body */}
+                                <div className="px-6 sm:px-8 py-6 sm:py-8 space-y-3">
+                                    <Link
+                                        href="/auth/signin?callbackUrl=/audit/triage"
+                                        className="w-full bg-slate-900 hover:bg-black text-white px-6 py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-3 transition-all hover:-translate-y-0.5 active:translate-y-0"
+                                    >
+                                        <LogIn size={18} />
+                                        Sign In
+                                    </Link>
+                                    <Link
+                                        href="/auth/signup?callbackUrl=/audit/triage"
+                                        className="w-full bg-orange-500 hover:bg-orange-600 text-white px-6 py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-3 shadow-lg shadow-orange-500/20 transition-all hover:-translate-y-0.5 active:translate-y-0"
+                                    >
+                                        <UserPlus size={18} />
+                                        Create Account
+                                    </Link>
+                                    <p className="text-[10px] sm:text-xs text-slate-400 text-center pt-2 leading-relaxed">
+                                        Your answers are saved locally on this device. Sign in to sync your progress across devices.
+                                    </p>
+                                </div>
+                            </motion.div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </main>
         </div>
     );
