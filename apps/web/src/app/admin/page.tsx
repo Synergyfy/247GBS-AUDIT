@@ -80,7 +80,7 @@ export default function AdminOverviewPage() {
 
             {/* Content Split */}
             <div className="grid lg:grid-cols-3 gap-8">
-                {/* Main Chart Area (Mocked) */}
+                {/* Main Chart Area */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}

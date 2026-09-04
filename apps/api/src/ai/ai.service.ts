@@ -1,9 +1,10 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 @Injectable()
 export class AIService {
+  private readonly logger = new Logger(AIService.name);
   private genAI: GoogleGenerativeAI;
   private model: any;
 
@@ -16,7 +17,10 @@ export class AIService {
   }
 
   async generateFollowUpQuestions(context: any, answers: any, metrics: any): Promise<any[]> {
-    if (!this.model) return [];
+    if (!this.model) {
+      this.logger.warn('Gemini model not configured — skipping follow-up question generation');
+      return [];
+    }
 
     const prompt = `
       You are a Senior Forensic Business Auditor. 
@@ -33,17 +37,19 @@ export class AIService {
       const result = await this.model.generateContent(prompt);
       const response = await result.response;
       const text = response.text();
-      // Clean up JSON if AI adds markdown
       const cleanJson = text.replace(/```json|```/g, '').trim();
       return JSON.parse(cleanJson);
     } catch (error) {
-      console.error('Gemini Error:', error);
+      this.logger.error('Gemini follow-up question generation failed', error);
       return [];
     }
   }
 
   async generateStrategicInsight(context: any, answers: any, metrics: any): Promise<any> {
-    if (!this.model) return { summary: 'AI Insight not available (Check API Key)', actionablePivot: 'Please configure GEMINI_API_KEY.' };
+    if (!this.model) {
+      this.logger.warn('Gemini model not configured — returning fallback insight');
+      return { summary: 'AI Insight not available (Check API Key)', actionablePivot: 'Please configure GEMINI_API_KEY.' };
+    }
 
     const prompt = `
       You are a Senior Strategic Advisor.
@@ -62,13 +68,16 @@ export class AIService {
       const cleanJson = text.replace(/```json|```/g, '').trim();
       return JSON.parse(cleanJson);
     } catch (error) {
-      console.error('Gemini Error:', error);
+      this.logger.error('Gemini strategic insight generation failed', error);
       return { summary: 'AI insight currently unavailable.', actionablePivot: 'Please review your operational waste manual.' };
     }
   }
 
   async generateAggregatedInsight(history: any[]): Promise<string> {
-    if (!this.model || history.length === 0) return "Perform more audits to unlock systemic AI insights.";
+    if (!this.model || history.length === 0) {
+      if (!this.model) this.logger.warn('Gemini model not configured — skipping aggregated insight');
+      return "Perform more audits to unlock systemic AI insights.";
+    }
 
     const prompt = `
       You are a Lead Forensic Data Analyst. 
@@ -85,6 +94,7 @@ export class AIService {
       const response = await result.response;
       return response.text().trim();
     } catch (error) {
+      this.logger.error('Gemini aggregated insight generation failed', error);
       return "Systemic pattern analysis is currently stabilizing. Please check back after your next audit.";
     }
   }
