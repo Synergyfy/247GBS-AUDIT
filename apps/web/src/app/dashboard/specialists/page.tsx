@@ -30,9 +30,9 @@ export default function SpecialistNetworkPage() {
         { label: "Projects", value: stats.successfulDeployments, icon: Briefcase },
         { label: "Global", value: stats.globalReach, icon: Globe },
     ] : [
-        { label: "Experts", value: "480+", icon: ShieldCheck },
-        { label: "Projects", value: "12.4k", icon: Briefcase },
-        { label: "Global", value: "45+", icon: Globe },
+        { label: "Experts", value: loading ? "—" : "0", icon: ShieldCheck },
+        { label: "Projects", value: loading ? "—" : "0", icon: Briefcase },
+        { label: "Global", value: loading ? "—" : "0", icon: Globe },
     ];
 
     return (

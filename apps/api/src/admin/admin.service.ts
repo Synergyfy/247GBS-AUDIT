@@ -231,27 +231,8 @@ export class AdminService {
   }
 
   async getStats(): Promise<AdminStatItemDto[]> {
-    const totalUsers = await this.userRepository.count();
     const now = new Date();
     const activeStatuses = [AuditStatus.IN_PROGRESS, AuditStatus.SECTOR_SELECTED, AuditStatus.TRIAGE_COMPLETED];
-    
-    const pendingAudits = await this.auditRepository.count({
-      where: activeStatuses.map(status => ({ status })),
-    });
-
-    // 1. Calculate Overdue Audits (System Alerts)
-    const systemAlertsCount = await this.auditRepository.count({
-      where: activeStatuses.map(status => ({ status, dueDate: LessThan(now) })),
-    });
-
-    // 2. Calculate Revenue via SQL aggregation
-    const revenueRow = await this.invoiceRepository
-      .createQueryBuilder('invoice')
-      .select('COALESCE(SUM(CAST(invoice.amount AS DECIMAL)), 0)', 'total')
-      .getRawOne();
-    const totalRevenue = parseFloat(revenueRow?.total || '0');
-
-    // 3. Trends (Last 30 days vs Previous 30 days)
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
 
@@ -267,24 +248,48 @@ export class AdminService {
       return current > previous ? 'up' : 'down';
     };
 
-    const usersCurrent = await this.userRepository.count({ where: { createdAt: Between(thirtyDaysAgo, now) } });
-    const usersPrevious = await this.userRepository.count({ where: { createdAt: Between(sixtyDaysAgo, thirtyDaysAgo) } });
+    // Run all independent queries in parallel
+    const [
+      totalUsers,
+      pendingAudits,
+      systemAlertsCount,
+      revenueRow,
+      usersCurrent,
+      usersPrevious,
+      auditsCurrent,
+      auditsPrevious,
+      revCurrentRow,
+      revPreviousRow,
+    ] = await Promise.all([
+      this.userRepository.count(),
+      this.auditRepository.count({
+        where: activeStatuses.map(status => ({ status })),
+      }),
+      this.auditRepository.count({
+        where: activeStatuses.map(status => ({ status, dueDate: LessThan(now) })),
+      }),
+      this.invoiceRepository
+        .createQueryBuilder('invoice')
+        .select('COALESCE(SUM(CAST(invoice.amount AS DECIMAL)), 0)', 'total')
+        .getRawOne(),
+      this.userRepository.count({ where: { createdAt: Between(thirtyDaysAgo, now) } }),
+      this.userRepository.count({ where: { createdAt: Between(sixtyDaysAgo, thirtyDaysAgo) } }),
+      this.auditRepository.count({ where: { createdAt: Between(thirtyDaysAgo, now) } }),
+      this.auditRepository.count({ where: { createdAt: Between(sixtyDaysAgo, thirtyDaysAgo) } }),
+      this.invoiceRepository
+        .createQueryBuilder('invoice')
+        .select('COALESCE(SUM(CAST(invoice.amount AS DECIMAL)), 0)', 'total')
+        .where('invoice.date >= :start AND invoice.date <= :end', { start: thirtyDaysAgo, end: now })
+        .getRawOne(),
+      this.invoiceRepository
+        .createQueryBuilder('invoice')
+        .select('COALESCE(SUM(CAST(invoice.amount AS DECIMAL)), 0)', 'total')
+        .where('invoice.date >= :start AND invoice.date < :end', { start: sixtyDaysAgo, end: thirtyDaysAgo })
+        .getRawOne(),
+    ]);
 
-    const auditsCurrent = await this.auditRepository.count({ where: { createdAt: Between(thirtyDaysAgo, now) } });
-    const auditsPrevious = await this.auditRepository.count({ where: { createdAt: Between(sixtyDaysAgo, thirtyDaysAgo) } });
-
-    const revCurrentRow = await this.invoiceRepository
-      .createQueryBuilder('invoice')
-      .select('COALESCE(SUM(CAST(invoice.amount AS DECIMAL)), 0)', 'total')
-      .where('invoice.date >= :start AND invoice.date <= :end', { start: thirtyDaysAgo, end: now })
-      .getRawOne();
+    const totalRevenue = parseFloat(revenueRow?.total || '0');
     const revCurrent = parseFloat(revCurrentRow?.total || '0');
-
-    const revPreviousRow = await this.invoiceRepository
-      .createQueryBuilder('invoice')
-      .select('COALESCE(SUM(CAST(invoice.amount AS DECIMAL)), 0)', 'total')
-      .where('invoice.date >= :start AND invoice.date < :end', { start: sixtyDaysAgo, end: thirtyDaysAgo })
-      .getRawOne();
     const revPrevious = parseFloat(revPreviousRow?.total || '0');
 
     const revenueStat: AdminStatItemDto = {

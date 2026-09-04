@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Plus, Users, Search, Star, ExternalLink, X, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { API_BASE_URL } from "@/lib/api";
 
 interface Specialist {
     id: string;
@@ -15,8 +16,6 @@ interface Specialist {
     experience: string;
     image: string;
 }
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://247-gbs-audit-backend.vercel.app/api/v1';
 
 export default function AdminSpecialistsPage() {
     const [specialists, setSpecialists] = useState<Specialist[]>([]);

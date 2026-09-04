@@ -50,12 +50,12 @@ export default function UsersPage() {
 
     const users = (usersData ?? []).map(u => ({
         id: u.id,
-        name: `${u.firstName ?? ""}${u.firstName && u.lastName ? ' ' : ''}${u.lastName ?? ''}`.trim() || u.email.split('@')[0],
+        name: u.name || u.email.split('@')[0],
         email: u.email,
         role: u.role ?? 'User',
         status: u.status ?? 'Active',
-        joinDate: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—',
-        avatar: `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(u.email ?? u.id)}`
+        joinDate: u.joinDate ?? '—',
+        avatar: u.avatar ?? `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(u.email ?? u.id)}`
     }));
 
     const filteredUsers = users.filter(user =>

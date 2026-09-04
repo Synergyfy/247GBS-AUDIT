@@ -1,13 +1,11 @@
 export type AdminUser = {
   id: string;
+  name: string;
   email: string;
-  firstName?: string;
-  lastName?: string;
-  businessName?: string;
   role?: string;
   status?: string;
-  tokens?: number;
-  createdAt?: string;
+  joinDate?: string;
+  avatar?: string;
 };
 
 export type AdminUsersResponse = AdminUser[];

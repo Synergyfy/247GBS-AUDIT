@@ -23,7 +23,6 @@ import type {
     AIInsightResponse,
     AIProjectionResponse,
     AIFollowUpResponse,
-    AIFollowUpQuestion
 } from "@/types/aiTypes";
 
 
