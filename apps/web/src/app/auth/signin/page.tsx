@@ -1,59 +1,60 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
     ShieldCheck,
-    ArrowRight,
-    Mail,
-    Lock,
     Bot,
     Zap,
     AlertCircle,
-    UserPlus,
-    Eye,
-    EyeOff
+    ExternalLink,
+    Loader2,
+    CheckCircle2,
 } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
-import { useAuthActions } from "@/services/auth/useAuthActions";
+import { mcomService } from "@/services/mcom";
 
 export default function SignInPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { signIn: contextSignIn } = useAuth();
-    const { signIn, isLoading, error: apiError } = useAuthActions();
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
     const [localError, setLocalError] = useState("");
-    const [showPassword, setShowPassword] = useState(false);
+    const [ssoLoading, setSsoLoading] = useState(false);
+    const [ssoConfigured, setSsoConfigured] = useState(false);
+    const [checking, setChecking] = useState(true);
 
-    const handleSignIn = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setLocalError("");
-
-        if (!email || !password) {
-            setLocalError("Please enter your email and password");
-            return;
+    useEffect(() => {
+        const errorCode = searchParams.get('error');
+        if (errorCode) {
+            const messages: Record<string, string> = {
+                oauth_failed: 'MCOM SSO authentication failed. Please try again.',
+                missing_code: 'Missing authorization code from MCOM.',
+                session_expired: 'Your session has expired. Please sign in again.',
+                access_denied: 'Access denied. You may not have permission to access this platform.',
+                handshake_failed: 'SSO handshake failed. Please try again.',
+            };
+            setLocalError(messages[errorCode] || 'Authentication error occurred.');
         }
 
-        const { success, role } = await signIn({ email, password });
-        if (success) {
-            if (role === 'Administrator') {
-                router.push("/admin");
-            } else {
-                const callbackUrl = searchParams.get('callbackUrl');
-                router.push(callbackUrl || "/audit/welcome");
-            }
+        mcomService.getConfig().then(config => {
+            setSsoConfigured(config.configured);
+        }).catch(() => {}).finally(() => setChecking(false));
+    }, [searchParams]);
+
+    const handleSsoLogin = async () => {
+        setSsoLoading(true);
+        setLocalError("");
+        try {
+            await mcomService.startLogin();
+        } catch (err: any) {
+            setLocalError(err.message || 'Failed to start SSO login');
+            setSsoLoading(false);
         }
     };
 
-    const displayError = localError || apiError;
-
     return (
         <div className="min-h-screen bg-white md:bg-slate-50 flex flex-col md:flex-row font-sans selection:bg-orange-100">
-            {/* Mobile Header - Visible only on mobile */}
+            {/* Mobile Header */}
             <div className="md:hidden flex items-center justify-between px-6 py-5 bg-white border-b border-slate-100 sticky top-0 z-20">
                 <Link href="/" className="flex items-center gap-2 group">
                     <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-orange-500/20">
@@ -66,7 +67,7 @@ export default function SignInPage() {
                 </Link>
             </div>
 
-            {/* Visual Branding Side - Hidden on mobile, beautiful on desktop */}
+            {/* Visual Branding Side */}
             <div className="hidden md:flex relative w-full md:w-5/12 bg-slate-900 overflow-hidden flex-col justify-center p-12 lg:p-20 text-white">
                 <div className="absolute top-0 right-0 p-20 opacity-10 text-orange-500">
                     <ShieldCheck size={300} strokeWidth={0.5} />
@@ -114,7 +115,7 @@ export default function SignInPage() {
                 <div className="absolute bottom-0 right-0 w-96 h-96 bg-orange-500/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2" />
             </div>
 
-            {/* Form Side - Center focus on mobile */}
+            {/* Form Side */}
             <div className="flex-1 flex flex-col justify-center items-center py-10 md:py-20 px-6 lg:px-20 bg-white md:bg-slate-50/30">
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
@@ -123,88 +124,52 @@ export default function SignInPage() {
                 >
                     <header className="mb-10 text-center md:text-left">
                         <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-2">Secure Sign In</h2>
-                        <p className="text-slate-500 font-medium">Enter your credentials to access the ecosystem.</p>
+                        <p className="text-slate-500 font-medium">Authenticate via MCOM Solutions to access the ecosystem.</p>
                     </header>
 
-                    <form onSubmit={handleSignIn} className="space-y-6">
-                        {displayError && (
+                    <div className="space-y-6">
+                        {localError && (
                             <motion.div
                                 initial={{ opacity: 0, scale: 0.95 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-600 text-sm font-bold"
                             >
                                 <AlertCircle size={18} />
-                                {displayError}
+                                {localError}
                             </motion.div>
                         )}
 
-                        <div className="space-y-4">
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 block ml-1">Work Email</label>
-                                <div className="relative group">
-                                    <div className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-orange-500 transition-colors">
-                                        <Mail size={18} />
-                                    </div>
-                                    <input
-                                        type="email"
-                                        required
-                                        placeholder="name@company.com"
-                                        className="w-full pl-14 pr-6 py-4 md:py-5 bg-slate-50 md:bg-white border-2 border-transparent md:border-slate-100 rounded-2xl md:rounded-[1.5rem] outline-none focus:border-orange-500 focus:bg-white focus:shadow-xl focus:shadow-orange-100/50 transition-all font-bold text-slate-900"
-                                        value={email}
-                                        onChange={(e) => setEmail(e.target.value)}
-                                    />
-                                </div>
+                        {checking ? (
+                            <div className="flex items-center justify-center py-12">
+                                <Loader2 className="animate-spin text-orange-500" size={28} />
                             </div>
-
-                            <div className="space-y-2">
-                                <div className="flex justify-between items-center px-1">
-                                    <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 block">Security Key</label>
-                                    <a href="#" className="text-[10px] font-bold uppercase tracking-widest text-orange-600 hover:text-orange-700 transition-colors">Forgot Access?</a>
-                                </div>
-                                <div className="relative group">
-                                    <div className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-orange-500 transition-colors">
-                                        <Lock size={18} />
-                                    </div>
-                                    <input
-                                        type={showPassword ? "text" : "password"}
-                                        required
-                                        placeholder="••••••••••••"
-                                        className="w-full pl-14 pr-14 py-4 md:py-5 bg-slate-50 md:bg-white border-2 border-transparent md:border-slate-100 rounded-2xl md:rounded-[1.5rem] outline-none focus:border-orange-500 focus:bg-white focus:shadow-xl focus:shadow-orange-100/50 transition-all font-bold text-slate-900"
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 hover:text-orange-500 transition-colors"
-                                    >
-                                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                                    </button>
-                                </div>
+                        ) : ssoConfigured ? (
+                            <button
+                                type="button"
+                                disabled={ssoLoading}
+                                onClick={handleSsoLogin}
+                                className="w-full py-5 md:py-6 rounded-2xl md:rounded-[2rem] font-bold text-lg md:text-xl flex items-center justify-center gap-3 transition-all relative overflow-hidden group bg-orange-500 text-white hover:bg-orange-600 shadow-xl shadow-orange-200 active:scale-[0.98] disabled:opacity-60 disabled:cursor-wait"
+                            >
+                                {ssoLoading ? (
+                                    <>
+                                        <div className="w-6 h-6 border-4 border-orange-300 border-t-white rounded-full animate-spin" />
+                                        <span>Connecting to MCOM...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <ExternalLink size={22} />
+                                        <span>Sign in with MCOM Solutions</span>
+                                    </>
+                                )}
+                            </button>
+                        ) : (
+                            <div className="text-center py-8">
+                                <AlertCircle className="mx-auto text-slate-300 mb-4" size={40} />
+                                <p className="text-slate-500 font-medium">MCOM SSO is not configured.</p>
+                                <p className="text-slate-400 text-sm mt-1">Contact your administrator to enable SSO.</p>
                             </div>
-                        </div>
-
-                        <button
-                            type="submit"
-                            disabled={isLoading}
-                            className={`w-full py-5 md:py-6 rounded-2xl md:rounded-[2rem] font-bold text-lg md:text-xl flex items-center justify-center gap-3 transition-all relative overflow-hidden group ${isLoading
-                                ? "bg-slate-100 text-slate-400 cursor-wait"
-                                : "bg-slate-900 text-white hover:bg-black shadow-xl md:shadow-2xl shadow-slate-200 active:scale-[0.98]"
-                                }`}
-                        >
-                            {isLoading ? (
-                                <>
-                                    <div className="w-6 h-6 border-4 border-slate-300 border-t-orange-500 rounded-full animate-spin" />
-                                    <span>Verifying...</span>
-                                </>
-                            ) : (
-                                <>
-                                    <span>Sign In</span>
-                                    <ArrowRight size={22} className="group-hover:translate-x-1 transition-transform" />
-                                </>
-                            )}
-                        </button>
-                    </form>
+                        )}
+                    </div>
 
                     <footer className="mt-12 text-center">
                         <p className="text-slate-500 font-medium mb-4 text-sm">New to the 247GBS Ecosystem?</p>
@@ -212,8 +177,8 @@ export default function SignInPage() {
                             href="/auth/signup"
                             className="inline-flex items-center gap-2 px-8 py-3 bg-white border-2 border-slate-100 rounded-full font-bold text-[10px] uppercase tracking-widest text-slate-900 hover:border-orange-500 hover:text-orange-600 transition-all"
                         >
-                            <UserPlus size={14} />
-                            Create Account
+                            <CheckCircle2 size={14} />
+                            Create Account via MCOM
                         </Link>
                     </footer>
                 </motion.div>

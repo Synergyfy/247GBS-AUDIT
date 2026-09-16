@@ -59,6 +59,36 @@ export class User {
   @Column({ default: false })
   isMfaEnabled: boolean;
 
+  // MCOM SSO fields
+  @Column({ nullable: true })
+  mcomUserId: string;
+
+  @Column({ nullable: true })
+  mcomMembershipLevel: string;
+
+  @Column({ nullable: true })
+  mcomMembershipTier: string;
+
+  @Column({ nullable: true })
+  mcomMembershipStatus: string;
+
+  @Column({ default: false })
+  mcomCanAccessVcard: boolean;
+
+  @Column({ type: 'text', nullable: true })
+  @Exclude()
+  mcomAccessToken: string;
+
+  @Column({ type: 'text', nullable: true })
+  @Exclude()
+  mcomRefreshToken: string;
+
+  @Column({ type: 'timestamp', nullable: true })
+  mcomTokenExpiresAt: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  mcomTokensUpdatedAt: Date;
+
   @CreateDateColumn()
   createdAt: Date;
 

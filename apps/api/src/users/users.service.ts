@@ -11,7 +11,7 @@ export class UsersService {
     private usersRepository: Repository<User>,
   ) {}
 
-  async create(createUserDto: CreateUserDto & { role?: string }): Promise<User> {
+  async create(createUserDto: CreateUserDto & { role?: string; [key: string]: any }): Promise<User> {
     const user = this.usersRepository.create({
       ...createUserDto,
       role: createUserDto.role || 'User',
@@ -25,6 +25,10 @@ export class UsersService {
 
   async findById(id: string): Promise<User | null> {
     return this.usersRepository.findOne({ where: { id } });
+  }
+
+  async findByMcomUserId(mcomUserId: string): Promise<User | null> {
+    return this.usersRepository.findOne({ where: { mcomUserId } });
   }
 
   async update(id: string, updateData: Partial<User>): Promise<void> {

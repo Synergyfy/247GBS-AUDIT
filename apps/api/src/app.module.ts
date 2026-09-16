@@ -12,6 +12,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { ProtocolsModule } from './protocols/protocols.module';
 import { AdminModule } from './admin/admin.module';
 import { SpecialistsModule } from './dashboard/specialists/specialists.module';
+import { McomModule } from './mcom/mcom.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { SpecialistsModule } from './dashboard/specialists/specialists.module';
     ProtocolsModule,
     AdminModule,
     SpecialistsModule,
+    McomModule,
   ],
   controllers: [AppController],
   providers: [AppService],
