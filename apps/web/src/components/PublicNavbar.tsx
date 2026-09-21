@@ -5,12 +5,16 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
+import { useAuthStore } from "@/stores/useAuthStore";
 import { LogOut, User, ChevronDown, Menu, X } from "lucide-react";
 
 export function PublicNavbar() {
     const pathname = usePathname();
     const router = useRouter();
-    const { user, isAuthenticated, signOut } = useAuth();
+    const { user: ctxUser, isAuthenticated: ctxAuth, signOut } = useAuth();
+    const { user: storeUser, token: storeToken, logout } = useAuthStore();
+    const user = ctxUser || (storeUser ? { email: storeUser.email, name: `${storeUser.firstName} ${storeUser.lastName}`, avatar: `https://api.dicebear.com/7.x/shapes/svg?seed=${storeUser.email}`, role: storeUser.role } : null);
+    const isAuthenticated = ctxAuth || !!storeToken;
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -34,6 +38,7 @@ export function PublicNavbar() {
 
     const handleSignOut = () => {
         signOut();
+        logout();
         setIsDropdownOpen(false);
         router.push("/auth/signin");
     };

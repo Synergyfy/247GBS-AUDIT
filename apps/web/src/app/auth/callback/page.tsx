@@ -91,12 +91,12 @@ export default function AuthCallbackPage() {
     const redirectMap: Record<string, string> = {
       Administrator: '/admin',
       admin: '/admin',
-      agent: '/dashboard/agent',
-      account_manager: '/dashboard/account-manager',
-      consultant: '/dashboard/consultant',
+      agent: '/dashboard',
+      account_manager: '/dashboard',
+      consultant: '/dashboard',
     };
 
-    const redirectPath = redirectMap[userRole] || '/audit/welcome';
+    const redirectPath = redirectMap[userRole] || '/dashboard';
 
     setTimeout(() => {
       router.push(redirectPath);
