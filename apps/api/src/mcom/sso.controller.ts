@@ -131,6 +131,7 @@ export class SsoController {
       }
 
       const tokenResponse = await this.mcomService.exchangeCode(code);
+      console.log('SSO token response:', JSON.stringify(tokenResponse, null, 2));
       const {
         access_token,
         refresh_token,
