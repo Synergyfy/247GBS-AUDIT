@@ -131,17 +131,21 @@ export class SsoController {
       }
 
       const tokenResponse = await this.mcomService.exchangeCode(code);
-      console.log('SSO token response:', JSON.stringify(tokenResponse, null, 2));
-      const {
-        access_token,
-        refresh_token,
-        expires_in,
-        user: mcomUser,
-      } = tokenResponse;
+      const mcomAccessToken = tokenResponse.accessToken;
+      const mcomRefreshToken = tokenResponse.refreshToken;
+      const expiresIn = tokenResponse.expiresIn;
+      const mcomUser = tokenResponse.user;
 
       const permissionKey = `canAccess_${(this.configService.get<string>('MCOM_PLATFORM_SLUG') || '247gbs-audit').replace(/-/g, '_')}`;
-      const permissions = mcomUser.permissions || {};
-      console.log(`SSO permission check: key=${permissionKey}, userPermissions=${JSON.stringify(permissions)}`);
+
+      let permissions: Record<string, boolean> = {};
+      try {
+        permissions = await this.mcomService.fetchPermissions(mcomAccessToken);
+      } catch (e) {
+        console.warn('Could not fetch permissions from MCOM Central:', e);
+      }
+      console.log(`SSO permission check: key=${permissionKey}, permissions=${JSON.stringify(permissions)}`);
+
       if (!permissions[permissionKey]) {
         throw new HttpException(
           'Access denied: no platform access',
@@ -156,9 +160,9 @@ export class SsoController {
 
       await this.mcomService.storeTokens(
         localUser.id,
-        access_token,
-        refresh_token,
-        expires_in,
+        mcomAccessToken,
+        mcomRefreshToken,
+        expiresIn,
       );
 
       const { accessToken, refreshToken } = this.getLocalTokens(
@@ -201,9 +205,9 @@ export class SsoController {
 
       await this.mcomService.storeTokens(
         userId,
-        tokenResponse.access_token,
-        tokenResponse.refresh_token,
-        tokenResponse.expires_in,
+        tokenResponse.accessToken,
+        tokenResponse.refreshToken,
+        tokenResponse.expiresIn,
       );
 
       return { success: true, message: 'Tokens refreshed successfully' };
@@ -246,9 +250,9 @@ export class SsoController {
           await this.mcomService.refreshTokens(refreshToken);
         await this.mcomService.storeTokens(
           userId,
-          tokenResponse.access_token,
-          tokenResponse.refresh_token,
-          tokenResponse.expires_in,
+          tokenResponse.accessToken,
+          tokenResponse.refreshToken,
+          tokenResponse.expiresIn,
         );
       } catch {
         // Token refresh failed, continue with existing status
