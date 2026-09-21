@@ -104,7 +104,7 @@ export class SsoController {
   @ApiOperation({ summary: 'MCOM SSO OAuth callback' })
   @ApiQuery({ name: 'code', required: true })
   @ApiQuery({ name: 'state', required: true })
-  @ApiResponse({ status: 200, description: 'Returns token for AJAX or redirects for browser' })
+  @ApiResponse({ status: 302, description: 'Redirects to frontend with token' })
   async callback(
     @Query('code') code: string,
     @Query('state') state: string,
@@ -114,13 +114,19 @@ export class SsoController {
     const frontendUrl =
       this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
 
-    const isAjax = (req.headers['accept'] || '').includes('application/json');
-
     try {
       if (!code) {
         throw new HttpException(
           'Missing authorization code',
           HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      const cookieState = (req as any).cookies?.mcom_oauth_state;
+      if (cookieState && cookieState !== state) {
+        throw new HttpException(
+          'Invalid state parameter',
+          HttpStatus.FORBIDDEN,
         );
       }
 
@@ -160,10 +166,6 @@ export class SsoController {
 
       res.clearCookie('mcom_oauth_state');
       this.setRefreshTokenCookie(res, refreshToken);
-
-      if (isAjax) {
-        return res.json({ accessToken, role: localUser.role });
-      }
       res.redirect(
         `${frontendUrl}/auth/callback?token=${accessToken}&role=${localUser.role}`,
       );
@@ -173,9 +175,6 @@ export class SsoController {
         error instanceof HttpException
           ? error.message
           : 'SSO authentication failed';
-      if (isAjax) {
-        return res.status(error instanceof HttpException ? error.getStatus() : 500).json({ error: errorMessage });
-      }
       res.redirect(
         `${frontendUrl}/auth/signin?error=oauth_failed&message=${encodeURIComponent(errorMessage)}`,
       );

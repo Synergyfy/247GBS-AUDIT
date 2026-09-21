@@ -106,7 +106,7 @@ export class McomService {
       this.httpService.post<McomTokenResponse>(
         `${this.mcomSolutionsUrl}/api/v1/auth/sso/token`,
         {
-          grant_type: 'authorization_code',
+          client_id: this.mcomClientId,
           code,
           redirect_uri: this.mcomRedirectUri,
         },
@@ -115,6 +115,7 @@ export class McomService {
             Authorization: `Basic ${authString}`,
             'Content-Type': 'application/json',
           },
+          timeout: 15000,
         },
       ),
     );

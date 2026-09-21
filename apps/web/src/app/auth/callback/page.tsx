@@ -51,47 +51,11 @@ export default function AuthCallbackPage() {
       return;
     }
 
-    // If MCOM Central redirected with code/state (frontend callback flow), exchange them
+    // If MCOM Central redirected with code/state, redirect to backend callback
+    // (matches affiliate project: browser redirect, not AJAX — cookies need to be sent)
     if (code && state) {
-      mcomService.exchangeCode(code, state)
-        .then(({ accessToken, role: userRole }) => {
-          const payload = parseJwt(accessToken);
-          if (!payload) {
-            setStatus('error');
-            setErrorMessage('Invalid authentication token');
-            return;
-          }
-
-          setAuth(
-            {
-              id: payload.sub,
-              email: payload.email,
-              firstName: payload.email.split('@')[0],
-              lastName: '',
-              role: userRole,
-              isOnboarded: payload.isOnboarded,
-            },
-            accessToken
-          );
-
-          setStatus('success');
-
-          const redirectMap: Record<string, string> = {
-            Administrator: '/admin',
-            admin: '/admin',
-            agent: '/dashboard/agent',
-            account_manager: '/dashboard/account-manager',
-            consultant: '/dashboard/consultant',
-          };
-
-          const redirectPath = redirectMap[userRole] || '/audit/welcome';
-          setTimeout(() => router.push(redirectPath), 1500);
-        })
-        .catch((err) => {
-          setStatus('error');
-          const msg = err.response?.data?.error || err.message || 'Token exchange failed';
-          setErrorMessage(msg);
-        });
+      const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      window.location.href = `${backendUrl}/auth/sso/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
       return;
     }
 
