@@ -44,13 +44,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 const token = await refreshAccessToken();
                 if (!mounted) return;
                 if (token) {
-                    // Notify other hooks/components that token changed by dispatching a storage event
                     try {
-                        const ev = new StorageEvent('storage', { key: '247gbs_token', newValue: token });
+                        const ev = new StorageEvent('storage', { key: 'auth_token', newValue: token });
                         window.dispatchEvent(ev);
-                    } catch (err) {
-                        // Fallback: dispatch a generic event
-                        window.dispatchEvent(new Event('247gbs_token_refreshed'));
+                    } catch {
+                        window.dispatchEvent(new Event('auth_token_refreshed'));
                     }
                 }
             } catch {
@@ -58,7 +56,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
         };
 
-        // initial refresh and then every 60s
+        // Only attempt refresh if there's a stored session (skip on auth pages, fresh visits)
+        const hasSession = localStorage.getItem("247gbs_user") || localStorage.getItem("auth_token");
+        if (!hasSession) return;
+
         doRefresh();
         const id = setInterval(doRefresh, 60 * 1000);
         return () => {

@@ -15,7 +15,7 @@ export async function refreshAccessToken(): Promise<string | null> {
     if (!contentType.includes('application/json')) return null;
     const json = await res.json();
     const token = json?.accessToken;
-    if (token) localStorage.setItem('247gbs_token', token);
+    if (token) localStorage.setItem('auth_token', token);
     return token ?? null;
   } catch (err) {
     return null;
