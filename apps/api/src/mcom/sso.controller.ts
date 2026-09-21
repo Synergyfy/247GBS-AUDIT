@@ -49,10 +49,12 @@ export class SsoController {
   login(@Res() res: Response) {
     const state = this.mcomService.generateStateToken();
 
+    const isProd = process.env.NODE_ENV === 'production';
     res.cookie('mcom_oauth_state', state, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: isProd,
+      sameSite: isProd ? 'none' : 'lax',
+      domain: isProd ? '.centralhubsolution.com' : undefined,
       maxAge: 600000,
     });
 
