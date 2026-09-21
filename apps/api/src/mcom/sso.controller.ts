@@ -136,26 +136,9 @@ export class SsoController {
       const expiresIn = tokenResponse.expiresIn;
       const mcomUser = tokenResponse.user;
 
-      const permissionKey = `canAccess_${(this.configService.get<string>('MCOM_PLATFORM_SLUG') || '247gbs-audit').replace(/-/g, '_')}`;
-
-      let permissions: Record<string, boolean> = {};
-      try {
-        permissions = await this.mcomService.fetchPermissions(mcomAccessToken);
-      } catch (e) {
-        console.warn('Could not fetch permissions from MCOM Central:', e);
-      }
-      console.log(`SSO permission check: key=${permissionKey}, permissions=${JSON.stringify(permissions)}`);
-
-      if (!permissions[permissionKey]) {
-        throw new HttpException(
-          'Access denied: no platform access',
-          HttpStatus.FORBIDDEN,
-        );
-      }
-
       const localUser = await this.mcomService.jitProvision({
         ...mcomUser,
-        permissions,
+        permissions: {},
       });
 
       await this.mcomService.storeTokens(
