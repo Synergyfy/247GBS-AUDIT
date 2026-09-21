@@ -93,9 +93,8 @@ export class McomService {
       redirect_uri: redirectUri,
       state,
       scope: this.mcomScopes,
-      response_type: 'code',
     });
-    return `${this.mcomSolutionsUrl}/api/v1/auth/sso/authorize?${params.toString()}`;
+    return `https://www.centralhubsolution.com/login?${params.toString()}`;
   }
 
   async exchangeCode(code: string): Promise<McomTokenResponse> {
