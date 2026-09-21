@@ -170,6 +170,7 @@ export class SsoController {
         `${frontendUrl}/auth/callback?token=${accessToken}&role=${localUser.role}`,
       );
     } catch (error) {
+      console.error('SSO callback error:', error);
       const errorMessage =
         error instanceof HttpException
           ? error.message
