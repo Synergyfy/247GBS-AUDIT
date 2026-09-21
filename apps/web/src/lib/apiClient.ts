@@ -2,6 +2,8 @@ import axios from 'axios';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
+let isRedirecting = false;
+
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
@@ -26,7 +28,16 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !isRedirecting) {
+      const url = error.config?.url || '';
+      const isRefreshCall = url.includes('/auth/refresh');
+      const isSignInPage = typeof window !== 'undefined' && window.location.pathname.startsWith('/auth/');
+
+      if (isRefreshCall || isSignInPage) {
+        return Promise.reject(error);
+      }
+
+      isRedirecting = true;
       if (typeof window !== 'undefined') {
         localStorage.removeItem('auth_token');
         window.location.href = '/auth/signin?error=session_expired';

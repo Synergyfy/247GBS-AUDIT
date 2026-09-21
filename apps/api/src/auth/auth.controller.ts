@@ -13,10 +13,12 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   private setRefreshTokenCookie(res: Response, token: string) {
+    const isProd = process.env.NODE_ENV === 'production';
     res.cookie('refresh_token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production', // true in production
-      sameSite: 'strict', // Protects against CSRF
+      secure: isProd,
+      sameSite: isProd ? 'none' : 'lax',
+      domain: isProd ? '.centralhubsolution.com' : undefined,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
   }
