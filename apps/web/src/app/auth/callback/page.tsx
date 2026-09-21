@@ -89,7 +89,8 @@ export default function AuthCallbackPage() {
         })
         .catch((err) => {
           setStatus('error');
-          setErrorMessage(err.message || 'Token exchange failed');
+          const msg = err.response?.data?.error || err.message || 'Token exchange failed';
+          setErrorMessage(msg);
         });
       return;
     }
