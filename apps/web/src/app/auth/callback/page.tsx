@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { mcomService } from '@/services/mcom';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 interface TokenPayload {
@@ -39,6 +40,8 @@ export default function AuthCallbackPage() {
   useEffect(() => {
     const token = searchParams.get('token');
     const role = searchParams.get('role');
+    const code = searchParams.get('code');
+    const state = searchParams.get('state');
     const error = searchParams.get('error');
     const message = searchParams.get('message');
 
@@ -48,6 +51,50 @@ export default function AuthCallbackPage() {
       return;
     }
 
+    // If MCOM Central redirected with code/state (frontend callback flow), exchange them
+    if (code && state) {
+      mcomService.exchangeCode(code, state)
+        .then(({ accessToken, role: userRole }) => {
+          const payload = parseJwt(accessToken);
+          if (!payload) {
+            setStatus('error');
+            setErrorMessage('Invalid authentication token');
+            return;
+          }
+
+          setAuth(
+            {
+              id: payload.sub,
+              email: payload.email,
+              firstName: payload.email.split('@')[0],
+              lastName: '',
+              role: userRole,
+              isOnboarded: payload.isOnboarded,
+            },
+            accessToken
+          );
+
+          setStatus('success');
+
+          const redirectMap: Record<string, string> = {
+            Administrator: '/admin',
+            admin: '/admin',
+            agent: '/dashboard/agent',
+            account_manager: '/dashboard/account-manager',
+            consultant: '/dashboard/consultant',
+          };
+
+          const redirectPath = redirectMap[userRole] || '/audit/welcome';
+          setTimeout(() => router.push(redirectPath), 1500);
+        })
+        .catch((err) => {
+          setStatus('error');
+          setErrorMessage(err.message || 'Token exchange failed');
+        });
+      return;
+    }
+
+    // If backend redirected with token/role (backend callback flow)
     if (!token) {
       setStatus('error');
       setErrorMessage('No authentication token received');

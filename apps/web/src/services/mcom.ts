@@ -1,6 +1,10 @@
+'use client';
+
 import apiClient from '@/lib/apiClient';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+type ApiResponse<T> = { data: T };
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export interface SsoConfig {
   membershipUrl: string;
@@ -18,6 +22,11 @@ export interface SsoStatus {
   lastUpdated: string | null;
 }
 
+export interface AuthCallbackResponse {
+  accessToken: string;
+  role: string;
+}
+
 export const mcomService = {
   async getConfig(): Promise<SsoConfig> {
     const response = await apiClient.get('/auth/sso/config');
@@ -32,10 +41,11 @@ export const mcomService = {
     window.location.href = `${API_URL}/auth/sso/login`;
   },
 
-  async completeLogin(code: string, state: string): Promise<void> {
-    await apiClient.get(`/auth/sso/callback`, {
+  async exchangeCode(code: string, state: string): Promise<AuthCallbackResponse> {
+    const response: ApiResponse<AuthCallbackResponse> = await apiClient.get('/auth/sso/callback', {
       params: { code, state },
     });
+    return response.data;
   },
 
   async refreshSession(userId: string): Promise<{ success: boolean }> {
