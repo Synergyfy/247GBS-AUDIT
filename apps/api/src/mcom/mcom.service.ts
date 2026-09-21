@@ -60,7 +60,7 @@ export class McomService {
   private get mcomScopes(): string {
     return (
       this.configService.get<string>('MCOM_SCOPES') ||
-      'profile email business membership packages'
+      'profile email business'
     );
   }
 

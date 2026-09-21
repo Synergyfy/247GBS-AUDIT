@@ -35,7 +35,7 @@ export default function SignUpPage() {
         try {
             await mcomService.startLogin();
         } catch (err: any) {
-            setLocalError(err.message || 'Failed to start MCOM signup');
+            setLocalError(err.message || 'Failed to start Central Hub signup');
             setSsoLoading(false);
         }
     };
@@ -100,7 +100,7 @@ export default function SignUpPage() {
                         <header className="mb-10 text-center md:text-left">
                             <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-2">Create Account</h2>
                             <p className="text-slate-500 font-medium">
-                                Sign up through MCOM Solutions to get started.
+                                Sign up through Central Hub Solutions to get started.
                             </p>
                         </header>
 
@@ -130,26 +130,26 @@ export default function SignUpPage() {
                                     {ssoLoading ? (
                                         <>
                                             <div className="w-6 h-6 border-4 border-orange-300 border-t-white rounded-full animate-spin" />
-                                            <span>Connecting to MCOM...</span>
+                                            <span>Connecting to Central Hub...</span>
                                         </>
                                     ) : (
                                         <>
                                             <ExternalLink size={22} />
-                                            <span>Sign up with MCOM Solutions</span>
+                                            <span>Sign up with Central Hub Solutions</span>
                                         </>
                                     )}
                                 </button>
 
                                 <div className="text-center">
                                     <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                                        You will be redirected to MCOM Central Hub to complete registration
+                                        You will be redirected to Central Hub to complete registration
                                     </p>
                                 </div>
                             </div>
                         ) : (
                             <div className="text-center py-8">
                                 <AlertCircle className="mx-auto text-slate-300 mb-4" size={40} />
-                                <p className="text-slate-500 font-medium">MCOM SSO is not configured.</p>
+                                <p className="text-slate-500 font-medium">Central Hub SSO is not configured.</p>
                                 <p className="text-slate-400 text-sm mt-1">Contact your administrator to enable SSO.</p>
                             </div>
                         )}
