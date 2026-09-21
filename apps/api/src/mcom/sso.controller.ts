@@ -16,13 +16,45 @@ import { ConfigService } from '@nestjs/config';
 import { McomService } from './mcom.service';
 import { Public } from '../auth/decorators/public.decorator';
 
+import { JwtService } from '@nestjs/jwt';
+
 @ApiTags('MCOM SSO')
 @Controller('auth/sso')
 export class SsoController {
   constructor(
     private mcomService: McomService,
     private configService: ConfigService,
+    private jwtService: JwtService,
   ) {}
+
+  private setRefreshTokenCookie(res: Response, token: string) {
+    const isProd = process.env.NODE_ENV === 'production';
+    res.cookie('refresh_token', token, {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: isProd ? 'none' : 'lax',
+      domain: isProd ? '.centralhubsolution.com' : undefined,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+  }
+
+  private getLocalTokens(userId: string, email: string) {
+    const accessSecret = this.configService.get<string>('JWT_ACCESS_SECRET')!;
+    const refreshSecret = this.configService.get<string>('JWT_REFRESH_SECRET')!;
+    const accessExpiration = this.configService.get<string>('JWT_ACCESS_EXPIRATION')! as any;
+    const refreshExpiration = this.configService.get<string>('JWT_REFRESH_EXPIRATION')! as any;
+
+    const accessToken = this.jwtService.sign(
+      { sub: userId, email },
+      { secret: accessSecret, expiresIn: accessExpiration },
+    );
+    const refreshToken = this.jwtService.sign(
+      { sub: userId, email },
+      { secret: refreshSecret, expiresIn: refreshExpiration },
+    );
+
+    return { accessToken, refreshToken };
+  }
 
   @Public()
   @Get('config')
@@ -127,11 +159,15 @@ export class SsoController {
         expires_in,
       );
 
-      const jwt = this.mcomService.issueLocalJwt(localUser);
+      const { accessToken, refreshToken } = this.getLocalTokens(
+        localUser.id,
+        localUser.email,
+      );
 
       res.clearCookie('mcom_oauth_state');
+      this.setRefreshTokenCookie(res, refreshToken);
       res.redirect(
-        `${frontendUrl}/auth/callback?token=${jwt}&role=${localUser.role}`,
+        `${frontendUrl}/auth/callback?token=${accessToken}&role=${localUser.role}`,
       );
     } catch (error) {
       const errorMessage =
