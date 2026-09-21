@@ -140,6 +140,7 @@ export class SsoController {
 
       const permissionKey = `canAccess_${(this.configService.get<string>('MCOM_PLATFORM_SLUG') || '247gbs-audit').replace(/-/g, '_')}`;
       const permissions = mcomUser.permissions || {};
+      console.log(`SSO permission check: key=${permissionKey}, userPermissions=${JSON.stringify(permissions)}`);
       if (!permissions[permissionKey]) {
         throw new HttpException(
           'Access denied: no platform access',
