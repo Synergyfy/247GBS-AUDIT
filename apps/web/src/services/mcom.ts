@@ -50,13 +50,6 @@ export const mcomService = {
     return response.data;
   },
 
-  async completeHandshake(token: string): Promise<{ token: string; role: string }> {
-    const response = await apiClient.get('/auth/sso-login', {
-      params: { token },
-    });
-    return response.data;
-  },
-
   async getPermissions(userId: string): Promise<Record<string, boolean>> {
     const response = await apiClient.get('/auth/sso/data/permissions', {
       params: { userId },

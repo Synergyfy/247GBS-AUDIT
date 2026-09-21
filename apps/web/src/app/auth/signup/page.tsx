@@ -26,7 +26,9 @@ export default function SignUpPage() {
     useEffect(() => {
         mcomService.getConfig().then(config => {
             setSsoConfigured(config.configured);
-        }).catch(() => {}).finally(() => setChecking(false));
+        }).catch((err) => {
+            console.error('Failed to fetch SSO config:', err);
+        }).finally(() => setChecking(false));
     }, []);
 
     const handleSsoSignup = async () => {

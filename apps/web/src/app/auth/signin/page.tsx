@@ -31,14 +31,15 @@ export default function SignInPage() {
                 missing_code: 'Missing authorization code from Central Hub.',
                 session_expired: 'Your session has expired. Please sign in again.',
                 access_denied: 'Access denied. You may not have permission to access this platform.',
-                handshake_failed: 'SSO handshake failed. Please try again.',
             };
             setLocalError(messages[errorCode] || 'Authentication error occurred.');
         }
 
         mcomService.getConfig().then(config => {
             setSsoConfigured(config.configured);
-        }).catch(() => {}).finally(() => setChecking(false));
+        }).catch((err) => {
+            console.error('Failed to fetch SSO config:', err);
+        }).finally(() => setChecking(false));
     }, [searchParams]);
 
     const handleSsoLogin = async () => {
