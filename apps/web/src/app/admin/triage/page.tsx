@@ -23,16 +23,17 @@ import {
     Type
 } from "lucide-react";
 import { useAdminTriageQuestions, triageApi } from "@/services/triage/hooks";
+import { DESTINATION_LABELS, isChoiceType, isMultiSelectType } from "@/services/triage/types";
 import type {
     AdminTriageAnswer,
     AdminTriageQuestion,
+    BuilderDestinationKind,
     QuestionConfig,
     QuestionType,
     TriageAuditType,
     TriageDestinationType,
     TriagePublicQuestion,
 } from "@/services/triage/types";
-import { isChoiceType, isMultiSelectType } from "@/services/triage/types";
 import { QuestionInput } from "@/components/preAudit/QuestionInput";
 import { AUDIT_STRATEGIES } from "@/types/audit";
 
@@ -43,6 +44,25 @@ const AUDIT_OPTIONS: { value: string; label: string }[] = Object.keys(AUDIT_STRA
 
 const auditLabel = (value: string | null) =>
     value === "SHORT_FORM" ? "Short Audit" : value === "LONG_FORM" ? "Large Audit" : value ?? "—";
+
+const destLabel = (value: string | null) =>
+    value && value in DESTINATION_LABELS
+        ? DESTINATION_LABELS[value as TriageDestinationType]
+        : value ?? "—";
+
+const DESTINATION_OPTIONS: { value: string; label: string }[] = (
+    Object.keys(DESTINATION_LABELS) as TriageDestinationType[]
+).map((value) => ({ value, label: DESTINATION_LABELS[value] }));
+
+/** Destination "kind" selected in the forms: next, legacy audit, or a destination type. */
+type DestKind = BuilderDestinationKind | TriageDestinationType;
+
+/** True for destination kinds that accept an optional target payload. */
+const DEST_TARGET_KINDS: ReadonlySet<TriageDestinationType> = new Set<TriageDestinationType>([
+    "SECTOR",
+    "MCOM",
+    "CUSTOM",
+]);
 
 interface QuestionTypeOption {
     value: QuestionType;
@@ -81,7 +101,8 @@ interface QuestionForm {
     required: boolean;
     order: string;
     isActive: boolean;
-    destType: TriageDestinationType;
+    destType: DestKind;
+    destTarget: string;
     destValue: string;
     cfgPlaceholder: string;
     cfgMaxLength: string;
@@ -106,6 +127,7 @@ const defaultQuestionForm = (order: number): QuestionForm => ({
     order: String(order),
     isActive: true,
     destType: "",
+    destTarget: "",
     destValue: "",
     cfgPlaceholder: "",
     cfgMaxLength: "",
@@ -156,7 +178,7 @@ export default function AdminTriagePage() {
     const [answerModal, setAnswerModal] = useState<{ open: boolean; editing: AdminTriageAnswer | null; questionId: string; questionType: QuestionType }>({ open: false, editing: null, questionId: "", questionType: "single_choice" });
 
     const [qForm, setQForm] = useState<QuestionForm>(defaultQuestionForm(1));
-    const [aForm, setAForm] = useState({ text: "", isActive: true, destType: "" as TriageDestinationType, destValue: "" });
+    const [aForm, setAForm] = useState({ text: "", isActive: true, destType: "" as DestKind, destValue: "", destTarget: "" });
 
     const [previewValue, setPreviewValue] = useState<unknown>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -206,8 +228,9 @@ export default function AdminTriagePage() {
             required: q.required,
             order: String(q.order ?? 0),
             isActive: q.isActive,
-            destType: q.defaultNextQuestionId ? "next" : q.defaultAuditType ? "audit" : "",
-            destValue: q.defaultNextQuestionId ?? q.defaultAuditType ?? "",
+            destType: q.defaultNextQuestionId ? "next" : q.defaultAuditType ? "audit" : q.defaultDestinationType ?? "",
+            destValue: q.defaultNextQuestionId ?? q.defaultAuditType ?? q.defaultDestinationType ?? "",
+            destTarget: q.defaultDestinationTarget ?? "",
             cfgPlaceholder: cfg.placeholder ?? "",
             cfgMaxLength: cfg.maxLength !== undefined ? String(cfg.maxLength) : "",
             cfgMin: cfg.min !== undefined ? String(cfg.min) : "",
@@ -227,18 +250,19 @@ export default function AdminTriagePage() {
     };
 
     const openCreateAnswer = (q: AdminTriageQuestion) => {
-        setAForm({ text: "", isActive: true, destType: "", destValue: "" });
+        setAForm({ text: "", isActive: true, destType: "", destValue: "", destTarget: "" });
         setModalError(null);
         setAnswerModal({ open: true, editing: null, questionId: q.id, questionType: q.type });
     };
 
     const openEditAnswer = (a: AdminTriageAnswer) => {
-        const destType: TriageDestinationType = a.nextQuestionId ? "next" : a.auditType ? "audit" : "";
+        const destType: DestKind = a.nextQuestionId ? "next" : a.auditType ? "audit" : a.destinationType ?? "";
         setAForm({
             text: a.text,
             isActive: a.isActive,
             destType,
-            destValue: a.nextQuestionId ?? a.auditType ?? "",
+            destValue: a.nextQuestionId ?? a.auditType ?? a.destinationType ?? "",
+            destTarget: a.destinationTarget ?? "",
         });
         setModalError(null);
         setAnswerModal({ open: true, editing: a, questionId: a.questionId, questionType: questionById.get(a.questionId)?.type ?? "single_choice" });
@@ -265,18 +289,19 @@ export default function AdminTriagePage() {
         }
 
         if (optionless) {
-            if (qForm.destType !== "next" && qForm.destType !== "audit") {
+            if (qForm.destType === "") {
                 setModalError(
-                    "Choose a destination for this question: a next question or an audit. Users need to end at an audit."
+                    "Choose a destination for this question: a next question or a destination type."
                 );
                 return;
             }
             if (!qForm.destValue) {
-                setModalError("Select the destination question or audit.");
+                setModalError("Select the destination question, audit, or destination type.");
                 return;
             }
         }
 
+        const isAnyDest = qForm.destType !== "next" && qForm.destType !== "audit";
         const payload = {
             text,
             type: qForm.type,
@@ -289,9 +314,16 @@ export default function AdminTriagePage() {
             ...(optionless
                 ? {
                       defaultNextQuestionId: qForm.destType === "next" ? qForm.destValue : null,
-defaultAuditType: qForm.destType === "audit" ? (qForm.destValue as TriageAuditType) : null,
+                      defaultAuditType: qForm.destType === "audit" ? (qForm.destValue as TriageAuditType) : null,
+                      defaultDestinationType: isAnyDest ? (qForm.destValue as TriageDestinationType) : null,
+                      defaultDestinationTarget: isAnyDest ? (qForm.destTarget.trim() || null) : null,
                   }
-                : { defaultNextQuestionId: null, defaultAuditType: null }),
+                : {
+                      defaultNextQuestionId: null,
+                      defaultAuditType: null,
+                      defaultDestinationType: null,
+                      defaultDestinationTarget: null,
+                  }),
         };
 
         setIsSubmitting(true);
@@ -321,12 +353,12 @@ defaultAuditType: qForm.destType === "audit" ? (qForm.destValue as TriageAuditTy
             setModalError("Answer text cannot be empty.");
             return;
         }
-        if (aForm.destType !== "next" && aForm.destType !== "audit") {
-            setModalError("Choose a destination for this answer: a next question or an audit.");
+        if (aForm.destType === "") {
+            setModalError("Choose a destination for this answer: a next question or a destination type.");
             return;
         }
         if (!aForm.destValue) {
-            setModalError("Select the destination question or audit for this answer.");
+            setModalError("Select the destination question, audit, or destination type for this answer.");
             return;
         }
         if (aForm.destType === "next" && aForm.destValue === answerModal.questionId) {
@@ -334,11 +366,14 @@ defaultAuditType: qForm.destType === "audit" ? (qForm.destValue as TriageAuditTy
             return;
         }
 
+        const isAnyDest = aForm.destType !== "next" && aForm.destType !== "audit";
         const payload = {
             text,
             isActive: aForm.isActive,
             nextQuestionId: aForm.destType === "next" ? aForm.destValue : null,
             auditType: aForm.destType === "audit" ? (aForm.destValue as TriageAuditType) : null,
+            destinationType: isAnyDest ? (aForm.destValue as TriageDestinationType) : null,
+            destinationTarget: isAnyDest ? (aForm.destTarget.trim() || null) : null,
         };
 
         setIsSubmitting(true);
@@ -434,6 +469,14 @@ defaultAuditType: qForm.destType === "audit" ? (qForm.destValue as TriageAuditTy
         config: buildConfig(qForm),
         defaultNextQuestionId: qForm.destType === "next" ? qForm.destValue : null,
         defaultAuditType: qForm.destType === "audit" ? (qForm.destValue as TriageAuditType) : null,
+        defaultDestinationType:
+            qForm.destType !== "" && qForm.destType !== "next" && qForm.destType !== "audit"
+                ? (qForm.destValue as TriageDestinationType)
+                : null,
+        defaultDestinationTarget:
+            qForm.destType !== "" && qForm.destType !== "next" && qForm.destType !== "audit"
+                ? qForm.destTarget.trim() || null
+                : null,
         answers: questionModal.editing?.answers ?? [],
     };
 
@@ -641,18 +684,27 @@ defaultAuditType: qForm.destType === "audit" ? (qForm.destValue as TriageAuditTy
                                         <Field label="Destination type">
                                             <select
                                                 value={qForm.destType}
-                                                onChange={(e) =>
-                                                    setQForm({
-                                                        ...qForm,
-                                                        destType: e.target.value as TriageDestinationType,
-                                                        destValue: e.target.value === "" ? "" : qForm.destValue,
-                                                    })
-                                                }
+                                                onChange={(e) => {
+                                                        const next = e.target.value as DestKind;
+                                                        const isDest = next !== "" && next !== "next" && next !== "audit";
+                                                        setQForm({
+                                                            ...qForm,
+                                                            destType: next,
+                                                            destValue: next === "" ? "" : isDest ? next : qForm.destValue,
+                                                        });
+                                                    }}
                                                 className={inputClass}
                                             >
                                                 <option value="">Select destination…</option>
                                                 <option value="next">Next Question</option>
                                                 <option value="audit">Assign Audit</option>
+                                                <optgroup label="Destination types">
+                                                    {DESTINATION_OPTIONS.map((opt) => (
+                                                        <option key={opt.value} value={opt.value}>
+                                                            {opt.label}
+                                                        </option>
+                                                    ))}
+                                                </optgroup>
                                             </select>
                                         </Field>
                                     </div>
@@ -691,6 +743,34 @@ defaultAuditType: qForm.destType === "audit" ? (qForm.destValue as TriageAuditTy
                                                     </option>
                                                 ))}
                                             </select>
+                                        </Field>
+                                    )}
+                                    {(qForm.destType !== "" && qForm.destType !== "next" && qForm.destType !== "audit") && (
+                                        <Field label="Destination type">
+                                            <select
+                                                required
+                                                value={qForm.destValue}
+                                                onChange={(e) => setQForm({ ...qForm, destValue: e.target.value })}
+                                                className={inputClass}
+                                            >
+                                                <option value="">Select destination type…</option>
+                                                {DESTINATION_OPTIONS.map((opt) => (
+                                                    <option key={opt.value} value={opt.value}>
+                                                        {opt.label}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </Field>
+                                    )}
+                                    {(qForm.destType !== "" && qForm.destType !== "next" && qForm.destType !== "audit" && DEST_TARGET_KINDS.has(qForm.destType as TriageDestinationType)) && (
+                                        <Field label="Destination target (e.g. sector id, MCOM slug, custom label)">
+                                            <input
+                                                type="text"
+                                                value={qForm.destTarget}
+                                                onChange={(e) => setQForm({ ...qForm, destTarget: e.target.value })}
+                                                className={inputClass}
+                                                placeholder="e.g. retail, mcom-booking, Visit our advisor"
+                                            />
                                         </Field>
                                     )}
                                 </div>
@@ -751,18 +831,27 @@ defaultAuditType: qForm.destType === "audit" ? (qForm.destValue as TriageAuditTy
                                 <Field label="Destination type">
                                     <select
                                         value={aForm.destType}
-                                        onChange={(e) =>
+                                        onChange={(e) => {
+                                            const next = e.target.value as DestKind;
+                                            const isDest = next !== "" && next !== "next" && next !== "audit";
                                             setAForm({
                                                 ...aForm,
-                                                destType: e.target.value as TriageDestinationType,
-                                                destValue: e.target.value === "" ? "" : aForm.destValue,
-                                            })
-                                        }
+                                                destType: next,
+                                                destValue: next === "" ? "" : isDest ? next : aForm.destValue,
+                                            });
+                                        }}
                                         className={inputClass}
                                     >
                                         <option value="">Select destination…</option>
                                         <option value="next">Next Question</option>
                                         <option value="audit">Assign Audit</option>
+                                        <optgroup label="Destination types">
+                                            {DESTINATION_OPTIONS.map((opt) => (
+                                                <option key={opt.value} value={opt.value}>
+                                                    {opt.label}
+                                                </option>
+                                            ))}
+                                        </optgroup>
                                     </select>
                                 </Field>
                             </div>
@@ -808,12 +897,44 @@ defaultAuditType: qForm.destType === "audit" ? (qForm.destValue as TriageAuditTy
                                 </Field>
                             )}
 
+                            {(aForm.destType !== "" && aForm.destType !== "next" && aForm.destType !== "audit") && (
+                                <Field label="Destination type">
+                                    <select
+                                        required
+                                        value={aForm.destValue}
+                                        onChange={(e) => setAForm({ ...aForm, destValue: e.target.value })}
+                                        className={inputClass}
+                                    >
+                                        <option value="">Select destination type…</option>
+                                        {DESTINATION_OPTIONS.map((opt) => (
+                                            <option key={opt.value} value={opt.value}>
+                                                {opt.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </Field>
+                            )}
+
+                            {(aForm.destType !== "" && aForm.destType !== "next" && aForm.destType !== "audit" && DEST_TARGET_KINDS.has(aForm.destType as TriageDestinationType)) && (
+                                <Field label="Destination target (e.g. sector id, MCOM slug, custom label)">
+                                    <input
+                                        type="text"
+                                        value={aForm.destTarget}
+                                        onChange={(e) => setAForm({ ...aForm, destTarget: e.target.value })}
+                                        className={inputClass}
+                                        placeholder="e.g. retail, mcom-booking, Visit our advisor"
+                                    />
+                                </Field>
+                            )}
+
                             {aForm.destType !== "" && (
                                 <div className="flex items-center gap-2 px-4 py-3 bg-orange-50 border border-orange-100 rounded-xl text-xs font-bold text-orange-700">
                                     <ArrowRight size={14} className="shrink-0" />
                                     {aForm.destType === "next"
                                         ? `Choosing this option opens: ${questionById.get(aForm.destValue)?.text ?? "Question"}.`
-                                        : `Choosing this option assigns: ${auditLabel(aForm.destValue)}.`}
+                                        : aForm.destType === "audit"
+                                          ? `Choosing this option assigns: ${auditLabel(aForm.destValue)}.`
+                                          : `Choosing this option routes to: ${destLabel(aForm.destValue)}${aForm.destTarget.trim() ? ` (${aForm.destTarget.trim()})` : ""}.`}
                                 </div>
                             )}
 
@@ -997,7 +1118,9 @@ function QuestionCard({
     const multiConflict = multi
         ? (() => {
               const dests = new Set(
-                  activeAnswers.map((a) => `${a.nextQuestionId ?? ""}|${a.auditType ?? ""}`)
+                  activeAnswers.map(
+                      (a) => `${a.nextQuestionId ?? ""}|${a.destinationType ?? a.auditType ?? ""}|${a.destinationTarget ?? ""}`
+                  )
               );
               return dests.size > 1;
           })()
@@ -1077,7 +1200,7 @@ function QuestionCard({
                         ) : (
                             <span className="text-xs font-semibold text-blue-700 flex items-center gap-1.5">
                                 <ArrowRight size={13} />
-                                Assigns: {auditLabel(question.defaultAuditType)}
+                                Assigns: {question.defaultDestinationType ? destLabel(question.defaultDestinationType) : auditLabel(question.defaultAuditType)}
                             </span>
                         )
                     ) : (
@@ -1218,9 +1341,11 @@ function AnswerRow({
                         ) : (
                             <>
                                 <span className="text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-md uppercase tracking-wider flex items-center gap-1">
-                                    Assign Audit
+                                    Assign
                                 </span>
-                                <span className="text-xs font-bold text-blue-600">{auditLabel(answer.auditType)}</span>
+                                <span className="text-xs font-bold text-blue-600">
+                                    {answer.destinationType ? destLabel(answer.destinationType) : auditLabel(answer.auditType)}
+                                </span>
                             </>
                         )}
                     </div>

@@ -1,5 +1,56 @@
 export type TriageAuditType = "SHORT_FORM" | "LONG_FORM";
 
+/**
+ * Terminal destination of a pre-audit path (extensible model). See the API's
+ * `destination-types.ts` for the canonical enum + labels.
+ */
+export type TriageDestinationType =
+  | "SHORT_FORM"
+  | "LONG_FORM"
+  | "SECTOR"
+  | "SUPPORT"
+  | "FUND_OR_DONATE"
+  | "MCOM"
+  | "HUMAN_REVIEW"
+  | "NO_ACTION"
+  | "CUSTOM";
+
+export const DESTINATION_TYPES: readonly TriageDestinationType[] = [
+  "SHORT_FORM",
+  "LONG_FORM",
+  "SECTOR",
+  "SUPPORT",
+  "FUND_OR_DONATE",
+  "MCOM",
+  "HUMAN_REVIEW",
+  "NO_ACTION",
+  "CUSTOM",
+];
+
+export const DESTINATION_LABELS: Record<TriageDestinationType, string> = {
+  SHORT_FORM: "Short Audit",
+  LONG_FORM: "Long Audit",
+  SECTOR: "Sector-specific Audit",
+  SUPPORT: "Support & Information",
+  FUND_OR_DONATE: "Fund / Donate",
+  MCOM: "Other MCOM Service",
+  HUMAN_REVIEW: "Human Review",
+  NO_ACTION: "No Immediate Action",
+  CUSTOM: "Custom Destination",
+};
+
+/** Maps a destination back to a legacy audit type (SHORT_FORM | LONG_FORM). */
+export function destinationAuditType(
+  type: string | null | undefined
+): TriageAuditType | null {
+  if (type === "SHORT_FORM") return "SHORT_FORM";
+  if (type === "LONG_FORM") return "LONG_FORM";
+  return null;
+}
+
+/** The builder uses this for its two-legacy-kind "next | audit | none" UI. */
+export type BuilderDestinationKind = "next" | "audit" | "";
+
 export type QuestionType =
   | "short_text"
   | "long_text"
@@ -56,6 +107,8 @@ export interface TriagePublicAnswer {
   text: string;
   nextQuestionId: string | null;
   auditType: TriageAuditType | null;
+  destinationType: TriageDestinationType | null;
+  destinationTarget: string | null;
 }
 
 export interface TriagePublicQuestion {
@@ -68,6 +121,8 @@ export interface TriagePublicQuestion {
   config: QuestionConfig;
   defaultNextQuestionId: string | null;
   defaultAuditType: TriageAuditType | null;
+  defaultDestinationType: TriageDestinationType | null;
+  defaultDestinationTarget: string | null;
   answers: TriagePublicAnswer[];
 }
 
@@ -77,6 +132,8 @@ export interface AdminTriageAnswer {
   text: string;
   nextQuestionId: string | null;
   auditType: TriageAuditType | null;
+  destinationType: TriageDestinationType | null;
+  destinationTarget: string | null;
   sortOrder: number;
   isActive: boolean;
   createdAt: string;
@@ -93,6 +150,8 @@ export interface AdminTriageQuestion {
   config: QuestionConfig;
   defaultNextQuestionId: string | null;
   defaultAuditType: TriageAuditType | null;
+  defaultDestinationType: TriageDestinationType | null;
+  defaultDestinationTarget: string | null;
   order: number;
   isActive: boolean;
   hasAuditPath: boolean;
@@ -101,5 +160,3 @@ export interface AdminTriageQuestion {
 }
 
 export type AdminTriageResponse = AdminTriageQuestion[];
-
-export type TriageDestinationType = "next" | "audit" | "";

@@ -37,7 +37,7 @@ describe('Audit Flow (E2E)', () => {
     // 2. Verify Refresh Token works via cookie
     const refreshRes = await request(app.getHttpServer())
       .get('/auth/refresh')
-      .set('Cookie', cookies)
+      .set('Cookie', Array.isArray(cookies) ? cookies.join('; ') : '')
       .expect(200);
 
     expect(refreshRes.body.accessToken).toBeDefined();

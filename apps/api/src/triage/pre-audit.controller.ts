@@ -1,11 +1,13 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { Public } from '../auth/decorators/public.decorator';
 import { PreAuditService } from './pre-audit.service';
 import { SubmitPreAuditDto, PreAuditSubmissionResultDto } from './dto/pre-audit.dto';
 
 @ApiTags('Pre-Audit')
 @Controller('pre-audit')
+@UseGuards(ThrottlerGuard)
 export class PreAuditController {
   constructor(private readonly preAuditService: PreAuditService) {}
 

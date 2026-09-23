@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { handleSessionExpired } from './auth';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
@@ -38,8 +39,8 @@ apiClient.interceptors.response.use(
       }
 
       isRedirecting = true;
+      handleSessionExpired();
       if (typeof window !== 'undefined') {
-        localStorage.removeItem('auth_token');
         window.location.href = '/auth/signin?error=session_expired';
       }
     }

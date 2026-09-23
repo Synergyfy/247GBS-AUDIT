@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsEmail, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID, MaxLength, ValidateNested } from 'class-validator';
+import { IsArray, IsBoolean, IsEmail, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID, MaxLength, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class PreAuditStepDto {
@@ -39,12 +39,27 @@ export class SubmitPreAuditDto {
   @ValidateNested({ each: true })
   @Type(() => PreAuditStepDto)
   steps: PreAuditStepDto[];
+
+  @ApiProperty({
+    description: 'Explicit consent to save and process the supplied answers. Required before the pre-audit is stored server-side.',
+  })
+  @IsBoolean({ message: 'consentGranted must be a boolean.' })
+  consentGranted: boolean;
+
+  @ApiPropertyOptional({ description: 'Consent text version the visitor agreed to. Defaults to "1".' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  consentVersion?: string;
 }
 
 export class PreAuditSubmissionResultDto {
   @ApiProperty() id: string;
   @ApiProperty({ nullable: true }) email: string | null;
   @ApiProperty({ enum: ['SHORT_FORM', 'LONG_FORM', 'NONE'], nullable: true }) recommendedAuditType: string | null;
+  @ApiProperty({ nullable: true }) destinationType: string | null;
+  @ApiProperty({ nullable: true }) destinationTarget: string | null;
+  @ApiProperty({ nullable: true }) consentGrantedAt: string | null;
   @ApiProperty() answeredCount: number;
   @ApiProperty({ description: 'True when this submission is a duplicate of an earlier one.' }) isDuplicate: boolean;
 }

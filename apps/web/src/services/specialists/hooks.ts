@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { API_BASE_URL } from "@/lib/api";
-import { refreshAccessToken } from "@/lib/auth";
+import { refreshAccessToken, handleSessionExpired } from "@/lib/auth";
 import type { Specialist, SpecialistStats } from "./types";
 
 export function useSpecialists() {
@@ -24,11 +24,7 @@ export function useSpecialists() {
       if (res.status === 401) {
         const newToken = await refreshAccessToken();
         if (newToken === false) {
-          if (typeof window !== "undefined") {
-            localStorage.removeItem("247gbs_token");
-            localStorage.removeItem("auth_token");
-            localStorage.removeItem("247gbs_user");
-          }
+          handleSessionExpired();
           throw new Error("Session expired. Please sign in again.");
         }
         if (newToken) {

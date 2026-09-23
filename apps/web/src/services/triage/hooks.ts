@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { API_BASE_URL } from "@/lib/api";
-import { refreshAccessToken } from "@/lib/auth";
+import { refreshAccessToken, handleSessionExpired } from "@/lib/auth";
 import type {
   AdminTriageQuestion,
   AdminTriageResponse,
   QuestionConfig,
   QuestionType,
   TriageAuditType,
+  TriageDestinationType,
 } from "./types";
 
 function getToken(): string | null {
@@ -29,11 +30,7 @@ async function authFetch(path: string, init: RequestInit, retried = false): Prom
   if (res.status === 401 && !retried) {
     const newToken = await refreshAccessToken();
     if (newToken === false) {
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("247gbs_token");
-        localStorage.removeItem("auth_token");
-        localStorage.removeItem("247gbs_user");
-      }
+      handleSessionExpired();
       throw new Error("Session expired. Please sign in again.");
     }
     if (newToken) {
@@ -130,6 +127,8 @@ export interface QuestionPayload {
   config?: QuestionConfig;
   defaultNextQuestionId?: string | null;
   defaultAuditType?: TriageAuditType | null;
+  defaultDestinationType?: TriageDestinationType | null;
+  defaultDestinationTarget?: string | null;
   order?: number;
   isActive?: boolean;
 }
@@ -138,6 +137,8 @@ export interface AnswerPayload {
   text: string;
   nextQuestionId?: string | null;
   auditType?: TriageAuditType | null;
+  destinationType?: TriageDestinationType | null;
+  destinationTarget?: string | null;
   sortOrder?: number;
   isActive?: boolean;
 }

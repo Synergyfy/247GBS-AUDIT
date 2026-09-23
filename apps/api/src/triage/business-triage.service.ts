@@ -68,11 +68,15 @@ export class BusinessTriageService {
       config: question.config ?? {},
       defaultNextQuestionId: question.defaultNextQuestionId,
       defaultAuditType: question.defaultAuditType,
+      defaultDestinationType: question.defaultDestinationType,
+      defaultDestinationTarget: question.defaultDestinationTarget,
       answers: answers.map((a) => ({
         id: a.id,
         text: a.text,
         nextQuestionId: a.nextQuestionId,
         auditType: a.auditType,
+        destinationType: a.destinationType,
+        destinationTarget: a.destinationTarget,
       })),
     };
   }
@@ -107,6 +111,8 @@ export class BusinessTriageService {
       config: question.config ?? {},
       defaultNextQuestionId: question.defaultNextQuestionId,
       defaultAuditType: question.defaultAuditType,
+      defaultDestinationType: question.defaultDestinationType,
+      defaultDestinationTarget: question.defaultDestinationTarget,
       order: question.order,
       isActive: question.isActive,
       hasAuditPath: auditPath.has(question.id),
@@ -117,6 +123,8 @@ export class BusinessTriageService {
         text: a.text,
         nextQuestionId: a.nextQuestionId,
         auditType: a.auditType,
+        destinationType: a.destinationType,
+        destinationTarget: a.destinationTarget,
         sortOrder: a.sortOrder,
         isActive: a.isActive,
         createdAt: a.createdAt,
@@ -139,6 +147,8 @@ export class BusinessTriageService {
       config: dto.config ?? {},
       defaultNextQuestionId: dto.defaultNextQuestionId ?? null,
       defaultAuditType: dto.defaultAuditType ?? null,
+      defaultDestinationType: dto.defaultDestinationType ?? null,
+      defaultDestinationTarget: dto.defaultDestinationTarget ?? null,
       order: dto.order ?? 0,
       isActive: dto.isActive ?? true,
     });
@@ -161,10 +171,12 @@ export class BusinessTriageService {
     this.validateConfig(nextType, dto.config ?? question.config ?? {});
     if (dto.config !== undefined) question.config = dto.config;
 
-    // Apply question-level destination with the same next-XOR-audit rule.
+    // Apply question-level destination with the same next-XOR-destination rule.
     if (
       dto.defaultNextQuestionId !== undefined ||
-      dto.defaultAuditType !== undefined
+      dto.defaultAuditType !== undefined ||
+      dto.defaultDestinationType !== undefined ||
+      dto.defaultDestinationTarget !== undefined
     ) {
       const merged = {
         defaultNextQuestionId:
@@ -175,10 +187,20 @@ export class BusinessTriageService {
           dto.defaultAuditType !== undefined
             ? dto.defaultAuditType
             : question.defaultAuditType,
+        defaultDestinationType:
+          dto.defaultDestinationType !== undefined
+            ? dto.defaultDestinationType
+            : question.defaultDestinationType,
+        defaultDestinationTarget:
+          dto.defaultDestinationTarget !== undefined
+            ? dto.defaultDestinationTarget
+            : question.defaultDestinationTarget,
       };
       await this.validateQuestionDestination(merged, question.id);
       question.defaultNextQuestionId = merged.defaultNextQuestionId ?? null;
       question.defaultAuditType = merged.defaultAuditType ?? null;
+      question.defaultDestinationType = merged.defaultDestinationType ?? null;
+      question.defaultDestinationTarget = merged.defaultDestinationTarget ?? null;
     }
 
     if (dto.type !== undefined && dto.type !== question.type) {
@@ -231,6 +253,8 @@ export class BusinessTriageService {
       text: dto.text.trim(),
       nextQuestionId: destination.nextQuestionId ?? null,
       auditType: destination.auditType ?? null,
+      destinationType: destination.destinationType ?? null,
+      destinationTarget: destination.destinationTarget ?? null,
       sortOrder: dto.sortOrder ?? 0,
       isActive: dto.isActive ?? true,
     });
@@ -248,15 +272,26 @@ export class BusinessTriageService {
     const destinationPatch = {
       nextQuestionId: dto.nextQuestionId,
       auditType: dto.auditType,
+      destinationType: dto.destinationType,
+      destinationTarget: dto.destinationTarget,
     };
-    if (destinationPatch.nextQuestionId !== undefined || destinationPatch.auditType !== undefined) {
+    const patchHasDestination =
+      destinationPatch.nextQuestionId !== undefined ||
+      destinationPatch.auditType !== undefined ||
+      destinationPatch.destinationType !== undefined ||
+      destinationPatch.destinationTarget !== undefined;
+    if (patchHasDestination) {
       const merged = {
         nextQuestionId: destinationPatch.nextQuestionId !== undefined ? destinationPatch.nextQuestionId : answer.nextQuestionId,
         auditType: destinationPatch.auditType !== undefined ? destinationPatch.auditType : answer.auditType,
+        destinationType: destinationPatch.destinationType !== undefined ? destinationPatch.destinationType : answer.destinationType,
+        destinationTarget: destinationPatch.destinationTarget !== undefined ? destinationPatch.destinationTarget : answer.destinationTarget,
       };
       const destination = await this.validateDestination(merged, answer.questionId);
       answer.nextQuestionId = destination.nextQuestionId ?? null;
       answer.auditType = destination.auditType ?? null;
+      answer.destinationType = destination.destinationType ?? null;
+      answer.destinationTarget = destination.destinationTarget ?? null;
     }
 
     return this.answerRepository.save(answer);
@@ -276,21 +311,38 @@ export class BusinessTriageService {
   // ============================================================
 
   /**
-   * Enforces the core rule: an answer points to EITHER a next question OR an
-   * audit type — never both, never neither — and the target must exist.
+   * Enforces the core rule: an answer points to EITHER a next question OR a
+   * terminal destination (auditType/destinationType) — never both, never
+   * neither — and the target must exist.
    */
   private async validateDestination(
-    dto: { nextQuestionId?: string | null; auditType?: string | null },
+    dto: {
+      nextQuestionId?: string | null;
+      auditType?: string | null;
+      destinationType?: string | null;
+      destinationTarget?: string | null;
+    },
     owningQuestionId: string,
-  ): Promise<{ nextQuestionId?: string | null; auditType?: string | null }> {
+  ): Promise<{
+    nextQuestionId?: string | null;
+    auditType?: string | null;
+    destinationType?: string | null;
+    destinationTarget?: string | null;
+  }> {
     const hasNext = dto.nextQuestionId !== undefined && dto.nextQuestionId !== null;
-    const hasAudit = dto.auditType !== undefined && dto.auditType !== null;
+    const hasLegacyDestination = dto.auditType !== undefined && dto.auditType !== null;
+    const hasDestination = dto.destinationType !== undefined && dto.destinationType !== null;
 
-    if (hasNext && hasAudit) {
-      throw new BadRequestException('An answer cannot point to both a next question and an audit.');
+    if (hasNext && (hasLegacyDestination || hasDestination)) {
+      throw new BadRequestException('An answer cannot point to both a next question and a destination.');
     }
-    if (!hasNext && !hasAudit) {
-      throw new BadRequestException('An answer must have a destination — either a next question or an audit type.');
+    if (hasLegacyDestination && hasDestination) {
+      throw new BadRequestException('An answer cannot point to both an audit type and a destination type.');
+    }
+    if (!hasNext && !hasLegacyDestination && !hasDestination) {
+      throw new BadRequestException(
+        'An answer must have a destination — either a next question or a destination type.',
+      );
     }
 
     if (hasNext) {
@@ -299,10 +351,29 @@ export class BusinessTriageService {
       if (target.id === owningQuestionId) {
         throw new BadRequestException('An answer cannot point back to the question it belongs to.');
       }
-      return { nextQuestionId: target.id, auditType: null };
+      return {
+        nextQuestionId: target.id,
+        auditType: null,
+        destinationType: null,
+        destinationTarget: null,
+      };
     }
 
-    return { nextQuestionId: null, auditType: dto.auditType as string };
+    const destinationType = (hasDestination ? dto.destinationType : dto.auditType) as string;
+    // SHORT/LONG destinations backfill the legacy audit column so the Audit
+    // handoff keeps working without a separate migration.
+    const auditType = hasDestination && (dto.destinationType === 'SHORT_FORM' || dto.destinationType === 'LONG_FORM')
+      ? (dto.destinationType as string)
+      : hasLegacyDestination
+        ? (dto.auditType as string)
+        : null;
+
+    return {
+      nextQuestionId: null,
+      auditType,
+      destinationType,
+      destinationTarget: hasDestination ? (dto.destinationTarget ?? null) : null,
+    };
   }
 
   /**
@@ -310,14 +381,25 @@ export class BusinessTriageService {
    * an option-less question can also simply forward sequentially without a branch.
    */
   private async validateQuestionDestination(
-    dto: { defaultNextQuestionId?: string | null; defaultAuditType?: string | null },
+    dto: {
+      defaultNextQuestionId?: string | null;
+      defaultAuditType?: string | null;
+      defaultDestinationType?: string | null;
+      defaultDestinationTarget?: string | null;
+    },
     owningQuestionId: string | null,
   ): Promise<void> {
     const hasNext = dto.defaultNextQuestionId !== undefined && dto.defaultNextQuestionId !== null;
-    const hasAudit = dto.defaultAuditType !== undefined && dto.defaultAuditType !== null;
+    const hasLegacyDestination =
+      dto.defaultAuditType !== undefined && dto.defaultAuditType !== null;
+    const hasDestination =
+      dto.defaultDestinationType !== undefined && dto.defaultDestinationType !== null;
 
-    if (hasNext && hasAudit) {
-      throw new BadRequestException('A question cannot point to both a next question and an audit.');
+    if (hasNext && (hasLegacyDestination || hasDestination)) {
+      throw new BadRequestException('A question cannot point to both a next question and a destination.');
+    }
+    if (hasLegacyDestination && hasDestination) {
+      throw new BadRequestException('A question cannot point to both an audit type and a destination type.');
     }
 
     if (hasNext) {
@@ -449,12 +531,14 @@ export class BusinessTriageService {
       if (answer.nextQuestionId && byId.has(answer.nextQuestionId) && byId.get(answer.nextQuestionId)!.isActive) {
         nextIds.get(answer.questionId)!.push(answer.nextQuestionId);
       }
-      if (answer.auditType) exitsToAudit.set(answer.questionId, true);
+      const terminal = answer.auditType || answer.destinationType;
+      if (terminal) exitsToAudit.set(answer.questionId, true);
     }
     // Question-level destinations for option-less questions.
     for (const question of questions) {
       if (!question.isActive) continue;
-      if (question.defaultAuditType) exitsToAudit.set(question.id, true);
+      const terminal = question.defaultAuditType || question.defaultDestinationType;
+      if (terminal) exitsToAudit.set(question.id, true);
       if (question.defaultNextQuestionId && byId.has(question.defaultNextQuestionId) && byId.get(question.defaultNextQuestionId)!.isActive) {
         if (!nextIds.has(question.id)) nextIds.set(question.id, []);
         nextIds.get(question.id)!.push(question.defaultNextQuestionId);

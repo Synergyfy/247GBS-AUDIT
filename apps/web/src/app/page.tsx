@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import ChatFAB from "@/components/ChatFAB";
 import { useAuth } from "@/context/AuthContext";
+import { fetchPublicSettings, type PublicSettings } from "@/services/public/settings";
 
 interface HeroSlide {
   image: string;
@@ -51,7 +52,7 @@ const SLIDES: HeroSlide[] = [
   },
 ];
 
-function HeroSlider({ onStartReview }: { onStartReview: () => void }) {
+function HeroSlider({ onStartReview, settings }: { onStartReview: () => void; settings: PublicSettings | null }) {
   const [current, setCurrent] = useState(0);
 
   useEffect(() => {
@@ -111,7 +112,7 @@ function HeroSlider({ onStartReview }: { onStartReview: () => void }) {
         <div className="max-w-2xl">
           <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-orange-400 font-bold text-xs sm:text-sm mb-5 lg:mb-6">
             <BarChart3 size={14} />
-            <span>Business Audit Platform</span>
+            <span>{settings?.landingTitle || "Business Audit Platform"}</span>
           </div>
           {SLIDES.map((slide, i) => (
             <div
@@ -128,22 +129,28 @@ function HeroSlider({ onStartReview }: { onStartReview: () => void }) {
             </div>
           ))}
           <p className="text-sm sm:text-base text-slate-400 mb-8 lg:mb-10 leading-relaxed max-w-xl">
-            Start with a <strong className="text-orange-400">free Business Triage</strong> — takes 2 minutes.
+            {settings?.landingSubtitle || (
+              <>Start with a <strong className="text-orange-400">free Business Triage</strong> — takes 2 minutes.</>
+            )}
           </p>
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
             <button
               onClick={onStartReview}
               className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3.5 sm:px-8 sm:py-4 rounded-2xl font-bold text-base sm:text-lg flex items-center justify-center gap-2 shadow-xl shadow-orange-500/30 transition-all hover:-translate-y-1 active:translate-y-0"
             >
-              Get Started
+              {settings?.landingCtaLabel || "Get Started"}
               <ArrowRight size={18} />
             </button>
-            <a
-              href="audit/pre-audit/flow"
-              className="flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-3.5 sm:py-4 rounded-2xl border border-white/20 bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-colors cursor-pointer group text-center justify-center"
-            >
-              <span className="font-bold text-sm sm:text-base text-white">Start Audit</span>
-            </a>
+            {settings !== null && !settings.landingShowPreAudit ? null : (
+              <a
+                href={settings?.landingCtaHref || "audit/pre-audit/flow"}
+                className="flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-3.5 sm:py-4 rounded-2xl border border-white/20 bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-colors cursor-pointer group text-center justify-center"
+              >
+                <span className="font-bold text-sm sm:text-base text-white">
+                  {settings?.landingCtaLabel || "Start Audit"}
+                </span>
+              </a>
+            )}
           </div>
         </div>
       </div>
@@ -155,10 +162,19 @@ function HeroSlider({ onStartReview }: { onStartReview: () => void }) {
 export default function LandingPage() {
   const { isAuthenticated } = useAuth();
   const router = useRouter();
+  const [publicSettings, setPublicSettings] = useState<PublicSettings | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchPublicSettings().then((settings) => {
+      if (!cancelled) setPublicSettings(settings);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const handleStartReview = () => {
     // The pre-audit is fully public — no sign-in required
-    router.push("/audit/pre-audit");
+    router.push(publicSettings?.landingCtaHref || "/audit/pre-audit");
   };
 
   const fadeIn = {
@@ -181,7 +197,7 @@ export default function LandingPage() {
 
 
       {/* Hero Section — Background Slider */}
-      <HeroSlider onStartReview={handleStartReview} />
+      <HeroSlider onStartReview={handleStartReview} settings={publicSettings} />
 
       {/* How It Works */}
       <section id="how-it-works" className="py-16 lg:py-24 bg-slate-50 relative">

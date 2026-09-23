@@ -7,8 +7,14 @@ import { TriageAnswer } from './entities/triage-answer.entity';
 import { PreAuditSession } from './entities/pre-audit-session.entity';
 import { SubmitPreAuditDto, PreAuditStepDto, PreAuditSubmissionResultDto } from './dto/pre-audit.dto';
 import { normalizeQuestionType, isChoiceType } from './question-types';
+import { destinationAuditType, resolveDestination } from './destination-types';
+import { PreAuditMailer } from '../mail/pre-audit-mailer';
 
-type Destination = { nextQuestionId: string | null; auditType: string | null };
+type Destination = {
+  nextQuestionId: string | null;
+  destinationType: string | null;
+  destinationTarget: string | null;
+};
 type EvaluatedStep = {
   questionId: string;
   questionText: string;
@@ -17,12 +23,35 @@ type EvaluatedStep = {
   optionTexts?: string[];
   value?: any;
   nextQuestionId: string | null;
+  destinationType: string | null;
+  destinationTarget: string | null;
   auditType: string | null;
+};
+
+/**
+ * A not-yet-walked alternative route selected on an earlier question (P5
+ * multi-branch traversal). Multi-select questions may pick options that route
+ * to different places; the lowest-sortOrder route is walked first and every
+ * other route is queued here. The engine replays the exact same canonical DFS
+ * the client uses: sibling branches are pushed in reverse canonical order so
+ * the lowest pops next, and one branch is fully processed before the next.
+ */
+type PendingBranch = {
+  nextQuestionId: string | null;
+  destinationType: string | null;
+  destinationTarget: string | null;
+  auditType: string | null;
+};
+
+type EvaluatedChoice = {
+  result: EvaluatedStep;
+  branches: PendingBranch[];
 };
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/;
 const MAX_TEXT_LENGTH = 5000;
+const MAX_STEPS = 50;
 
 @Injectable()
 export class PreAuditService {
@@ -33,6 +62,7 @@ export class PreAuditService {
     private readonly answerRepository: Repository<TriageAnswer>,
     @InjectRepository(PreAuditSession)
     private readonly sessionRepository: Repository<PreAuditSession>,
+    private readonly mailer: PreAuditMailer,
   ) {}
 
   /**
@@ -41,9 +71,18 @@ export class PreAuditService {
    * step against the database and computes the audit destination itself.
    */
   async evaluateAndSave(dto: SubmitPreAuditDto): Promise<PreAuditSubmissionResultDto> {
+    if (dto.consentGranted !== true) {
+      throw new BadRequestException('Consent is required before your pre-audit can be saved.');
+    }
+
     const steps = dto.steps;
     if (steps.length === 0) {
       throw new BadRequestException('At least one answered step is required.');
+    }
+    if (steps.length > MAX_STEPS) {
+      throw new BadRequestException(
+        `Too many steps (max ${MAX_STEPS}). Please refresh and try again.`,
+      );
     }
 
     const startQuestion = await this.questionRepository.findOne({
@@ -59,46 +98,87 @@ export class PreAuditService {
     }
 
     const evaluated: EvaluatedStep[] = [];
+    const visitedQuestionIds = new Set<string>([startQuestion.id]);
+    // LIFO stack of alternative routes: one branch fully walked before the next.
+    const pending: PendingBranch[] = [];
     let current = startQuestion;
-    let recommended: string | null = null;
+    // The next question the primary/branch line expects, or null once the line
+    // has concluded and the continuation must come from the pending stack.
+    let expectedNext: string | null = null;
+    let recommendedAuditType: string | null = null;
+    let destinationType: string | null = null;
+    let destinationTarget: string | null = null;
 
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
-      if (step.questionId !== current.id) {
-        throw new BadRequestException(
-          `Step ${i + 1} does not match the expected question. Routing is determined server-side.`,
-        );
+
+      if (i === 0) {
+        if (step.questionId !== startQuestion.id) {
+          throw new BadRequestException('The first step must start with the current start question.');
+        }
+      } else if (expectedNext !== null) {
+        // Linear continuation of the current (primary or branch) line.
+        if (step.questionId !== expectedNext) {
+          throw new BadRequestException(
+            `Step ${i + 1} does not match the expected question. Routing is determined server-side.`,
+          );
+        }
+      } else {
+        // The previous line concluded; this step must be the head of a pending
+        // branch (DFS), after skipping any that rejoin an answered question.
+        const switched = this.resolvePendingNext(pending, visitedQuestionIds);
+        if (switched !== step.questionId) {
+          throw new BadRequestException(
+            `Step ${i + 1} does not match the expected question. Routing is determined server-side.`,
+          );
+        }
+      }
+
+      if (i > 0) {
+        const question = await this.questionRepository.findOne({ where: { id: step.questionId } });
+        if (!question || !question.isActive) {
+          throw new BadRequestException(
+            `Step ${i + 1} referenced an inactive or missing question. Please refresh and try again.`,
+          );
+        }
+        current = question;
       }
 
       const type = normalizeQuestionType(current.type);
-      const stepResult = await this.evaluateStep(current, step, type);
+      const { result: stepResult, branches } = await this.evaluateStep(current, step, type);
       evaluated.push(stepResult);
+      visitedQuestionIds.add(current.id);
 
-      if (stepResult.auditType) {
-        recommended = stepResult.auditType;
-        current = null as unknown as TriageQuestion;
-        break;
+      // Push sibling branches (reverse canonical order so the lowest pops next).
+      for (let b = branches.length - 1; b >= 0; b--) {
+        pending.push(branches[b]);
       }
 
       if (stepResult.nextQuestionId) {
-        const next = await this.questionRepository.findOne({ where: { id: stepResult.nextQuestionId } });
-        if (!next || !next.isActive) {
-          throw new BadRequestException(
-            `Step ${i + 1} resolved to an inactive or missing question. Please refresh and try again.`,
-          );
+        if (visitedQuestionIds.has(stepResult.nextQuestionId)) {
+          // This line rejoins an already-answered question — the shared subtree
+          // is already accounted for, so continue with the pending stack.
+          expectedNext = this.resolvePendingNext(pending, visitedQuestionIds);
+        } else {
+          expectedNext = stepResult.nextQuestionId;
         }
-        current = next;
-        continue;
+      } else if (stepResult.destinationType || stepResult.auditType) {
+        // A branch concluded. The LAST concluded branch is authoritative for the
+        // recommendation (matching the client's last-terminal-wins rule).
+        recommendedAuditType = destinationAuditType(stepResult.destinationType || stepResult.auditType);
+        destinationType = stepResult.destinationType || stepResult.auditType || null;
+        destinationTarget = stepResult.destinationTarget;
+        expectedNext = this.resolvePendingNext(pending, visitedQuestionIds);
+      } else {
+        // No destination configured — the flow cannot continue.
+        throw new BadRequestException(
+          `Question "${current.text}" has no destination configured for the selected answer.`,
+        );
       }
-
-      // No destination configured — the flow cannot continue.
-      throw new BadRequestException(
-        `Question "${current.text}" has no destination configured for the selected answer.`,
-      );
     }
 
-    if (recommended === null) {
-      throw new BadRequestException('The submitted flow did not conclude with an audit type. Please refresh and try again.');
+    if (destinationType === null && recommendedAuditType === null) {
+      throw new BadRequestException('The submitted flow did not conclude with a destination. Please refresh and try again.');
     }
 
     const fingerprint = this.makeFingerprint(dto);
@@ -113,12 +193,17 @@ export class PreAuditService {
       email: dto.email ?? null,
       answers: evaluated,
       fingerprint,
-      recommendedAuditType: recommended,
+      recommendedAuditType,
+      destinationType,
+      destinationTarget,
+      consentGrantedAt: new Date(),
+      consentVersion: dto.consentVersion ?? '1',
       completedAt: new Date(),
     });
 
     try {
       const saved = await this.sessionRepository.save(session);
+      this.mailer.sendPostSubmission(saved, false);
       return this.toResult(saved, false);
     } catch (error: any) {
       // Unique constraint race on fingerprint → treat as duplicate.
@@ -138,18 +223,18 @@ export class PreAuditService {
     question: TriageQuestion,
     step: PreAuditStepDto,
     type: string,
-  ): Promise<EvaluatedStep> {
+  ): Promise<EvaluatedChoice> {
     if (isChoiceType(type)) {
       return this.evaluateChoice(question, step, type);
     }
-    return this.evaluateTyped(question, step, type);
+    return { result: this.evaluateTyped(question, step, type), branches: [] };
   }
 
   private async evaluateChoice(
     question: TriageQuestion,
     step: PreAuditStepDto,
     type: string,
-  ): Promise<EvaluatedStep> {
+  ): Promise<EvaluatedChoice> {
     const optionIds = Array.isArray(step.optionIds) ? step.optionIds : [];
     const isSingle = type === 'single_choice' || type === 'dropdown' || type === 'yes_no';
     const isMulti = type === 'multiple_choice' || type === 'checkbox';
@@ -163,6 +248,7 @@ export class PreAuditService {
 
     const options = await this.answerRepository.find({
       where: { questionId: question.id, isActive: true },
+      order: { sortOrder: 'ASC', createdAt: 'ASC' },
     });
     const optionMap = new Map(options.map((o) => [o.id, o]));
 
@@ -177,48 +263,108 @@ export class PreAuditService {
       selected.push(option);
     }
 
-    // Deterministic multi-select rule: every selected option must agree on the
-    // destination, otherwise the routing is ambiguous and the submission is
-    // rejected until the admin configures it consistently.
-    let destination: Destination;
-    if (isMulti) {
-      const destinations = selected.map((o) => this.destinationOf(o));
-      const distinct = new Set(destinations.map((d) => JSON.stringify(d)));
-      if (distinct.size > 1) {
-        throw new BadRequestException(
-          `Question "${question.text}" allows multiple answers but those selections lead to conflicting destinations.`,
-        );
+    // Canonical order — identical to the order the public flow presents options.
+    const ordered = [...selected].sort(
+      (a, b) =>
+        a.sortOrder === b.sortOrder
+          ? a.createdAt.getTime() - b.createdAt.getTime()
+          : a.sortOrder - b.sortOrder,
+    );
+
+    // Group the selections by their resolved route (one next question OR one
+    // destination). The group containing the earliest option is the primary
+    // route; every other route is queued as a pending branch (DFS).
+    const groups: { route: string; options: TriageAnswer[]; destination: Destination }[] = [];
+    for (const option of ordered) {
+      const destination = this.destinationOf(option);
+      const route = JSON.stringify([
+        destination.nextQuestionId ?? null,
+        destination.destinationType ?? null,
+        destination.destinationTarget ?? null,
+      ]);
+      let group = groups.find((g) => g.route === route);
+      if (!group) {
+        group = { route, options: [], destination };
+        groups.push(group);
       }
-      destination = destinations[0];
-    } else {
-      destination = this.destinationOf(selected[0]);
+      group.options.push(option);
     }
 
-    if (!destination.nextQuestionId && !destination.auditType) {
+    const primary = groups[0];
+    const destination = primary.destination;
+
+    if (!destination.nextQuestionId && !destination.destinationType) {
       return {
+        result: {
+          questionId: question.id,
+          questionText: question.text,
+          type,
+          optionIds,
+          optionTexts: selected.map((o) => o.text),
+          nextQuestionId: null,
+          destinationType: null,
+          destinationTarget: null,
+          auditType: null,
+        },
+        branches: [],
+      };
+    }
+
+    const branches: PendingBranch[] = [];
+    for (let i = 1; i < groups.length; i++) {
+      const group = groups[i];
+      branches.push({
+        nextQuestionId: group.destination.nextQuestionId,
+        destinationType: group.destination.destinationType,
+        destinationTarget: group.destination.destinationTarget,
+        auditType: destinationAuditType(group.destination.destinationType),
+      });
+    }
+
+    return {
+      result: {
         questionId: question.id,
         questionText: question.text,
         type,
         optionIds,
         optionTexts: selected.map((o) => o.text),
-        nextQuestionId: null,
-        auditType: null,
-      };
-    }
-
-    return {
-      questionId: question.id,
-      questionText: question.text,
-      type,
-      optionIds,
-      optionTexts: selected.map((o) => o.text),
-      nextQuestionId: destination.nextQuestionId,
-      auditType: destination.auditType,
+        nextQuestionId: destination.nextQuestionId,
+        destinationType: destination.destinationType,
+        destinationTarget: destination.destinationTarget,
+        auditType: destinationAuditType(destination.destinationType),
+      },
+      branches,
     };
   }
 
   private destinationOf(answer: TriageAnswer): Destination {
-    return { nextQuestionId: answer.nextQuestionId, auditType: answer.auditType };
+    const resolved = resolveDestination(answer);
+    return {
+      nextQuestionId: answer.nextQuestionId,
+      destinationType: resolved.destinationType,
+      destinationTarget: resolved.destinationTarget,
+    };
+  }
+
+  /**
+   * Pops the head of the pending-branch stack and returns the next question to
+   * walk, mirroring the client's DFS traversal. Branches that rejoin an
+   * already-answered question, or that have no next question (destination-only
+   * branches), contribute no further step and are skipped. Returns null when
+   * every branch has been processed and the traversal is complete.
+   */
+  private resolvePendingNext(
+    pending: PendingBranch[],
+    visitedQuestionIds: ReadonlySet<string>,
+  ): string | null {
+    while (pending.length > 0) {
+      const top = pending[pending.length - 1];
+      if (top.nextQuestionId && !visitedQuestionIds.has(top.nextQuestionId)) {
+        return top.nextQuestionId;
+      }
+      pending.pop();
+    }
+    return null;
   }
 
   private evaluateTyped(
@@ -231,10 +377,11 @@ export class PreAuditService {
     const required = question.required;
 
     if (value === undefined || value === null || value === '') {
+      const resolved = resolveDestination(question);
       if (required) {
         throw new BadRequestException(`Question "${question.text}" must be answered.`);
       }
-      if (!question.defaultNextQuestionId && !question.defaultAuditType) {
+      if (!question.defaultNextQuestionId && !resolved.destinationType) {
         throw new BadRequestException(
           `Question "${question.text}" has no destination. Please refresh and try again.`,
         );
@@ -245,7 +392,9 @@ export class PreAuditService {
         type,
         value: null,
         nextQuestionId: question.defaultNextQuestionId,
-        auditType: question.defaultAuditType,
+        destinationType: resolved.destinationType,
+        destinationTarget: resolved.destinationTarget,
+        auditType: destinationAuditType(resolved.destinationType),
       };
     }
 
@@ -275,13 +424,16 @@ export class PreAuditService {
         throw new BadRequestException(`Unsupported answer type "${type}".`);
     }
 
+    const resolved = resolveDestination(question);
     return {
       questionId: question.id,
       questionText: question.text,
       type,
       value: normalized,
       nextQuestionId: question.defaultNextQuestionId,
-      auditType: question.defaultAuditType,
+      destinationType: resolved.destinationType,
+      destinationTarget: resolved.destinationTarget,
+      auditType: destinationAuditType(resolved.destinationType),
     };
   }
 
@@ -399,6 +551,11 @@ export class PreAuditService {
       id: session.id,
       email: session.email,
       recommendedAuditType: session.recommendedAuditType,
+      destinationType: session.destinationType ?? null,
+      destinationTarget: session.destinationTarget ?? null,
+      consentGrantedAt: session.consentGrantedAt
+        ? session.consentGrantedAt.toISOString()
+        : null,
       answeredCount: Array.isArray(session.answers) ? session.answers.length : 0,
       isDuplicate,
     };

@@ -38,6 +38,13 @@ export class TriageQuestion {
   @Column({ type: 'varchar', length: 50, nullable: true })
   defaultAuditType: string | null;
 
+  // Question-level terminal destination in the extensible model.
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  defaultDestinationType: string | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  defaultDestinationTarget: string | null;
+
   @Column({ type: 'int', default: 0 })
   order: number;
 

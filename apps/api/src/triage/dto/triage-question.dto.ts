@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { IsBoolean, IsEnum, IsInt, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { AuditType } from './../entities/triage.entity';
 import { QUESTION_TYPES } from '../question-types';
+import { DESTINATION_TYPES, TriageDestinationType } from '../destination-types';
 import type { QuestionType } from '../question-types';
 
 // ============================================================
@@ -70,6 +71,24 @@ export class CreateTriageQuestionDto {
   @IsEnum(AuditType, { message: 'defaultAuditType must be a valid audit type.' })
   defaultAuditType?: AuditType | null;
 
+  @ApiPropertyOptional({
+    description: 'Default terminal destination type for option-less questions. Mutually exclusive with defaultNextQuestionId.',
+    enum: DESTINATION_TYPES,
+    nullable: true,
+  })
+  @IsOptional()
+  @IsEnum(DESTINATION_TYPES, { message: 'defaultDestinationType must be a valid destination type.' })
+  defaultDestinationType?: TriageDestinationType | null;
+
+  @ApiPropertyOptional({
+    description: 'Target for the default destination (sector id, MCOM slug, custom label).',
+    nullable: true,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  defaultDestinationTarget?: string | null;
+
   @ApiPropertyOptional({ description: 'Display ordering within the flow (start = lowest).' })
   @IsOptional()
   @IsInt({ message: 'Order must be a whole number.' })
@@ -105,6 +124,24 @@ export class CreateTriageAnswerDto {
   @IsEnum(AuditType, { message: 'auditType must be a valid audit type.' })
   auditType?: AuditType | null;
 
+  @ApiPropertyOptional({
+    description: 'If set, choosing this answer ends the triage at this destination type. Mutually exclusive with nextQuestionId.',
+    enum: DESTINATION_TYPES,
+    nullable: true,
+  })
+  @IsOptional()
+  @IsEnum(DESTINATION_TYPES, { message: 'destinationType must be a valid destination type.' })
+  destinationType?: TriageDestinationType | null;
+
+  @ApiPropertyOptional({
+    description: 'Target for the destination (sector id, MCOM slug, custom label).',
+    nullable: true,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  destinationTarget?: string | null;
+
   @ApiPropertyOptional({ description: 'Display order of the option within the question.' })
   @IsOptional()
   @IsInt({ message: 'sortOrder must be a whole number.' })
@@ -127,6 +164,8 @@ export class TriageAnswerItemDto {
   @ApiProperty() text: string;
   @ApiProperty({ nullable: true }) nextQuestionId: string | null;
   @ApiProperty({ enum: AuditType, nullable: true }) auditType: string | null;
+  @ApiProperty({ enum: DESTINATION_TYPES, nullable: true }) destinationType: string | null;
+  @ApiProperty({ nullable: true }) destinationTarget: string | null;
 }
 
 export class TriageQuestionItemDto {
@@ -139,6 +178,8 @@ export class TriageQuestionItemDto {
   @ApiProperty({ type: Object }) config: Record<string, any>;
   @ApiProperty({ nullable: true }) defaultNextQuestionId: string | null;
   @ApiProperty({ enum: AuditType, nullable: true }) defaultAuditType: string | null;
+  @ApiProperty({ enum: DESTINATION_TYPES, nullable: true }) defaultDestinationType: string | null;
+  @ApiProperty({ nullable: true }) defaultDestinationTarget: string | null;
   @ApiProperty({ type: [TriageAnswerItemDto] }) answers: TriageAnswerItemDto[];
 }
 
@@ -148,6 +189,8 @@ export class AdminTriageAnswerDto {
   @ApiProperty() text: string;
   @ApiProperty({ nullable: true }) nextQuestionId: string | null;
   @ApiProperty({ enum: AuditType, nullable: true }) auditType: string | null;
+  @ApiProperty({ enum: DESTINATION_TYPES, nullable: true }) destinationType: string | null;
+  @ApiProperty({ nullable: true }) destinationTarget: string | null;
   @ApiProperty({ default: 0 }) sortOrder: number;
   @ApiProperty() isActive: boolean;
   @ApiProperty() createdAt: Date;
@@ -164,6 +207,8 @@ export class AdminTriageQuestionDto {
   @ApiProperty({ type: Object }) config: Record<string, any>;
   @ApiProperty({ nullable: true }) defaultNextQuestionId: string | null;
   @ApiProperty({ enum: AuditType, nullable: true }) defaultAuditType: string | null;
+  @ApiProperty({ enum: DESTINATION_TYPES, nullable: true }) defaultDestinationType: string | null;
+  @ApiProperty({ nullable: true }) defaultDestinationTarget: string | null;
   @ApiProperty() order: number;
   @ApiProperty() isActive: boolean;
   @ApiProperty({ description: 'Whether this question can eventually reach an audit (no dead-ends or cycles).' })

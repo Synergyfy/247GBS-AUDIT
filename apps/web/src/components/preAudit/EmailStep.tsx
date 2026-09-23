@@ -11,7 +11,7 @@ interface EmailStepProps {
   onBack: () => void;
 }
 
-/** Email is collected near the end so results can be associated with the user. */
+/** /** Email is collected near the end so results can be associated with the user. */
 export function EmailStep({ email, error, disabled, onEmailChange, onContinue, onBack }: EmailStepProps) {
   const inputId = "pre-audit-email";
 
@@ -31,8 +31,8 @@ export function EmailStep({ email, error, disabled, onEmailChange, onContinue, o
           Which email should we link to your results?
         </h2>
         <p className="text-slate-500 text-sm sm:text-base leading-relaxed mb-8">
-          No email is sent at this step — your answers are stored on your device. We simply record this
-          address with your saved results. You can still continue without creating an account.
+          We simply record this address with your saved results. No email is sent at this step, and
+          you can still continue without creating an account.
         </p>
 
         <label htmlFor={inputId} className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">
@@ -73,7 +73,7 @@ export function EmailStep({ email, error, disabled, onEmailChange, onContinue, o
             className="flex items-center justify-center gap-2 text-slate-400 hover:text-slate-900 font-bold text-[10px] sm:text-xs uppercase tracking-widest transition-all disabled:opacity-50"
           >
             <ChevronLeft size={14} />
-            Change an answer
+            Back to review
           </button>
           <motion.button
             type="button"
@@ -82,7 +82,7 @@ export function EmailStep({ email, error, disabled, onEmailChange, onContinue, o
             onClick={onContinue}
             className="inline-flex items-center justify-center gap-3 bg-orange-500 hover:bg-orange-600 text-white px-8 py-4 rounded-2xl font-bold text-sm sm:text-base shadow-xl shadow-orange-500/30 transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:translate-y-0"
           >
-            Review My Answers
+            Continue to consent
             <ArrowRight size={16} />
           </motion.button>
         </div>

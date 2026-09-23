@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     History,
@@ -17,6 +18,16 @@ import {
     Zap
 } from "lucide-react";
 import { useAudits, useVaultStats } from "@/services/audit/hooks";
+import type { SavedAudit } from "@/services/audit/types";
+
+const DRAFT_STATUSES = new Set(["TRIAGE_COMPLETED", "SECTOR_SELECTED", "IN_PROGRESS"]);
+
+const isDraft = (audit: SavedAudit) =>
+    typeof audit.status === "string" && DRAFT_STATUSES.has(audit.status);
+
+const resumeHref = (audit: SavedAudit) =>
+    `/audit/flow?sessionId=${encodeURIComponent(audit.id)}&type=${encodeURIComponent(audit.type)}`;
+
 export default function AuditVaultPage() {
     const { audits, loading, error, refresh } = useAudits();
     const { stats: vaultStats, loading: statsLoading } = useVaultStats();
@@ -137,10 +148,20 @@ export default function AuditVaultPage() {
                                                     </div>
                                                 </td>
                                                 <td className="px-8 py-6">
-                                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-50 text-green-600 rounded-full text-[10px] font-bold uppercase tracking-widest border border-green-100">
-                                                        <ShieldCheck size={12} />
-                                                        Ready
-                                                    </div>
+                                                    {isDraft(audit) ? (
+                                                        <Link
+                                                            href={resumeHref(audit)}
+                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-600 rounded-full text-[10px] font-bold uppercase tracking-widest border border-amber-100 hover:bg-amber-100 transition-all"
+                                                        >
+                                                            <ShieldCheck size={12} />
+                                                            Continue audit
+                                                        </Link>
+                                                    ) : (
+                                                        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-50 text-green-600 rounded-full text-[10px] font-bold uppercase tracking-widest border border-green-100">
+                                                            <ShieldCheck size={12} />
+                                                            Ready
+                                                        </div>
+                                                    )}
                                                 </td>
                                                 <td className="px-8 py-6 text-right">
                                                     <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -201,17 +222,27 @@ export default function AuditVaultPage() {
                                     </div>
                                     
                                     <div className="mt-4 pt-4 border-t border-slate-50 flex justify-between items-center">
-                                        <div className="flex items-center gap-2">
-                                            <div className="flex-1 w-20 h-1 bg-slate-100 rounded-full overflow-hidden">
-                                                <div className="bg-orange-500 h-full" style={{ width: `${audit.metrics.capacityDrain}%` }} />
+                                            <div className="flex items-center gap-2">
+                                                <div className="flex-1 w-20 h-1 bg-slate-100 rounded-full overflow-hidden">
+                                                    <div className="bg-orange-500 h-full" style={{ width: `${audit.metrics.capacityDrain}%` }} />
+                                                </div>
+                                                <span className="text-[10px] font-bold text-slate-400">{audit.metrics.capacityDrain}% Waste</span>
                                             </div>
-                                            <span className="text-[10px] font-bold text-slate-400">{audit.metrics.capacityDrain}% Waste</span>
+                                            {isDraft(audit) ? (
+                                                <Link
+                                                    href={resumeHref(audit)}
+                                                    className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-amber-50 text-amber-600 rounded-full text-[9px] font-bold uppercase tracking-widest border border-amber-100 hover:bg-amber-100 transition-all"
+                                                >
+                                                    <ShieldCheck size={10} />
+                                                    Continue audit
+                                                </Link>
+                                            ) : (
+                                                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-green-50 text-green-600 rounded-full text-[9px] font-bold uppercase tracking-widest border border-green-100">
+                                                    <ShieldCheck size={10} />
+                                                    Ready
+                                                </div>
+                                            )}
                                         </div>
-                                        <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-green-50 text-green-600 rounded-full text-[9px] font-bold uppercase tracking-widest border border-green-100">
-                                            <ShieldCheck size={10} />
-                                            Ready
-                                        </div>
-                                    </div>
                                 </motion.div>
                             ))}
                         </div>

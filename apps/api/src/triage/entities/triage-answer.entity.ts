@@ -19,6 +19,16 @@ export class TriageAnswer {
   @Column({ type: 'varchar', length: 50, nullable: true })
   auditType: string | null;
 
+  // Terminal destination (SHORT_FORM | LONG_FORM | SECTOR | SUPPORT | ...).
+  // Mutually exclusive with nextQuestionId. Kept separate from auditType so
+  // non-audit destinations do not need audit-model changes.
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  destinationType: string | null;
+
+  // Destination-specific payload (sector id, MCOM slug, custom label, ...).
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  destinationTarget: string | null;
+
   // Controls option display order in the builder / public flow.
   @Column({ type: 'int', default: 0 })
   sortOrder: number;

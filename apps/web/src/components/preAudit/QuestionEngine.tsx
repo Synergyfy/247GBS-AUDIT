@@ -15,6 +15,7 @@ import {
 } from "@/services/preAudit/data";
 import type {
   PreAuditEngineOptions,
+  PreAuditPendingBranch,
   PreAuditPhase,
   PreAuditQuestionType,
   PreAuditSubmission,
@@ -27,10 +28,12 @@ import {
   createRecordId,
   fingerprintOf,
   isTerminal,
+  makeChoiceAnswer,
   makeTypedVisitedEntry,
-  makeVisitedEntry,
   recomputeActiveVisited,
+  resolvePendingBranch,
   resolveQuestionType,
+  stackBranches,
 } from "@/lib/preAudit/engine";
 import { validateAnswer, validateEmail } from "@/lib/preAudit/validation";
 import {
@@ -45,6 +48,7 @@ import { ProgressHeader } from "./ProgressHeader";
 import { AnswerOption } from "./AnswerOption";
 import { EmailStep } from "./EmailStep";
 import { ReviewStep } from "./ReviewStep";
+import { ConsentStep } from "./ConsentStep";
 import { ConfirmationStep } from "./ConfirmationStep";
 import { QuestionInput } from "./QuestionInput";
 
@@ -74,6 +78,7 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
   const [currentQuestion, setCurrentQuestion] = useState<TriagePublicQuestion | null>(null);
   const [email, setEmail] = useState("");
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [consentGranted, setConsentGranted] = useState(false);
   const [multiSelection, setMultiSelection] = useState<string[]>([]);
   const [typedValue, setTypedValue] = useState<unknown>(null);
   const [answerError, setAnswerError] = useState<string | null>(null);
@@ -82,6 +87,8 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
   const [submission, setSubmission] = useState<PreAuditSubmission | null>(null);
   const [isDuplicate, setIsDuplicate] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const [pendingBranches, setPendingBranches] = useState<PreAuditPendingBranch[]>([]);
+  const [currentBranch, setCurrentBranch] = useState<PreAuditPendingBranch | null>(null);
 
   const questionType: PreAuditQuestionType = resolveQuestionType(currentQuestion);
 
@@ -89,6 +96,7 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
     setVisited([]);
     setEmail("");
     setEmailError(null);
+    setConsentGranted(false);
     setMultiSelection([]);
     setTypedValue(null);
     setAnswerError(null);
@@ -96,6 +104,8 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
     setIsDuplicate(false);
     setError(null);
     setIsBusy(false);
+    setPendingBranches([]);
+    setCurrentBranch(null);
     setPhase("loading");
     try {
       const start = await ensureStartQuestion();
@@ -131,6 +141,8 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
           await startFresh();
         } else {
           setVisited(healed);
+          setPendingBranches(saved.pendingBranches ?? []);
+          setCurrentBranch(saved.currentBranch ?? null);
           setEmail(saved.email ?? "");
           if (saved.currentQuestion) {
             setCurrentQuestion(saved.currentQuestion);
@@ -168,45 +180,74 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
         currentQuestion,
         phase,
         updatedAt: new Date().toISOString(),
+        pendingBranches,
+        currentBranch,
       });
     }
-  }, [hydrated, phase, visited, email, currentQuestion]);
+  }, [hydrated, phase, visited, email, currentQuestion, pendingBranches, currentBranch]);
 
-  // ==================== QUESTION FLOW ====================
+  // ==================== QUESTION FLOW (MULTI-BRANCH DFS) ====================
+
+  /**
+   * Called whenever the active line reaches a terminal destination or rejoins
+   * an already-answered question. Any remaining pending branch is walked next
+   * (one branch fully processed before the next); when nothing is left the
+   * flow is complete and moves to review.
+   */
+  const continueFromPending = useCallback(
+    async (nextVisited: PreAuditVisitedEntry[], pending: PreAuditPendingBranch[]) => {
+      const resolved = resolvePendingBranch(
+        pending,
+        new Set(nextVisited.map((entry) => entry.questionId))
+      );
+      if (!resolved) {
+        setVisited(nextVisited);
+        setPendingBranches([]);
+        setCurrentBranch(null);
+        setConsentGranted(false);
+        setPhase("review");
+        return;
+      }
+      setPendingBranches(resolved.rest);
+      setCurrentBranch(resolved.branch);
+      setIsBusy(true);
+      try {
+        const next = resolved.branch.nextQuestionId as string;
+        const question = await ensureQuestion(next);
+        setVisited(nextVisited);
+        setCurrentQuestion(question);
+        setPhase("question");
+      } catch (err) {
+        setError({
+          title: "We couldn't load the next question",
+          message: errorMessageOf(err, "Please check your connection and try again."),
+        });
+        setPhase("error");
+      } finally {
+        setIsBusy(false);
+      }
+    },
+    []
+  );
 
   const applyEntry = useCallback(
-    async (entry: PreAuditVisitedEntry) => {
-      const nextVisited = [...visited, entry];
+    async (
+      entry: PreAuditVisitedEntry | null,
+      newBranches: PreAuditPendingBranch[] = []
+    ) => {
+      if (!entry) return;
+
+      const pendingAfter = stackBranches(pendingBranches, newBranches);
+      const entryToAdd = currentBranch ? { ...entry, branchStart: true } : entry;
+      const nextVisited = [...visited, entryToAdd];
+      const visitedIds = new Set(nextVisited.map((item) => item.questionId));
+
       setMultiSelection([]);
       setTypedValue(null);
       setAnswerError(null);
+      setCurrentBranch(null);
 
-      if (entry.auditType) {
-        setVisited(nextVisited);
-        setPhase("email");
-        return;
-      }
-
-      if (!entry.nextQuestionId) {
-        setError({
-          title: "We hit a dead end",
-          message: "This answer has no next step configured yet. Please contact support.",
-        });
-        setPhase("error");
-        return;
-      }
-
-      if (nextVisited.some((entryItem) => entryItem.questionId === entry.nextQuestionId)) {
-        setError({
-          title: "Something isn't right",
-          message:
-            "This pre-audit appears to loop back to a question you've already answered. It may not be configured correctly.",
-        });
-        setPhase("error");
-        return;
-      }
-
-      if (nextVisited.length >= PRE_AUDIT_MAX_STEPS) {
+      if (nextVisited.length > PRE_AUDIT_MAX_STEPS) {
         setError({
           title: "Too many steps",
           message:
@@ -216,10 +257,46 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
         return;
       }
 
+      const nextQuestionId = entryToAdd.nextQuestionId;
+
+      // Terminal destination reached on this line.
+      if (!nextQuestionId && (entryToAdd.destinationType || entryToAdd.auditType)) {
+        setIsBusy(true);
+        try {
+          await continueFromPending(nextVisited, pendingAfter);
+        } finally {
+          setIsBusy(false);
+        }
+        return;
+      }
+
+      if (!nextQuestionId) {
+        setError({
+          title: "We hit a dead end",
+          message: "This answer has no next step configured yet. Please contact support.",
+        });
+        setPhase("error");
+        return;
+      }
+
+      // The linear line rejoins a question already answered (a shared subtree).
+      // That branch is already accounted for; continue with any pending branch,
+      // otherwise the traversal is complete.
+      if (visitedIds.has(nextQuestionId)) {
+        setIsBusy(true);
+        try {
+          await continueFromPending(nextVisited, pendingAfter);
+        } finally {
+          setIsBusy(false);
+        }
+        return;
+      }
+
       setIsBusy(true);
       try {
-        const next = await ensureQuestion(entry.nextQuestionId);
+        const next = await ensureQuestion(nextQuestionId);
         setVisited(nextVisited);
+        setPendingBranches(pendingAfter);
         setCurrentQuestion(next);
         setPhase("question");
       } catch (err) {
@@ -232,37 +309,26 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
         setIsBusy(false);
       }
     },
-    [visited]
+    [visited, pendingBranches, currentBranch, continueFromPending]
   );
 
   const answer = useCallback(
     async (answerIds: string[]) => {
       if (!currentQuestion || isBusy) return;
-      const entry = makeVisitedEntry(currentQuestion, answerIds);
-      if (!entry) return;
-      await applyEntry(entry);
+      const { entry, branches } = makeChoiceAnswer(currentQuestion, answerIds);
+      await applyEntry(entry, branches);
     },
     [currentQuestion, isBusy, applyEntry]
   );
 
   /**
-   * Multi-select continues: all chosen options must agree on a destination
-   * (deterministic rule shared with the server). Conflicting options are
-   * flagged inline instead of being silently routed.
+   * Multi-select continues. Options that route to different destinations are no
+   * longer a conflict: the lowest-sortOrder route is walked first and every
+   * other route is queued as a pending branch, walked one at a time in
+   * canonical order (mirrored by the server replay).
    */
   const answerMulti = useCallback(async () => {
     if (!currentQuestion || isBusy || multiSelection.length === 0) return;
-    const chosen = currentQuestion.answers.filter((a) => multiSelection.includes(a.id));
-    const destinations = new Set(
-      chosen.map((a) => `${a.nextQuestionId ?? ""}|${a.auditType ?? ""}`)
-    );
-    if (destinations.size > 1) {
-      setAnswerError(
-        "These selections can't be combined because they lead to different next steps. Please choose again."
-      );
-      return;
-    }
-    setAnswerError(null);
     await answer(multiSelection);
   }, [currentQuestion, isBusy, multiSelection, answer]);
 
@@ -275,7 +341,8 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
       return;
     }
     setAnswerError(null);
-    await applyEntry(makeTypedVisitedEntry(currentQuestion, typedValue));
+    const entry = makeTypedVisitedEntry(currentQuestion, typedValue);
+    await applyEntry(entry);
   }, [currentQuestion, isBusy, typedValue, applyEntry]);
 
   const toggleMultiSelection = (answerId: string) => {
@@ -288,6 +355,14 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
 
   const goBack = useCallback(async () => {
     if (isBusy) return;
+
+    // Standing on the first (unanswered) question of a branch: stepping back
+    // re-queues that branch so it is offered again after finishing the
+    // previous line.
+    if (currentBranch) {
+      setPendingBranches((prev) => stackBranches(prev, [currentBranch]));
+      setCurrentBranch(null);
+    }
 
     if (visited.length === 0) {
       router.push(exitHref);
@@ -320,7 +395,7 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
     } finally {
       setIsBusy(false);
     }
-  }, [isBusy, visited, exitHref, router]);
+  }, [isBusy, visited, currentBranch, exitHref, router]);
 
   /**
    * Jumps to a previously answered question (from "Edit" on the review step or
@@ -336,6 +411,8 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
 
       const retained = recomputeActiveVisited(visited.slice(0, index), {});
       setVisited(retained);
+      setPendingBranches([]);
+      setCurrentBranch(null);
       setMultiSelection(entry.answerIds ?? []);
       setTypedValue(entry.value ?? null);
       setAnswerError(null);
@@ -358,21 +435,32 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
     [isBusy, visited]
   );
 
+  /**
+   * Lets the visitor finish early: any remaining (unwalked) branches are
+   * dropped. If the current line has already reached a terminal destination
+   * the flow moves straight to review; otherwise the current question is
+   * completed first and review follows naturally.
+   */
+  const skipBranches = useCallback(() => {
+    setPendingBranches([]);
+    setCurrentBranch(null);
+    const last = visited[visited.length - 1];
+    if (last && isTerminal(last)) {
+      setConsentGranted(false);
+      setPhase("review");
+    }
+  }, [visited]);
+
   // ==================== EMAIL & REVIEW ====================
 
   const handleEmailContinue = () => {
     const result = validateEmail(email);
     if (result.ok) {
       setEmailError(null);
-      setPhase("review");
+      setConsentGranted(false);
+      setPhase("consent");
     } else {
       setEmailError(result.message);
-    }
-  };
-
-  const handleEmailBack = () => {
-    if (visited.length >= 1) {
-      void editQuestion(visited.length - 1);
     }
   };
 
@@ -380,6 +468,11 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
 
   const handleSubmit = async () => {
     if (isBusy) return;
+
+    if (!consentGranted) {
+      setPhase("consent");
+      return;
+    }
 
     const result = validateEmail(email);
     if (!result.ok) {
@@ -407,9 +500,15 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
     // Re-evaluate server-side. Only genuine validation rejections (4xx) block:
     // an unreachable API still lets the audit complete on the device.
     let serverSessionId: string | undefined;
+    let serverDestinationType: PreAuditSubmission["destinationType"] | null = null;
+    let serverDestinationTarget: PreAuditSubmission["destinationTarget"] | null = null;
+    let serverConsentGrantedAt: string | null | undefined;
     try {
       const server = await submitPreAudit(result.value, visited);
       serverSessionId = server.id;
+      serverDestinationType = (server.destinationType as PreAuditSubmission["destinationType"]) ?? null;
+      serverDestinationTarget = server.destinationTarget ?? null;
+      serverConsentGrantedAt = server.consentGrantedAt ?? null;
     } catch (err) {
       const status = (err as { status?: number }).status;
       if (status !== undefined && status >= 400 && status < 500) {
@@ -426,10 +525,18 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
       }
     }
 
+    const serverReached = serverConsentGrantedAt !== undefined;
     const newSubmission = buildSubmission({
       email: result.value,
       visited,
       existingId: createRecordId(),
+      destinationType: serverReached && serverDestinationType ? serverDestinationType : undefined,
+      destinationTarget:
+        serverReached && serverDestinationType && serverDestinationTarget
+          ? serverDestinationTarget
+          : undefined,
+      serverAuthoritative: serverReached,
+      consentGrantedAt: serverReached ? serverConsentGrantedAt ?? null : undefined,
     });
     if (serverSessionId) newSubmission.serverSessionId = serverSessionId;
 
@@ -536,8 +643,39 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
               setEmail(value);
               if (emailError) setEmailError(null);
             }}
-            onContinue={handleEmailContinue}
-            onBack={handleEmailBack}
+            onContinue={() => {
+              const result = validateEmail(email);
+              if (!result.ok) {
+                setEmailError(result.message);
+                return;
+              }
+              setEmailError(null);
+              setConsentGranted(false);
+              setPhase("consent");
+            }}
+            onBack={() => {
+              setEmailError(null);
+              setPhase("review");
+            }}
+          />
+        </main>
+      </div>
+    );
+  }
+
+  if (phase === "consent") {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/30 p-4 sm:p-6 pt-24 sm:pt-28 pb-12">
+        <main className="max-w-3xl mx-auto">
+          <ConsentStep
+            consentGranted={consentGranted}
+            disabled={isBusy}
+            onConsentChange={setConsentGranted}
+            onBack={() => {
+              setConsentGranted(false);
+              setPhase("email");
+            }}
+            onSubmit={() => void handleSubmit()}
           />
         </main>
       </div>
@@ -550,13 +688,11 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
         <main className="max-w-3xl mx-auto">
           <ReviewStep
             visited={visited}
-            email={email}
             disabled={isBusy}
             onEditQuestion={(index) => void editQuestion(index)}
-            onSubmit={() => void handleSubmit()}
-            onBackToEmail={() => {
-              setEmailError(null);
-              setPhase("email");
+            onContinue={handleEmailContinue}
+            onBack={() => {
+              if (visited.length >= 1) void editQuestion(visited.length - 1);
             }}
           />
         </main>
@@ -610,9 +746,10 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
 
   const answeredCount = visited.length;
   const prevEntry = answeredCount > 0 ? visited[answeredCount - 1] : null;
-  const showExit = answeredCount === 0 || isTerminal(prevEntry);
+  const showExit = (answeredCount === 0 || isTerminal(prevEntry)) && !currentBranch;
   const isChoice = isChoiceType(questionType);
   const isMulti = isMultiSelectType(questionType);
+  const inBranch = currentBranch !== null;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/30">
@@ -636,6 +773,27 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
                   Business Pre-Audit
                 </span>
               </div>
+
+              {inBranch && currentBranch && (
+                <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl bg-orange-50 border border-orange-100 px-4 py-3">
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-orange-500 mb-0.5">
+                      Exploring a related topic
+                    </div>
+                    <div className="text-sm font-semibold text-slate-800 truncate">
+                      {currentBranch.optionTexts.join(", ")}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={skipBranches}
+                    disabled={isBusy}
+                    className="shrink-0 text-[11px] font-bold uppercase tracking-widest text-slate-500 hover:text-orange-600 transition-colors disabled:opacity-50"
+                  >
+                    Skip remaining
+                  </button>
+                </div>
+              )}
 
               <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 mb-6 sm:mb-8 leading-tight">
                 {currentQuestion.text}

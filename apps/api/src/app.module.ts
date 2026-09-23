@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UsersModule } from './users/users.module';
@@ -13,11 +14,24 @@ import { ProtocolsModule } from './protocols/protocols.module';
 import { AdminModule } from './admin/admin.module';
 import { SpecialistsModule } from './dashboard/specialists/specialists.module';
 import { McomModule } from './mcom/mcom.module';
+import { PublicModule } from './public/public.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+    }),
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        throttlers: [
+          {
+            ttl: parseInt(configService.get<string>('RATE_LIMIT_TTL_SECONDS') || '60', 10) * 1000,
+            limit: parseInt(configService.get<string>('RATE_LIMIT_PRE_AUDIT') || '20', 10),
+          },
+        ],
+      }),
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
@@ -44,6 +58,7 @@ import { McomModule } from './mcom/mcom.module';
     AdminModule,
     SpecialistsModule,
     McomModule,
+    PublicModule,
   ],
   controllers: [AppController],
   providers: [AppService],

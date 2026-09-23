@@ -24,6 +24,20 @@ export class PreAuditSession {
   @Column({ type: 'varchar', length: 50, nullable: true })
   recommendedAuditType: string | null;
 
+  // Terminal destination of the evaluated flow, in the extensible model.
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  destinationType: string | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  destinationTarget: string | null;
+
+  // Consent is recorded server-authoritatively at submission time.
+  @Column({ type: 'timestamptz', nullable: true })
+  consentGrantedAt: Date | null;
+
+  @Column({ type: 'varchar', length: 20, default: '1' })
+  consentVersion: string;
+
   @Column({ type: 'timestamptz', nullable: true })
   completedAt: Date | null;
 

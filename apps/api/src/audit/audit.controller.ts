@@ -24,6 +24,40 @@ export class AuditController {
     return this.auditService.getVaultStats(user.sub);
   }
 
+  @Post('from-pre-audit')
+  @UseGuards(AccessTokenGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({
+    summary: 'Start Audit from Pre-Audit',
+    description:
+      'Creates (or resumes) the audit session linked to a completed pre-audit. Idempotent: one audit per pre-audit. The audit type is taken from the pre-audit recommendation unless overridden.',
+  })
+  @ApiBody({
+    schema: {
+      example: {
+        preAuditSessionId: 'uuid-1234',
+        auditType: 'SHORT_FORM',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Audit session created or already linked.',
+    schema: { example: { id: 'uuid-au-1', status: 'TRIAGE_COMPLETED', auditType: 'SHORT_FORM', preAuditSessionId: 'uuid-1234' } },
+  })
+  @ApiResponse({ status: 409, description: 'The pre-audit is already linked to another account.' })
+  async createFromPreAudit(
+    @Body() body: { preAuditSessionId: string; auditType?: string },
+    @Req() req: Request,
+  ) {
+    const user = (req as any).user;
+    return this.auditService.createFromPreAudit(
+      user.sub,
+      body.preAuditSessionId,
+      body.auditType,
+    );
+  }
+
   @Get()
   @UseGuards(AccessTokenGuard)
   @ApiBearerAuth('access-token')

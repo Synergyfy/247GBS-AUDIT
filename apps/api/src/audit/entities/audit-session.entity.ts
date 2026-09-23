@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 
 export enum AuditStatus {
@@ -65,6 +65,12 @@ export class AuditSession {
     annualRecovery: number;
     impactScore: number;
   };
+
+  // Pre-Audit -> Audit handoff. One audit session per pre-audit session, so a
+  // repeat handoff never creates a duplicate audit.
+  @Index()
+  @Column({ type: 'varchar', length: 64, nullable: true, unique: true })
+  preAuditSessionId: string | null;
 
   @CreateDateColumn()
   createdAt: Date;

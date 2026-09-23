@@ -2,6 +2,7 @@ import { Injectable, ExecutionContext } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Reflector } from '@nestjs/core';
 import { PUBLIC_KEY } from '../decorators/public.decorator';
+import { isAdminDevBypass } from './accessToken.guard';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
@@ -16,6 +17,10 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     ]);
 
     if (isPublic) {
+      return true;
+    }
+
+    if (isAdminDevBypass(context)) {
       return true;
     }
 
