@@ -65,7 +65,7 @@ export function PublicNavbar() {
 
                 {/* Desktop Navigation */}
                 <div className="hidden md:flex items-center gap-8 text-sm font-semibold">
-                    <a href="/#comparison" className="hover:text-orange-500 transition-colors">Compare Audits</a>
+                    <a href="audit/pre-audit " className="hover:text-orange-500 transition-colors">Triage Audits</a>
                     <a href="/#why" className="hover:text-orange-500 transition-colors">Why Seasonal?</a>
                     <Link href="/pricing" className="hover:text-orange-500 transition-colors">Pricing</Link>
 
@@ -185,7 +185,7 @@ export function PublicNavbar() {
                   className="md:hidden bg-white border-t border-orange-100 px-6 overflow-hidden"
                 >
                   <div className="py-4 space-y-4">
-                    <a href="/#comparison" className="block py-2 text-sm font-semibold hover:text-orange-500 transition-colors">Compare Audits</a>
+                    <a href="audit/pre-audit " className="hover:text-orange-500 transition-colors">Triage Audits</a>
                     <a href="/#why" className="block py-2 text-sm font-semibold hover:text-orange-500 transition-colors">Why Seasonal?</a>
                     <Link href="/pricing" className="block py-2 text-sm font-semibold hover:text-orange-500 transition-colors">Pricing</Link>
 

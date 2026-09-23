@@ -139,10 +139,10 @@ function HeroSlider({ onStartReview }: { onStartReview: () => void }) {
               <ArrowRight size={18} />
             </button>
             <a
-              href="#how-it-works"
+              href="audit/pre-audit/flow"
               className="flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-3.5 sm:py-4 rounded-2xl border border-white/20 bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-colors cursor-pointer group text-center justify-center"
             >
-              <span className="font-bold text-sm sm:text-base text-white">Learn More</span>
+              <span className="font-bold text-sm sm:text-base text-white">Start Audit</span>
             </a>
           </div>
         </div>
@@ -157,8 +157,8 @@ export default function LandingPage() {
   const router = useRouter();
 
   const handleStartReview = () => {
-    // Triage is now public
-    router.push("/audit/welcome");
+    // The pre-audit is fully public — no sign-in required
+    router.push("/audit/pre-audit");
   };
 
   const fadeIn = {

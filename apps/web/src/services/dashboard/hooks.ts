@@ -25,6 +25,14 @@ export function useDashboard() {
       // If unauthorized, attempt refresh once and retry
       if (res.status === 401) {
         const newToken = await refreshAccessToken();
+        if (newToken === false) {
+          if (typeof window !== "undefined") {
+            localStorage.removeItem("247gbs_token");
+            localStorage.removeItem("auth_token");
+            localStorage.removeItem("247gbs_user");
+          }
+          throw new Error("Session expired. Please sign in again.");
+        }
         if (newToken) {
           headers["Authorization"] = `Bearer ${newToken}`;
           res = await fetch(`${API_BASE_URL}/dashboard`, { method: "GET", headers, signal });

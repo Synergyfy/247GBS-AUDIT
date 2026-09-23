@@ -56,7 +56,7 @@ function getComparisonTableData(selectedSubTier: TierId) {
 }
 
 export default function PricingPage() {
-  const [selectedSubTier, setSelectedSubTier] = useState<TierId>('normal');
+  const [selectedSubTier, setSelectedSubTier] = useState<TierId>('standard');
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
   const [showComparison, setShowComparison] = useState(false);
   const comparisonFeatures = getComparisonTableData(selectedSubTier);
@@ -99,7 +99,7 @@ export default function PricingPage() {
 
             {/* Sub-tier Toggle */}
             <div className="flex gap-2 p-1.5 bg-orange-500/5 rounded-2xl border border-orange-500/10 overflow-x-auto w-full sm:w-auto">
-              {(['normal', 'pro', 'pro-plus'] as TierId[]).map((tier) => (
+              {(['standard', 'pro', 'pro-plus'] as TierId[]).map((tier) => (
                 <button
                   key={tier}
                   onClick={() => setSelectedSubTier(tier)}
@@ -110,9 +110,9 @@ export default function PricingPage() {
                       : "text-orange-500/60 hover:text-orange-500 hover:bg-orange-500/10"
                   )}
                 >
-                  {tier === 'normal' ? 'Normal' : tier === 'pro' ? 'Pro' : 'Pro+'}
+                  {tier === 'standard' ? 'Standard' : tier === 'pro' ? 'Pro' : 'Pro+'}
                   <span className="text-[10px] opacity-80 font-normal mt-1">
-                    {tier === 'normal' && 'Basic Access'}
+                    {tier === 'standard' && 'Basic Access'}
                     {tier === 'pro' && 'More Growth'}
                     {tier === 'pro-plus' && 'Max Visibility'}
                   </span>
@@ -214,7 +214,7 @@ export default function PricingPage() {
               Compare All Features
               {showComparison ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
             </button>
-            <p className="text-slate-500 text-sm mt-2">See exactly what's included in each plan at the {selectedSubTier === 'normal' ? 'Normal' : selectedSubTier === 'pro' ? 'Pro' : 'Pro+'} tier level.</p>
+            <p className="text-slate-500 text-sm mt-2">See exactly what's included in each plan at the {selectedSubTier === 'standard' ? 'Standard' : selectedSubTier === 'pro' ? 'Pro' : 'Pro+'} tier level.</p>
           </div>
 
           <motion.div

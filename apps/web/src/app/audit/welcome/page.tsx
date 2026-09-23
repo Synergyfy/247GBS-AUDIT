@@ -85,12 +85,15 @@ export default function WelcomePage() {
 
             {/* CTA */}
             <button
-              onClick={() => router.push("/audit/triage")}
+              onClick={() => router.push("/audit/pre-audit/flow")}
               className="w-full bg-orange-500 hover:bg-orange-600 text-white px-6 py-4 rounded-2xl font-bold text-base sm:text-lg flex items-center justify-center gap-3 shadow-xl shadow-orange-500/30 transition-all hover:-translate-y-1 active:translate-y-0"
             >
-              Start Free Business Triage
+              Start Free Business Pre-Audit
               <ArrowRight size={18} />
             </button>
+            <p className="text-[10px] sm:text-xs text-slate-400 text-center mt-4 leading-relaxed">
+              No sign-in needed. Your answers are saved on this device until you create an account.
+            </p>
           </div>
         </div>
       </motion.div>

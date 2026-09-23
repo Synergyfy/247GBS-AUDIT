@@ -33,6 +33,10 @@ yarn-error.log*
 .env*
 !.env.example
 
+# pnpm workspace — ignore npm-only lockfiles
+package-lock.json
+npm-shrinkwrap.json
+
 # Vercel
 .vercel
 

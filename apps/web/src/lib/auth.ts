@@ -1,6 +1,6 @@
 import { API_BASE_URL } from './api';
 
-export async function refreshAccessToken(): Promise<string | null> {
+export async function refreshAccessToken(): Promise<string | null | false> {
   try {
     const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
       method: 'GET',
@@ -10,6 +10,7 @@ export async function refreshAccessToken(): Promise<string | null> {
       },
     });
 
+    if (res.status === 401) return false; // invalid/expired refresh session
     if (!res.ok) return null;
     const contentType = res.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) return null;

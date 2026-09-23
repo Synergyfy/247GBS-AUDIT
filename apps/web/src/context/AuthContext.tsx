@@ -39,17 +39,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Periodically refresh access token to keep session alive and notify listeners
     useEffect(() => {
         let mounted = true;
+        let invalidSession = false;
+
+        const invalidateStaleSession = () => {
+            invalidSession = true;
+            localStorage.removeItem("247gbs_user");
+            localStorage.removeItem("auth_token");
+            localStorage.removeItem("247gbs_token");
+            setUser(null);
+        };
+
         const doRefresh = async () => {
             try {
                 const token = await refreshAccessToken();
-                if (!mounted) return;
-                if (token) {
-                    try {
-                        const ev = new StorageEvent('storage', { key: 'auth_token', newValue: token });
-                        window.dispatchEvent(ev);
-                    } catch {
-                        window.dispatchEvent(new Event('auth_token_refreshed'));
-                    }
+                if (token === false) {
+                    if (mounted) invalidateStaleSession();
+                    return;
+                }
+                if (!mounted || !token) return;
+                try {
+                    const ev = new StorageEvent('storage', { key: 'auth_token', newValue: token });
+                    window.dispatchEvent(ev);
+                } catch {
+                    window.dispatchEvent(new Event('auth_token_refreshed'));
                 }
             } catch {
                 // ignore
@@ -61,7 +73,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!hasSession) return;
 
         doRefresh();
-        const id = setInterval(doRefresh, 60 * 1000);
+        const id = setInterval(() => {
+            if (!invalidSession) doRefresh();
+        }, 60 * 1000);
         return () => {
             mounted = false;
             clearInterval(id);
