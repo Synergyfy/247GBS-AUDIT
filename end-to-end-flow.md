@@ -939,3 +939,32 @@ From Henry's comments and the current prototype, the main gaps are:
 * The platform should support continuous monitoring and scheduled re-audits, making the audit the foundation of an ongoing consultancy relationship rather than a standalone form.
 
 This end-to-end flow aligns with Henry's repeated description of the audit as a **business diagnostic, prioritization, and solution delivery system**, not merely an assessment form.
+
+---
+
+# Public Pre-Audit (current implementation)
+
+The **Public Pre-Audit** is the front-door implementation of PHASE 4/5/6 above. It is a fully public, no-account required, data-driven question engine built on top of the existing Business Triage content.
+
+- **Routes** (web): `/audit/pre-audit` (public landing) and `/audit/pre-audit/flow` (the engine).
+- **Question data**: consumed live from the public endpoints `GET /api/v1/triage/questions/start` and `GET /api/v1/triage/questions/:id`. No question content is hardcoded in the frontend.
+- **Flow**: loading → question → email → review → submitting → confirmation (plus error states). Back navigation and edit-from-review **recalculate the active branch path** and drop answers that are no longer reachable.
+- **Progress**: derived from the active path only (`Question N`, `N answered`). No hardcoded "Step X of 20".
+- **Persistence**: progress and the completed result (email + answers + recommended audit + fingerprint) are stored in `localStorage` (`247gbs_preaudit_progress`, `247gbs_preaudit_result`, `247gbs_preaudit_submissions`). Duplicate submissions (same email + same answers) are detected via a fingerprint and prevented.
+- **Fetching**: uses the same direct-`fetch` helpers as the existing triage page (`services/triage/flow`). The shared `apiClient` 401-redirect is intentionally **not** used so anonymous users never see a bogus "session expired" error.
+
+## Backend gaps (explicitly out of scope for the frontend-only build)
+
+These are the deliberate boundaries of the current implementation. Address them server-side before treating the Pre-Audit as production-end-to-end:
+
+1. **No public submission endpoint.** `POST /api/v1/triage` requires a JWT and a fixed DTO. There is no public endpoint to store a pre-audit + email on the server, so submissions currently live only in the visitor's browser. A public endpoint (e.g. `POST /api/v1/pre-audit` storing email + answers) is the natural next step.
+2. **Question model has no `type`.** `TriageQuestion` only exposes single-choice answers (`nextQuestionId` / `auditType`). There is no `type` column for multi-select, text, number, or email questions. The Pre-Audit engine is forward-compatible: it honours a question `type` of `multi-select` if one is ever added, and otherwise defaults to single-choice.
+3. **Full Audit handoff is user-bound.** `AuditSession` requires a `userId` and is created via the authenticated `POST /triage`. A public pre-audit therefore cannot create a server-side audit session. The confirmation currently links to `/audit/flow?type=SHORT_FORM|LONG_FORM`, which runs the full audit UI but, for anonymous visitors, still has no persisted server record until they create an account and complete the authenticated triage.
+4. **Email is not persisted server-side**, so result emails cannot yet be sent from a public submission.
+5. **Admin triage endpoints are `@Public()`** (`/api/v1/admin/triage/*`) — a pre-existing anomaly. They are not guarded and should be secured before production.
+
+## Verified data properties (checked against a live local API)
+
+- The seeded triage graph is acyclic (no infinite loops).
+- Every branch terminates with a `SHORT_FORM` or `LONG_FORM` recommendation, so the Pre-Audit reliably reaches the email → review → confirmation steps.
+- Maximum path depth is 4 questions.
