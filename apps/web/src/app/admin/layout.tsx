@@ -8,6 +8,7 @@ import {
     LayoutDashboard,
     Users,
     FileText,
+    GitBranch,
     Settings,
     Shield,
     Bell,
@@ -31,6 +32,7 @@ export default function AdminLayout({
         { icon: LayoutDashboard, label: "Overview", href: "/admin" },
         { icon: Users, label: "Users", href: "/admin/users" },
         { icon: FileText, label: "Audits", href: "/admin/audits" },
+        { icon: GitBranch, label: "Business Triage", href: "/admin/triage" },
         { icon: Settings, label: "Settings", href: "/admin/settings" },
     ];
 

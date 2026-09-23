@@ -1,5 +1,5 @@
 export type PlanId = 'bronze' | 'silver' | 'gold' | 'platinum';
-export type TierId = 'normal' | 'pro' | 'pro-plus';
+export type TierId = 'standard' | 'pro' | 'pro-plus';
 
 export interface PlanTier {
   id: TierId;
@@ -32,8 +32,8 @@ export const PRICING_PLANS: PricingPlan[] = [
     bgGradient: 'from-amber-50 to-amber-100/30',
     tiers: [
       {
-        id: 'normal',
-        name: 'Normal',
+        id: 'standard',
+        name: 'Standard',
         price: 'Free',
         priceSuffix: '',
         features: [
@@ -50,7 +50,7 @@ export const PRICING_PLANS: PricingPlan[] = [
         price: '£29',
         priceSuffix: '/month',
         features: [
-          'Everything in Normal plus:',
+          'Everything in Standard plus:',
           'Long Business Audit',
           'Detailed business diagnosis',
           'Priority recommendations',
@@ -84,8 +84,8 @@ export const PRICING_PLANS: PricingPlan[] = [
     bgGradient: 'from-slate-50 to-slate-100/30',
     tiers: [
       {
-        id: 'normal',
-        name: 'Normal',
+        id: 'standard',
+        name: 'Standard',
         price: '£79',
         priceSuffix: '/month',
         features: [
@@ -103,7 +103,7 @@ export const PRICING_PLANS: PricingPlan[] = [
         price: '£129',
         priceSuffix: '/month',
         features: [
-          'Everything in Silver Normal plus:',
+          'Everything in Silver Standard plus:',
           'Recommended Solutions Engine',
           'Budget & timeframe planning',
           'Implementation roadmap (3 phases)',
@@ -138,8 +138,8 @@ export const PRICING_PLANS: PricingPlan[] = [
     bgGradient: 'from-yellow-50 to-yellow-100/30',
     tiers: [
       {
-        id: 'normal',
-        name: 'Normal',
+        id: 'standard',
+        name: 'Standard',
         price: '£249',
         priceSuffix: '/month',
         features: [
@@ -158,7 +158,7 @@ export const PRICING_PLANS: PricingPlan[] = [
         price: '£399',
         priceSuffix: '/month',
         features: [
-          'Everything in Gold Normal plus:',
+          'Everything in Gold Standard plus:',
           'Full MCOM ecosystem access',
           'Dedicated Account Manager',
           'Bi-weekly progress reviews',
@@ -195,8 +195,8 @@ export const PRICING_PLANS: PricingPlan[] = [
     bgGradient: 'from-purple-50 to-purple-100/30',
     tiers: [
       {
-        id: 'normal',
-        name: 'Normal',
+        id: 'standard',
+        name: 'Standard',
         price: '£899',
         priceSuffix: '/month',
         features: [
@@ -216,7 +216,7 @@ export const PRICING_PLANS: PricingPlan[] = [
         price: '£1,499',
         priceSuffix: '/month',
         features: [
-          'Everything in Platinum Normal plus:',
+          'Everything in Platinum Standard plus:',
           'Unlimited Business Audits',
           'Unlimited team members',
           'Full Account Manager service',

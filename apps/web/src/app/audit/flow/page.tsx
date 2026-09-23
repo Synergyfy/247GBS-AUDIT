@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, useCallback } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -23,6 +23,9 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { API_BASE_URL } from "@/lib/api";
+import { loadSubmissions } from "@/lib/preAudit/storage";
+import { buildPreAuditPrefill } from "@/lib/preAudit/prefill";
+import type { TriageDestinationType } from "@/services/triage/types";
 import { AUDIT_QUESTIONS } from "@/data/questions";
 import { AUDIT_STAGES, type AuditStage } from "@/data/audit-stages";
 import type { Question, QuestionType, AuditCategory, AuditType, QuestionOption } from "@/types/audit";
@@ -62,6 +65,37 @@ interface AuditState {
 }
 
 const STORAGE_KEY = "247gbs_audit_flow";
+const SESSION_STORAGE_KEY = "247gbs_audit_server_session";
+
+// ============================================================
+// PRE-AUDIT HANDOFF HELPERS
+// ============================================================
+
+/** Server-side answer persistence; silently falls back to a client-only flow. */
+async function persistAnswersToServer(id: string, answers: Record<string, any>): Promise<void> {
+    const token = localStorage.getItem("247gbs_token");
+    if (!token) return;
+    const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+    };
+    let res = await fetch(`${API_BASE_URL}/audit/${id}/answers`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify(answers),
+    });
+    if (res.status === 401) {
+        const { refreshAccessToken } = await import("@/lib/auth");
+        const newToken = await refreshAccessToken();
+        if (!newToken) return;
+        headers.Authorization = `Bearer ${newToken}`;
+        res = await fetch(`${API_BASE_URL}/audit/${id}/answers`, {
+            method: "PUT",
+            headers,
+            body: JSON.stringify(answers),
+        });
+    }
+}
 
 // ============================================================
 // MAIN COMPONENT
@@ -111,6 +145,8 @@ export default function AuditFlowPage() {
         startedAt: new Date().toISOString()
     });
     const [hydrated, setHydrated] = useState(false);
+    const [serverSessionId, setServerSessionId] = useState<string | null>(null);
+    const [serverHydrated, setServerHydrated] = useState(false);
 
     // Restore progress
     useEffect(() => {
@@ -133,6 +169,158 @@ export default function AuditFlowPage() {
         }
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     }, [state, hydrated]);
+
+    // Pre-Audit -> Audit server handoff + resume. Only when signed in; any
+    // failure falls back to the existing client-only flow.
+    useEffect(() => {
+        if (!hydrated || serverHydrated) return;
+        let cancelled = false;
+
+        const ensureServerSession = async () => {
+            const token = localStorage.getItem("247gbs_token");
+            if (!token) {
+                setServerHydrated(true);
+                return;
+            }
+            const headers: Record<string, string> = {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+            };
+
+            // 1) Explicit resume target from the URL.
+            const urlSession = searchParams.get("sessionId");
+            if (urlSession) {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/audit/${urlSession}`, { headers });
+                    if (res.ok) {
+                        const session = await res.json();
+                        if (!cancelled) {
+                            setServerSessionId(session.id);
+                            localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ id: session.id, auditType }));
+                            if (session.answers && Object.keys(session.answers).length > 0) {
+                                setState(prev => ({
+                                    ...prev,
+                                    answers: { ...prev.answers, ...session.answers },
+                                }));
+                            }
+                        }
+                    }
+                } catch { /* client-only fallback */ }
+                if (!cancelled) setServerHydrated(true);
+                return;
+            }
+
+            // 2) A server session already linked for this audit type on this device.
+            const storedSession = localStorage.getItem(SESSION_STORAGE_KEY);
+            if (storedSession) {
+                try {
+                    const parsed = JSON.parse(storedSession);
+                    if (parsed.id && (parsed.auditType === auditType || parsed.auditType === "SECTOR")) {
+                        if (!cancelled) setServerSessionId(parsed.id);
+                        if (!cancelled) setServerHydrated(true);
+                        return;
+                    }
+                } catch { /* ignore */ }
+            }
+
+            // 3) Handoff from a completed pre-audit that recommended this audit.
+            const submission = loadSubmissions().find(s => {
+                const dest = s.destinationType as TriageDestinationType | null;
+                if (dest === "SHORT_FORM") return auditType === "SHORT_FORM";
+                if (dest === "LONG_FORM" || dest === "SECTOR") return auditType === "LONG_FORM";
+                return false;
+            });
+            if (submission?.serverSessionId) {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/audit/from-pre-audit`, {
+                        method: "POST",
+                        headers,
+                        body: JSON.stringify({
+                            preAuditSessionId: submission.serverSessionId,
+                            auditType: auditType === "SHORT_FORM" ? "SHORT_FORM" : "LONG_FORM",
+                        }),
+                    });
+                    if (res.status === 401) {
+                        const { refreshAccessToken } = await import("@/lib/auth");
+                        const newToken = await refreshAccessToken();
+                        if (newToken) {
+                            headers.Authorization = `Bearer ${newToken}`;
+                            const retried = await fetch(`${API_BASE_URL}/audit/from-pre-audit`, {
+                                method: "POST",
+                                headers,
+                                body: JSON.stringify({
+                                    preAuditSessionId: submission.serverSessionId,
+                                    auditType: auditType === "SHORT_FORM" ? "SHORT_FORM" : "LONG_FORM",
+                                }),
+                            });
+                            if (retried.ok && !cancelled) {
+                                const session = await retried.json();
+                                setServerSessionId(session.id);
+                                localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ id: session.id, auditType }));
+                            }
+                        }
+                    } else if (res.ok && !cancelled) {
+                        const session = await res.json();
+                        setServerSessionId(session.id);
+                        localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ id: session.id, auditType }));
+                    }
+                } catch { /* client-only fallback */ }
+            }
+            if (!cancelled) setServerHydrated(true);
+        };
+
+        void ensureServerSession();
+        return () => { cancelled = true; };
+    }, [hydrated, serverHydrated, auditType, searchParams]);
+
+    // Pre-Audit -> Audit answers prefill (P5). Best-effort, confidence-gated:
+    // only fills audit answers when a completed pre-audit recommended this
+    // audit type, no local/server answers exist yet, and the mapping matches.
+    const [prefilled, setPrefilled] = useState(false);
+    useEffect(() => {
+        if (!hydrated || prefilled) return;
+        if (Object.keys(state.answers).length > 0) {
+            setPrefilled(true);
+            return;
+        }
+        const submission = loadSubmissions().find(s => {
+            const dest = s.destinationType as TriageDestinationType | null;
+            if (dest === "SHORT_FORM") return auditType === "SHORT_FORM";
+            if (dest === "LONG_FORM" || dest === "SECTOR") return auditType === "LONG_FORM";
+            return false;
+        });
+        if (!submission || !submission.answers || submission.answers.length === 0) {
+            setPrefilled(true);
+            return;
+        }
+        const results = buildPreAuditPrefill(submission.answers, filteredQuestions);
+        if (results.filled > 0) {
+            setState(prev =>
+                Object.keys(prev.answers).length === 0
+                    ? { ...prev, answers: results.answers }
+                    : prev
+            );
+        }
+        setPrefilled(true);
+    }, [hydrated, prefilled, auditType, filteredQuestions, state.answers]);
+
+    // Debounced server persistence as the audit progresses.
+    const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    useEffect(() => {
+        if (!hydrated) return;
+        if (!serverSessionId) return;
+        if (state.currentScreen === "complete" || state.currentScreen === "processing") return;
+        if (Object.keys(state.answers).length === 0) return;
+
+        if (saveTimer.current) clearTimeout(saveTimer.current);
+        saveTimer.current = setTimeout(() => {
+            void persistAnswersToServer(serverSessionId, state.answers);
+        }, 1000);
+    }, [hydrated, serverSessionId, state.answers, state.currentScreen]);
+
+    useEffect(() => () => {
+        if (saveTimer.current) clearTimeout(saveTimer.current);
+    }, []);
 
     const currentStage = activeStages[state.stageIdx];
     const currentQuestions = currentStage ? stageQuestions[currentStage.id] || [] : [];
@@ -245,35 +433,45 @@ export default function AuditFlowPage() {
                     Authorization: `Bearer ${token}`,
                 };
 
-                let res = await fetch(`${API_BASE_URL}/audit`, {
-                    method: "POST",
-                    headers,
-                    body: JSON.stringify({
-                        auditType,
-                        scopes: Object.keys(state.answers),
-                    }),
-                });
+                let sessionId = serverSessionId;
 
-                if (res.status === 401) {
-                    const { refreshAccessToken } = await import("@/lib/auth");
-                    const newToken = await refreshAccessToken();
-                    if (newToken) {
-                        headers.Authorization = `Bearer ${newToken}`;
-                        res = await fetch(`${API_BASE_URL}/audit`, {
-                            method: "POST",
-                            headers,
-                            body: JSON.stringify({
-                                auditType,
-                                scopes: Object.keys(state.answers),
-                            }),
-                        });
+                // Create the server session only when the pre-audit handoff has
+                // not already linked one.
+                if (!sessionId) {
+                    let res = await fetch(`${API_BASE_URL}/audit`, {
+                        method: "POST",
+                        headers,
+                        body: JSON.stringify({
+                            auditType,
+                            scopes: Object.keys(state.answers),
+                        }),
+                    });
+
+                    if (res.status === 401) {
+                        const { refreshAccessToken } = await import("@/lib/auth");
+                        const newToken = await refreshAccessToken();
+                        if (newToken) {
+                            headers.Authorization = `Bearer ${newToken}`;
+                            res = await fetch(`${API_BASE_URL}/audit`, {
+                                method: "POST",
+                                headers,
+                                body: JSON.stringify({
+                                    auditType,
+                                    scopes: Object.keys(state.answers),
+                                }),
+                            });
+                        }
+                    }
+
+                    if (res.ok) {
+                        const session = await res.json();
+                        sessionId = session.id;
                     }
                 }
 
-                if (res.ok) {
-                    const session = await res.json();
+                if (sessionId) {
                     if (sectorId) {
-                        await fetch(`${API_BASE_URL}/audit/${session.id}/sector`, {
+                        await fetch(`${API_BASE_URL}/audit/${sessionId}/sector`, {
                             method: "PATCH",
                             headers,
                             body: JSON.stringify({
@@ -283,7 +481,7 @@ export default function AuditFlowPage() {
                             }),
                         });
                     }
-                    await fetch(`${API_BASE_URL}/audit/${session.id}/answers`, {
+                    await fetch(`${API_BASE_URL}/audit/${sessionId}/answers`, {
                         method: "PUT",
                         headers,
                         body: JSON.stringify(state.answers),

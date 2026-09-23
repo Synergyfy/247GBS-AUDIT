@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { API_BASE_URL } from "@/lib/api";
-import { refreshAccessToken } from "@/lib/auth";
+import { refreshAccessToken, handleSessionExpired } from "@/lib/auth";
 import type { AuditListResponse, SavedAudit, VaultStats } from "./types";
 
 export function useAudits() {
@@ -22,6 +22,10 @@ export function useAudits() {
 
       if (res.status === 401) {
         const newToken = await refreshAccessToken();
+        if (newToken === false) {
+          handleSessionExpired();
+          throw new Error("Session expired. Please sign in again.");
+        }
         if (newToken) {
           headers["Authorization"] = `Bearer ${newToken}`;
           res = await fetch(`${API_BASE_URL}/audit`, { method: "GET", headers, signal });
@@ -89,6 +93,10 @@ export function useVaultStats() {
 
       if (res.status === 401) {
         const newToken = await refreshAccessToken();
+        if (newToken === false) {
+          handleSessionExpired();
+          throw new Error("Session expired. Please sign in again.");
+        }
         if (newToken) {
           headers["Authorization"] = `Bearer ${newToken}`;
           res = await fetch(`${API_BASE_URL}/audit/stats`, { method: "GET", headers, signal });

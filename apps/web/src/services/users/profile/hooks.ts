@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { API_BASE_URL } from "@/lib/api";
-import { refreshAccessToken } from "@/lib/auth";
+import { refreshAccessToken, handleSessionExpired } from "@/lib/auth";
 import type { UserProfile } from "./types";
 
 export function useProfile() {
@@ -22,6 +22,10 @@ export function useProfile() {
 
       if (res.status === 401) {
         const newToken = await refreshAccessToken();
+        if (newToken === false) {
+          handleSessionExpired();
+          throw new Error("Session expired. Please sign in again.");
+        }
         if (newToken) {
           headers["Authorization"] = `Bearer ${newToken}`;
           res = await fetch(`${API_BASE_URL}/users/profile`, { method: "GET", headers, signal, credentials: 'include' });

@@ -1,18 +1,24 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
-    Bell,
-    Shield,
     Globe,
-    Palette,
-    Key,
     Save,
     CheckCircle2,
     Loader2,
-    ToggleLeft,
-    ToggleRight
+    BookOpen,
+    Plus,
+    Trash2
 } from "lucide-react";
+import {
+    fetchAdminSettings,
+    fetchAdminHelpResources,
+    saveAdminSettings,
+    createHelpResource,
+    updateHelpResource,
+    deleteHelpResource,
+    type HelpResource
+} from "@/services/admin/settings";
 
 interface ToggleProps {
     enabled: boolean;
@@ -33,43 +39,138 @@ function Toggle({ enabled, onToggle }: ToggleProps) {
     );
 }
 
+const CATEGORY_OPTIONS = ["support", "service", "funding", "guide"];
+
 export default function SettingsPage() {
+    const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    // Notification settings
-    const [emailAlerts, setEmailAlerts] = useState(true);
-    const [auditCompletions, setAuditCompletions] = useState(true);
-    const [newRegistrations, setNewRegistrations] = useState(false);
-    const [systemAlerts, setSystemAlerts] = useState(true);
-
-    // Security settings
-    const [twoFactor, setTwoFactor] = useState(false);
-    const [sessionTimeout, setSessionTimeout] = useState("60");
-    const [ipWhitelist, setIpWhitelist] = useState("");
-
-    // General settings
+    // General / landing settings (real API)
     const [platformName, setPlatformName] = useState("247GBS Audit");
     const [supportEmail, setSupportEmail] = useState("support@247gbs.com");
-    const [timezone, setTimezone] = useState("Africa/Lagos");
+    const [landingTitle, setLandingTitle] = useState("");
+    const [landingSubtitle, setLandingSubtitle] = useState("");
+    const [landingCtaLabel, setLandingCtaLabel] = useState("");
+    const [landingCtaHref, setLandingCtaHref] = useState("");
+    const [landingShowPreAudit, setLandingShowPreAudit] = useState(true);
+
+    // Help resources
+    const [resources, setResources] = useState<HelpResource[]>([]);
+    const [draftTitle, setDraftTitle] = useState("");
+    const [draftDescription, setDraftDescription] = useState("");
+    const [draftCategory, setDraftCategory] = useState("support");
+    const [draftHref, setDraftHref] = useState("");
+
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            try {
+                const [settings, help] = await Promise.all([
+                    fetchAdminSettings(),
+                    fetchAdminHelpResources(),
+                ]);
+                if (cancelled) return;
+                setPlatformName(settings.platformName || "247GBS Audit");
+                setSupportEmail(settings.supportEmail || "");
+                setLandingTitle(settings.landingTitle || "");
+                setLandingSubtitle(settings.landingSubtitle || "");
+                setLandingCtaLabel(settings.landingCtaLabel || "");
+                setLandingCtaHref(settings.landingCtaHref || "");
+                setLandingShowPreAudit(settings.landingShowPreAudit ?? true);
+                setResources(help);
+            } catch (e) {
+                if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load settings");
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, []);
 
     const handleSave = async () => {
         setSaving(true);
         setSaved(false);
-        // Simulate save — wire up to a real API endpoint when ready
-        await new Promise(r => setTimeout(r, 900));
-        setSaving(false);
-        setSaved(true);
-        setTimeout(() => setSaved(false), 3000);
+        setError(null);
+        try {
+            await saveAdminSettings({
+                platformName,
+                supportEmail: supportEmail || null,
+                landingTitle: landingTitle || null,
+                landingSubtitle: landingSubtitle || null,
+                landingCtaLabel: landingCtaLabel || null,
+                landingCtaHref: landingCtaHref || null,
+                landingShowPreAudit,
+            });
+            setSaved(true);
+            setTimeout(() => setSaved(false), 3000);
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Failed to save settings");
+        } finally {
+            setSaving(false);
+        }
     };
 
+    const handleAddResource = async () => {
+        if (!draftTitle.trim()) return;
+        setError(null);
+        try {
+            const created = await createHelpResource({
+                title: draftTitle.trim(),
+                description: draftDescription.trim() || undefined,
+                category: draftCategory,
+                href: draftHref.trim() || undefined,
+            });
+            setResources(prev => [...prev, created]);
+            setDraftTitle("");
+            setDraftDescription("");
+            setDraftHref("");
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Failed to add resource");
+        }
+    };
+
+    const handleToggleResource = async (resource: HelpResource) => {
+        setError(null);
+        try {
+            const updated = await updateHelpResource(resource.id, { isActive: !resource.isActive });
+            setResources(prev => prev.map(r => (r.id === updated.id ? updated : r)));
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Failed to update resource");
+        }
+    };
+
+    const handleDeleteResource = async (id: string) => {
+        setError(null);
+        try {
+            await deleteHelpResource(id);
+            setResources(prev => prev.filter(r => r.id !== id));
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Failed to delete resource");
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center py-32">
+                <Loader2 size={28} className="text-orange-500 animate-spin" />
+            </div>
+        );
+    }
+
     return (
-        <div className="space-y-8 max-w-3xl">
-            {/* Header */}
+        <div className="space-y-8 max-w-4xl">
+            {error && (
+                <div className="bg-red-50 border border-red-100 text-red-600 rounded-2xl px-5 py-4 text-sm font-medium">
+                    {error}
+                </div>
+            )}
+
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-slate-900 tracking-tight mb-2">System Settings</h1>
-                    <p className="text-slate-500 font-medium">Configure platform behaviour, security, and notifications.</p>
+                    <p className="text-slate-500 font-medium">Configure platform behaviour, landing content, and public help resources.</p>
                 </div>
                 <button
                     onClick={handleSave}
@@ -114,106 +215,140 @@ export default function SettingsPage() {
                             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-orange-500 focus:bg-white transition-all"
                         />
                     </div>
-                    <div>
-                        <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Timezone</label>
-                        <select
-                            value={timezone}
-                            onChange={e => setTimezone(e.target.value)}
-                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-orange-500 focus:bg-white transition-all"
-                        >
-                            <option value="Africa/Lagos">Africa/Lagos (WAT)</option>
-                            <option value="UTC">UTC</option>
-                            <option value="Europe/London">Europe/London (GMT)</option>
-                            <option value="America/New_York">America/New_York (EST)</option>
-                            <option value="Asia/Dubai">Asia/Dubai (GST)</option>
-                        </select>
-                    </div>
                 </div>
             </section>
 
-            {/* Notifications */}
-            <section className="bg-white border border-slate-100 rounded-3xl p-8 shadow-sm space-y-5">
+            {/* Landing */}
+            <section className="bg-white border border-slate-100 rounded-3xl p-8 shadow-sm space-y-6">
                 <div className="flex items-center gap-3 mb-2">
                     <div className="w-9 h-9 bg-orange-50 rounded-xl flex items-center justify-center">
-                        <Bell size={18} className="text-orange-500" />
+                        <Globe size={18} className="text-orange-500" />
                     </div>
-                    <h2 className="text-lg font-bold text-slate-900">Notifications</h2>
+                    <h2 className="text-lg font-bold text-slate-900">Landing Page</h2>
                 </div>
 
-                {[
-                    { label: "Email Alerts", sub: "Receive general platform alerts via email", value: emailAlerts, toggle: () => setEmailAlerts(v => !v) },
-                    { label: "Audit Completions", sub: "Notify when an audit is marked complete", value: auditCompletions, toggle: () => setAuditCompletions(v => !v) },
-                    { label: "New Registrations", sub: "Notify when a new user registers", value: newRegistrations, toggle: () => setNewRegistrations(v => !v) },
-                    { label: "System Alerts", sub: "Critical system-level alerts and errors", value: systemAlerts, toggle: () => setSystemAlerts(v => !v) },
-                ].map(item => (
-                    <div key={item.label} className="flex items-center justify-between py-3 border-b border-slate-50 last:border-0">
-                        <div>
-                            <div className="font-bold text-sm text-slate-900">{item.label}</div>
-                            <div className="text-xs text-slate-400 font-medium mt-0.5">{item.sub}</div>
-                        </div>
-                        <Toggle enabled={item.value} onToggle={item.toggle} />
-                    </div>
-                ))}
-            </section>
-
-            {/* Security */}
-            <section className="bg-white border border-slate-100 rounded-3xl p-8 shadow-sm space-y-5">
-                <div className="flex items-center gap-3 mb-2">
-                    <div className="w-9 h-9 bg-blue-50 rounded-xl flex items-center justify-center">
-                        <Shield size={18} className="text-blue-500" />
-                    </div>
-                    <h2 className="text-lg font-bold text-slate-900">Security</h2>
-                </div>
-
-                <div className="flex items-center justify-between py-3 border-b border-slate-50">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div>
-                        <div className="font-bold text-sm text-slate-900">Two-Factor Authentication</div>
-                        <div className="text-xs text-slate-400 font-medium mt-0.5">Require 2FA for all admin logins</div>
-                    </div>
-                    <Toggle enabled={twoFactor} onToggle={() => setTwoFactor(v => !v)} />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
-                    <div>
-                        <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Session Timeout (minutes)</label>
-                        <input
-                            type="number"
-                            min={5}
-                            max={480}
-                            value={sessionTimeout}
-                            onChange={e => setSessionTimeout(e.target.value)}
-                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-orange-500 focus:bg-white transition-all"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">IP Whitelist</label>
+                        <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Hero Title</label>
                         <input
                             type="text"
-                            value={ipWhitelist}
-                            onChange={e => setIpWhitelist(e.target.value)}
-                            placeholder="e.g. 192.168.1.1, 10.0.0.0/8"
+                            value={landingTitle}
+                            onChange={e => setLandingTitle(e.target.value)}
+                            placeholder="Override the hero headline (optional)"
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-orange-500 focus:bg-white transition-all"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Hero Subtitle</label>
+                        <input
+                            type="text"
+                            value={landingSubtitle}
+                            onChange={e => setLandingSubtitle(e.target.value)}
+                            placeholder="Override the hero sub-headline (optional)"
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-orange-500 focus:bg-white transition-all"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">CTA Label</label>
+                        <input
+                            type="text"
+                            value={landingCtaLabel}
+                            onChange={e => setLandingCtaLabel(e.target.value)}
+                            placeholder="e.g. Start your business audit"
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-orange-500 focus:bg-white transition-all"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">CTA Link</label>
+                        <input
+                            type="text"
+                            value={landingCtaHref}
+                            onChange={e => setLandingCtaHref(e.target.value)}
+                            placeholder="/audit/pre-audit/flow"
                             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-orange-500 focus:bg-white transition-all"
                         />
                     </div>
                 </div>
+
+                <div className="flex items-center justify-between py-3 border-t border-slate-50">
+                    <div>
+                        <div className="font-bold text-sm text-slate-900">Show Pre-Audit CTA</div>
+                        <div className="text-xs text-slate-400 font-medium mt-0.5">Surfaces the start-audit action on the landing page</div>
+                    </div>
+                    <Toggle enabled={landingShowPreAudit} onToggle={() => setLandingShowPreAudit(v => !v)} />
+                </div>
             </section>
 
-            {/* API Keys placeholder */}
-            <section className="bg-white border border-slate-100 rounded-3xl p-8 shadow-sm">
-                <div className="flex items-center gap-3 mb-6">
-                    <div className="w-9 h-9 bg-purple-50 rounded-xl flex items-center justify-center">
-                        <Key size={18} className="text-purple-500" />
+            {/* Help Resources */}
+            <section className="bg-white border border-slate-100 rounded-3xl p-8 shadow-sm space-y-6">
+                <div className="flex items-center gap-3 mb-2">
+                    <div className="w-9 h-9 bg-blue-50 rounded-xl flex items-center justify-center">
+                        <BookOpen size={18} className="text-blue-500" />
                     </div>
-                    <h2 className="text-lg font-bold text-slate-900">API Keys</h2>
+                    <h2 className="text-lg font-bold text-slate-900">Help Resources</h2>
+                    <span className="ml-auto text-[10px] font-bold uppercase tracking-widest text-slate-400">Public pages</span>
                 </div>
-                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                    <div>
-                        <div className="font-bold text-sm text-slate-900">Production API Key</div>
-                        <div className="text-xs text-slate-400 font-mono mt-1">sk-live-••••••••••••••••••••••••••••••••</div>
-                    </div>
-                    <button className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all">
-                        Regenerate
+
+                <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
+                    <input
+                        type="text"
+                        value={draftTitle}
+                        onChange={e => setDraftTitle(e.target.value)}
+                        placeholder="Resource title"
+                        className="md:col-span-2 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-orange-500 focus:bg-white transition-all"
+                    />
+                    <input
+                        type="text"
+                        value={draftDescription}
+                        onChange={e => setDraftDescription(e.target.value)}
+                        placeholder="Short description"
+                        className="md:col-span-2 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-orange-500 focus:bg-white transition-all"
+                    />
+                    <select
+                        value={draftCategory}
+                        onChange={e => setDraftCategory(e.target.value)}
+                        className="px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-orange-500 focus:bg-white transition-all"
+                    >
+                        {CATEGORY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <button
+                        onClick={handleAddResource}
+                        disabled={!draftTitle.trim()}
+                        className="flex items-center justify-center gap-2 px-4 py-3 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-orange-500 transition-colors disabled:opacity-40"
+                    >
+                        <Plus size={16} /> Add
                     </button>
+                </div>
+
+                <div className="space-y-2">
+                    {resources.length === 0 && (
+                        <p className="text-sm text-slate-400 font-medium text-center py-6">
+                            No help resources yet. Add one above — it appears on the public support pages.
+                        </p>
+                    )}
+                    {resources.map(resource => (
+                        <div key={resource.id} className="flex items-center gap-3 p-4 bg-slate-50 border border-slate-100 rounded-2xl">
+                            <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                    <span className={`text-xs font-bold uppercase tracking-widest ${resource.isActive ? "text-green-600" : "text-slate-400"}`}>
+                                        {resource.category}
+                                    </span>
+                                    <span className="text-sm font-bold text-slate-900 truncate">{resource.title}</span>
+                                </div>
+                                {resource.description && (
+                                    <p className="text-xs text-slate-400 font-medium mt-0.5 truncate">{resource.description}</p>
+                                )}
+                            </div>
+                            <Toggle enabled={resource.isActive} onToggle={() => void handleToggleResource(resource)} />
+                            <button
+                                onClick={() => void handleDeleteResource(resource.id)}
+                                className="p-2 bg-white border border-slate-200 rounded-lg text-slate-400 hover:text-red-500 hover:border-red-200 transition-all"
+                                aria-label={`Delete ${resource.title}`}
+                            >
+                                <Trash2 size={16} />
+                            </button>
+                        </div>
+                    ))}
                 </div>
             </section>
         </div>

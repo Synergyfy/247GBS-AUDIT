@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { DashboardResponse } from "./types";
 import { API_BASE_URL } from "@/lib/api";
-import { refreshAccessToken } from "@/lib/auth";
+import { refreshAccessToken, handleSessionExpired } from "@/lib/auth";
 
 export function useDashboard() {
   const [data, setData] = useState<DashboardResponse | null>(null);
@@ -25,6 +25,10 @@ export function useDashboard() {
       // If unauthorized, attempt refresh once and retry
       if (res.status === 401) {
         const newToken = await refreshAccessToken();
+        if (newToken === false) {
+          handleSessionExpired();
+          throw new Error("Session expired. Please sign in again.");
+        }
         if (newToken) {
           headers["Authorization"] = `Bearer ${newToken}`;
           res = await fetch(`${API_BASE_URL}/dashboard`, { method: "GET", headers, signal });

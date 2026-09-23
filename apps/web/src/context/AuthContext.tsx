@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { refreshAccessToken } from "@/lib/auth";
+import { refreshAccessToken, SESSION_EXPIRED_EVENT } from "@/lib/auth";
 
 interface User {
     email: string;
@@ -39,17 +39,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Periodically refresh access token to keep session alive and notify listeners
     useEffect(() => {
         let mounted = true;
+        let invalidSession = false;
+
+        const invalidateStaleSession = () => {
+            invalidSession = true;
+            localStorage.removeItem("247gbs_user");
+            localStorage.removeItem("auth_token");
+            localStorage.removeItem("247gbs_token");
+            setUser(null);
+        };
+
+        const redirectToSignIn = () => {
+            try {
+                const current = window.location.pathname;
+                if (current.startsWith("/auth/")) return; // already on an auth screen
+                window.location.assign("/auth/signin?reason=session-expired");
+            } catch {
+                // ignore
+            }
+        };
+
+        const onSessionExpired = () => {
+            if (!mounted) return;
+            if (invalidSession) return;
+            invalidateStaleSession();
+            redirectToSignIn();
+        };
+
+        const onStorageChange = (e: StorageEvent) => {
+            // Sign-out (or removal) in another tab invalidates this tab too.
+            if (e.key === "247gbs_user" && e.newValue === null) {
+                if (mounted) invalidateStaleSession();
+            }
+        };
+
+        window.addEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
+        window.addEventListener("storage", onStorageChange);
+
         const doRefresh = async () => {
             try {
                 const token = await refreshAccessToken();
-                if (!mounted) return;
-                if (token) {
-                    try {
-                        const ev = new StorageEvent('storage', { key: 'auth_token', newValue: token });
-                        window.dispatchEvent(ev);
-                    } catch {
-                        window.dispatchEvent(new Event('auth_token_refreshed'));
-                    }
+                if (token === false) {
+                    if (mounted) invalidateStaleSession();
+                    return; // onSessionExpired (dispatched by the refresh) redirects
+                }
+                if (!mounted || !token) return;
+                try {
+                    const ev = new StorageEvent('storage', { key: 'auth_token', newValue: token });
+                    window.dispatchEvent(ev);
+                } catch {
+                    window.dispatchEvent(new Event('auth_token_refreshed'));
                 }
             } catch {
                 // ignore
@@ -58,12 +97,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // Only attempt refresh if there's a stored session (skip on auth pages, fresh visits)
         const hasSession = localStorage.getItem("247gbs_user") || localStorage.getItem("auth_token");
-        if (!hasSession) return;
-
-        doRefresh();
-        const id = setInterval(doRefresh, 60 * 1000);
+        if (!hasSession) {
+            // Still listen for expirations driven by other tabs/API callers.
+        } else {
+            doRefresh();
+        }
+        // Heartbeat keeps the access token fresh well below its expiry. The
+        // 60s cadence rotated the refresh cookie unnecessarily often; 5 minutes
+        // is comfortably inside the default 15-minute access-token window.
+        const id = setInterval(() => {
+            if (!invalidSession) doRefresh();
+        }, 5 * 60 * 1000);
         return () => {
             mounted = false;
+            window.removeEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
+            window.removeEventListener("storage", onStorageChange);
             clearInterval(id);
         };
     }, []);

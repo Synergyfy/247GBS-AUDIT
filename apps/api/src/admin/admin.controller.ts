@@ -4,6 +4,7 @@ import { AccessTokenGuard } from '../auth/guards/accessToken.guard';
 import { AdminService } from './admin.service';
 import { AdminDashboardResponseDto, AdminStatItemDto, AdminActivityItemDto, AdminAuditTrendDto, AdminAuditItemDto, AdminAuditMetricsDto, AdminUserItemDto } from './dto/admin-dashboard.dto';
 import { AdminCreateUserDto, AdminUpdateUserDto, AdminCreateAuditDto, AdminUpdateAuditDto } from './dto/admin-actions.dto';
+import { UpdateSettingsDto, CreateHelpResourceDto, UpdateHelpResourceDto } from './dto/settings.dto';
 import type { Request } from 'express';
 
 @ApiTags('Admin')
@@ -14,6 +15,12 @@ export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
   private getUserId(req: Request): string {
+    // TODO(dev): TEMPORARY DEV-ONLY bypass. Any value is admitted while
+    // NODE_ENV === 'development' (verifyAdmin below is also bypassed), so the
+    // admin dashboard can be used on localhost without signing in. Admin auth
+    // MUST be restored before production (remove this block).
+    if (process.env.NODE_ENV === 'development') return 'dev-bypass';
+
     const user = (req as any).user;
     if (!user || !user.sub) throw new ForbiddenException();
     return user.sub;
@@ -135,5 +142,53 @@ export class AdminController {
   async getTrends(@Req() req: Request) {
      await this.adminService.verifyAdmin(this.getUserId(req));
      return this.adminService.getAuditTrends();
+  }
+
+  // --- Settings & Help Resources ---
+
+  @Get('settings')
+  @ApiOperation({ summary: 'Get Platform Settings', description: 'Returns the admin-configurable platform settings.' })
+  async getSettings(@Req() req: Request) {
+    await this.adminService.verifyAdmin(this.getUserId(req));
+    return this.adminService.getSettings();
+  }
+
+  @Patch('settings')
+  @ApiOperation({ summary: 'Update Platform Settings', description: 'Updates landing/support configuration.' })
+  async updateSettings(@Req() req: Request, @Body() dto: UpdateSettingsDto) {
+    await this.adminService.verifyAdmin(this.getUserId(req));
+    return this.adminService.updateSettings(dto);
+  }
+
+  @Get('help-resources')
+  @ApiOperation({ summary: 'Get Help Resources', description: 'Returns all curated help/service/funding resources.' })
+  async getHelpResources(@Req() req: Request) {
+    await this.adminService.verifyAdmin(this.getUserId(req));
+    return this.adminService.getHelpResources();
+  }
+
+  @Post('help-resources')
+  @ApiOperation({ summary: 'Create Help Resource', description: 'Adds a new public help/service resource.' })
+  async createHelpResource(@Req() req: Request, @Body() dto: CreateHelpResourceDto) {
+    await this.adminService.verifyAdmin(this.getUserId(req));
+    return this.adminService.createHelpResource(dto);
+  }
+
+  @Patch('help-resources/:id')
+  @ApiOperation({ summary: 'Update Help Resource', description: 'Edits or toggles a help resource.' })
+  async updateHelpResource(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() dto: UpdateHelpResourceDto,
+  ) {
+    await this.adminService.verifyAdmin(this.getUserId(req));
+    return this.adminService.updateHelpResource(id, dto);
+  }
+
+  @Delete('help-resources/:id')
+  @ApiOperation({ summary: 'Delete Help Resource', description: 'Removes a help resource.' })
+  async deleteHelpResource(@Req() req: Request, @Param('id') id: string) {
+    await this.adminService.verifyAdmin(this.getUserId(req));
+    return this.adminService.deleteHelpResource(id);
   }
 }

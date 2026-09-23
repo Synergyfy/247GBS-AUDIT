@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AuditSession, AuditStatus } from './entities/audit-session.entity';
 import { AuditType } from '../triage/entities/triage.entity';
 import { User } from '../users/entities/user.entity';
+import { PreAuditSession } from '../triage/entities/pre-audit-session.entity';
 import { CalculationFactory } from './calculators/calculation.factory';
 import { AIService } from '../ai/ai.service';
 
@@ -12,6 +13,8 @@ export class AuditService {
   constructor(
     @InjectRepository(AuditSession)
     private auditRepository: Repository<AuditSession>,
+    @InjectRepository(PreAuditSession)
+    private preAuditRepository: Repository<PreAuditSession>,
     private aiService: AIService,
   ) {}
 
@@ -26,6 +29,54 @@ export class AuditService {
       auditType,
       scopes,
       answers: {},
+    });
+    return this.auditRepository.save(session);
+  }
+
+  /**
+   * Pre-Audit -> Audit handoff. One audit is created per pre-audit session, so
+   * repeat handoffs are idempotent. The audit type comes from the pre-audit's
+   * recommendation unless the caller overrides it with `auditType`.
+   */
+  async createFromPreAudit(
+    userId: string,
+    preAuditSessionId: string,
+    auditType?: string,
+  ): Promise<AuditSession> {
+    const preAudit = await this.preAuditRepository.findOne({
+      where: { id: preAuditSessionId },
+    });
+    if (!preAudit) {
+      throw new NotFoundException('Pre-audit session not found.');
+    }
+
+    const resolvedType =
+      auditType || preAudit.recommendedAuditType || preAudit.destinationType || null;
+    if (!resolvedType) {
+      throw new BadRequestException(
+        'This pre-audit has no audit recommendation to start from.',
+      );
+    }
+
+    const existing = await this.auditRepository.findOne({
+      where: { preAuditSessionId },
+    });
+    if (existing) {
+      if (existing.userId !== userId) {
+        throw new ConflictException(
+          'This pre-audit has already been linked to another account.',
+        );
+      }
+      return existing;
+    }
+
+    const session = this.auditRepository.create({
+      userId,
+      status: AuditStatus.TRIAGE_COMPLETED,
+      auditType: resolvedType,
+      scopes: [],
+      answers: {},
+      preAuditSessionId,
     });
     return this.auditRepository.save(session);
   }
