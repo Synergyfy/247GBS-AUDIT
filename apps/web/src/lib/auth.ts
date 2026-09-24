@@ -3,9 +3,24 @@ import { API_BASE_URL } from './api';
 /**
  * Fired when the refresh session is definitively gone (HTTP 401 from
  * /auth/refresh). Listeners should drop their auth state; the AuthProvider
- * redirects to the sign-in page.
+ * redirects to the sign-in page — but ONLY from genuinely protected routes
+ * (see isProtectedRoute). Public pages and the dev-public /admin/* pages must
+ * never be redirected; stale state is simply cleared.
  */
 export const SESSION_EXPIRED_EVENT = '247gbs:session-expired';
+
+/**
+ * True when `pathname` is a customer/business route that genuinely requires a
+ * live session and should redirect to sign-in after the session expires.
+ *
+ * /dashboard is currently the only protected customer area. /admin/* is
+ * intentionally excluded while it is open for development, and every other
+ * path (/, /auth/*, /audit/*, /pricing, ...) is intentionally public.
+ */
+export function isProtectedRoute(pathname?: string): boolean {
+  const p = pathname ?? (typeof window !== 'undefined' ? window.location.pathname : '');
+  return p.startsWith('/dashboard');
+}
 
 const ACCESS_TOKEN_KEY = '247gbs_token';
 const LEGACY_ACCESS_TOKEN_KEY = 'auth_token';
