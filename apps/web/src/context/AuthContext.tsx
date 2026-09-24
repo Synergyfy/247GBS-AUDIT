@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { refreshAccessToken, SESSION_EXPIRED_EVENT } from "@/lib/auth";
+import { refreshAccessToken, SESSION_EXPIRED_EVENT, isProtectedRoute } from "@/lib/auth";
 
 interface User {
     email: string;
@@ -53,11 +53,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             try {
                 const current = window.location.pathname;
                 if (current.startsWith("/auth/")) return; // already on an auth screen
-                // Only redirect from authenticated areas. Public pages (/, /pricing,
-                // /solutions, /services, /funding, /support, /audit/*, ...) must NEVER
-                // bounce to sign-in just because an old/expired session token exists —
-                // the stale session is silently cleared by invalidateStaleSession.
-                if (!current.startsWith("/dashboard") && !current.startsWith("/admin")) return;
+                // Only redirect from genuinely protected customer routes.
+                // Public pages (/, /pricing, /solutions, /services, /funding,
+                // /support, /audit/*, ...) and the temporarily-public /admin/*
+                // pages must NEVER bounce to sign-in just because an old/expired
+                // session token exists — the stale session is silently cleared
+                // by invalidateStaleSession.
+                if (!isProtectedRoute(current)) return;
                 window.location.assign("/auth/signin?reason=session-expired");
             } catch {
                 // ignore
