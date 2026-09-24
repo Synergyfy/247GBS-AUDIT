@@ -138,7 +138,7 @@ function HeroSlider({ onStartReview, settings }: { onStartReview: () => void; se
               onClick={onStartReview}
               className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3.5 sm:px-8 sm:py-4 rounded-2xl font-bold text-base sm:text-lg flex items-center justify-center gap-2 shadow-xl shadow-orange-500/30 transition-all hover:-translate-y-1 active:translate-y-0"
             >
-              {settings?.landingCtaLabel || "Get Started"}
+              Get Started
               <ArrowRight size={18} />
             </button>
             {settings !== null && !settings.landingShowPreAudit ? null : (
@@ -147,7 +147,7 @@ function HeroSlider({ onStartReview, settings }: { onStartReview: () => void; se
                 className="flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-3.5 sm:py-4 rounded-2xl border border-white/20 bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-colors cursor-pointer group text-center justify-center"
               >
                 <span className="font-bold text-sm sm:text-base text-white">
-                  {settings?.landingCtaLabel || "Start Audit"}
+                  Start Audit
                 </span>
               </a>
             )}

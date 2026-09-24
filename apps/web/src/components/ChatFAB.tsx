@@ -15,7 +15,7 @@ export default function ChatFAB() {
                         initial={{ opacity: 0, y: 20, scale: 0.9, transformOrigin: "bottom right" }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 20, scale: 0.9 }}
-                        className="absolute bottom-20 right-0 w-[380px] bg-white rounded-[2rem] shadow-2xl border border-slate-100 overflow-hidden"
+                        className="absolute bottom-20 right-0 w-[380px] max-w-[calc(100vw-4rem)] bg-white rounded-[2rem] shadow-2xl border border-slate-100 overflow-hidden"
                     >
                         {/* Header */}
                         <div className="bg-slate-900 p-6 text-white relative overflow-hidden">

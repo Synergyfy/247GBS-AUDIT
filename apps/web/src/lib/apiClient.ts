@@ -1,9 +1,6 @@
 import axios from 'axios';
-import { handleSessionExpired } from './auth';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-
-let isRedirecting = false;
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -29,21 +26,9 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401 && !isRedirecting) {
-      const url = error.config?.url || '';
-      const isRefreshCall = url.includes('/auth/refresh');
-      const isSignInPage = typeof window !== 'undefined' && window.location.pathname.startsWith('/auth/');
-
-      if (isRefreshCall || isSignInPage) {
-        return Promise.reject(error);
-      }
-
-      isRedirecting = true;
-      handleSessionExpired();
-      if (typeof window !== 'undefined') {
-        window.location.href = '/auth/signin?error=session_expired';
-      }
-    }
+    // A 401/403 from a background or SSO request must NOT globally destroy
+    // the session or redirect the user — that would bounce even public pages
+    // to sign-in. Callers on the /auth/* pages handle their own auth errors.
     return Promise.reject(error);
   }
 );
