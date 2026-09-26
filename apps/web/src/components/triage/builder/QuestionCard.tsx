@@ -34,17 +34,15 @@ import type {
   AdminTriageQuestion,
   QuestionConfig,
   QuestionType,
-  TriageAuditType,
   TriageDestinationType,
 } from "@/services/triage/types";
 import { isChoiceType } from "@/services/triage/types";
 import type { AnswerPayload, QuestionPayload } from "@/services/triage/hooks";
 import { isFormattedHtml } from "@/lib/richText";
 import {
-  AUDIT_OPTIONS,
   DEST_TARGET_KINDS,
   DESTINATION_OPTIONS,
-  DestKind,
+  destLabel,
   typeLabel,
 } from "./shared";
 import {
@@ -301,107 +299,59 @@ function ConfigEditor({
   );
 }
 
-/** Destination edition used for option-less questions (their default route). */
-function DefaultDestinationEditor({
+/**
+ * Read-only summary of an option-less question's route. Option-less questions
+ * follow the linear default: the next active question in order, or "End /
+ * Submit" for the final question. An explicit destination configured earlier
+ * is still respected (and shown), but it is no longer editable here so the
+ * flow can never be left without a route.
+ */
+function OptionlessRouteSummary({
   question,
   allQuestions,
-  onPatch,
 }: {
   question: AdminTriageQuestion;
   allQuestions: AdminTriageQuestion[];
-  onPatch: (patch: Partial<QuestionPayload>) => void;
 }) {
-  const [kind, setKind] = useSyncedState<DestKind>(question.defaultNextQuestionId ? "next" : question.defaultAuditType ? "audit" : question.defaultDestinationType ?? "");
-  const [value, setValue] = useSyncedState<string>(question.defaultNextQuestionId ?? question.defaultAuditType ?? question.defaultDestinationType ?? "");
-  const [target, setTarget] = useSyncedString(question.defaultDestinationTarget ?? "");
+  const nextId = nextLinearId(question, allQuestions);
+  const explicitTarget = question.defaultNextQuestionId
+    ? allQuestions.find((q) => q.id === question.defaultNextQuestionId)
+    : null;
 
-  const questionOptions = allQuestions
-    .filter((q) => q.id !== question.id)
-    .map((q) => ({ value: q.id, label: q.text || `Untitled question` }));
-
-  const apply = (nextKind: DestKind, nextValue: string) => {
-    const isAnyDest = nextKind !== "next" && nextKind !== "audit";
-    onPatch({
-      defaultNextQuestionId: nextKind === "next" ? nextValue || null : null,
-      defaultAuditType: nextKind === "audit" ? (nextValue as TriageAuditType) || null : null,
-      defaultDestinationType: isAnyDest ? (nextValue as TriageDestinationType) || null : null,
-      defaultDestinationTarget: isAnyDest ? target.trim() || null : null,
-    });
-  };
+  let label: string;
+  let hint: string | undefined;
+  if (explicitTarget) {
+    label = `→ ${questionStepLabel(explicitTarget)}`;
+    hint = "Routed to a specific question.";
+  } else if (question.defaultDestinationType || question.defaultAuditType) {
+    const dest = question.defaultDestinationType ?? question.defaultAuditType;
+    label = `End / Submit — ${destLabel(dest)}`;
+    hint = "Ends at this destination.";
+  } else if (nextId) {
+    const target = allQuestions.find((q) => q.id === nextId);
+    label = `→ ${target ? questionStepLabel(target) : "Next question"}`;
+    hint = "Routes to the next question";
+  } else {
+    label = "End / Submit";
+    hint = "Final question — respondents submit here";
+  }
 
   return (
-    <div className="flex flex-col gap-3 mt-3 rounded-2xl bg-slate-50/70 p-4">
-      <FieldLabel hint="Option-less questions route every answer through one destination.">
-        Default destination
-      </FieldLabel>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <SelectField<DestKind>
-          value={kind}
-          placeholder="— Choose destination —"
-          options={[
-            { value: "next", label: "Next question" },
-            { value: "audit", label: "Audit type" },
-            ...DESTINATION_OPTIONS.map((o) => ({
-              value: o.value as DestKind,
-              label: o.label,
-            })),
-          ]}
-          onChange={(nextKind) => {
-            if (nextKind === kind) return;
-            if (nextKind === "next") setValue("");
-            if (nextKind === "audit") setValue("");
-            setKind(nextKind);
-          }}
-        />
-        {kind === "next" && questionOptions.length > 0 && (
-          <SelectField
-            value={value}
-            placeholder="— Next question —"
-            options={questionOptions}
-            onChange={(v) => {
-              setValue(String(v));
-              apply("next", String(v));
-            }}
-          />
+    <div className="mt-3 rounded-2xl bg-slate-50/70 p-4">
+      <FieldLabel hint={hint}>Default route</FieldLabel>
+      <p className="mt-1 flex items-center gap-2 text-sm font-bold text-slate-700">
+        {nextId ? (
+          <ArrowRight size={14} className="text-orange-500" />
+        ) : (
+          <Flag size={14} className="text-slate-400" />
         )}
-        {kind === "next" && questionOptions.length === 0 && (
-          <span className="text-sm text-slate-400 font-semibold">
-            No other questions yet — add one first.
-          </span>
-        )}
-        {kind === "audit" && (
-          <SelectField
-            value={value}
-            placeholder="— Audit type —"
-            options={AUDIT_OPTIONS}
-            onChange={(v) => {
-              setValue(String(v));
-              apply("audit", String(v));
-            }}
-          />
-        )}
-        {kind !== "" && kind !== "next" && kind !== "audit" && (
-          <>
-            <SelectField
-              value={value}
-              placeholder="— Destination —"
-              options={DESTINATION_OPTIONS}
-              onChange={(v) => {
-                setValue(String(v));
-                apply(kind, String(v));
-              }}
-            />
-            {DEST_TARGET_KINDS.has(kind as TriageDestinationType) && (
-              <TextInput
-                value={target}
-                placeholder="Destination target (e.g. sector)"
-                onChange={setTarget}
-                onBlur={() => apply(kind, value)}
-              />
-            )}
-          </>
-        )}
-      </div>
+        {label}
+      </p>
+      <p className="mt-1.5 text-xs font-medium text-slate-400">
+        Option-less questions route every answer along one path — the next
+        question in order, or the end of the form when this is the final
+        question.
+      </p>
     </div>
   );
 }
@@ -495,17 +445,9 @@ function AnswerOptionRow({
       return;
     }
     if (option === GO_TO_NEXT) {
-      const nextId = nextLinearId(question, allQuestions);
-      onPatch(
-        nextId
-          ? { nextQuestionId: nextId, auditType: null, destinationType: null, destinationTarget: null }
-          : {
-              nextQuestionId: null,
-              auditType: null,
-              destinationType: "HUMAN_REVIEW" as TriageDestinationType,
-              destinationTarget: null,
-            }
-      );
+      // "Next question" is the linear default resolved from the question order
+      // at runtime — store no explicit route so reordering stays correct.
+      onPatch({ nextQuestionId: null, auditType: null, destinationType: null, destinationTarget: null });
       return;
     }
     onPatch({ nextQuestionId: option, auditType: null, destinationType: null, destinationTarget: null });
@@ -933,7 +875,7 @@ export function QuestionCard({
             </button>
           </div>
         </div>
-        {/* Status badges: route, type, required, branching */}
+        {/* Status badges: route, type, active, required, branching */}
         <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
           {routeStatus?.kind === "attention" ? (
             <span
@@ -966,6 +908,22 @@ export function QuestionCard({
           ) : null}
           <span className="rounded-full bg-slate-100 text-slate-500 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest">
             {typeLabel(type)}
+          </span>
+          <span
+            title={
+              question.isActive
+                ? "Active — shown to respondents in the published form"
+                : "Inactive — hidden from respondents"
+            }
+            className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest ${
+              question.isActive ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+            }`}
+          >
+            <span
+              className="h-1.5 w-1.5 shrink-0 rounded-full"
+              style={{ background: question.isActive ? "#10b981" : "#94a3b8" }}
+            />
+            {question.isActive ? "Active" : "Inactive"}
           </span>
           {question.required && (
             <span
@@ -1149,10 +1107,9 @@ export function QuestionCard({
             )}
           </div>
         ) : (
-          <DefaultDestinationEditor
+          <OptionlessRouteSummary
             question={question}
             allQuestions={allQuestions}
-            onPatch={(patch) => handlers.update(question.id, patch)}
           />
         )}
 

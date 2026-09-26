@@ -70,11 +70,16 @@ export function nextLinearId(
 /**
  * A destination is the linear default when the option simply advances to the
  * next active question, or ends the flow (human review) when there is none.
+ * An option that records NO explicit route at all is also linear — routing is
+ * then derived from the question order at runtime, so drag-and-drop reordering
+ * never leaves a stale stored "next" id behind.
  */
 export function isLinearDestination(
   answer: AdminTriageAnswer,
   nextId: string | null
 ): boolean {
+  const bare = !answer.nextQuestionId && !answer.auditType && !answer.destinationType;
+  if (bare) return true;
   if (nextId) return answer.nextQuestionId === nextId && !answer.auditType && !answer.destinationType;
   return (
     !answer.nextQuestionId && !answer.auditType && answer.destinationType === "HUMAN_REVIEW"
@@ -83,29 +88,30 @@ export function isLinearDestination(
 
 /**
  * Rewrites a draft answer to follow the linear default (next active question,
- * or "End / Submit" = human review when there is no following question).
- * Returns the same object when the answer is already linear.
+ * or "End / Submit" when there is no following question). The route is stored
+ * "bare" (no explicit id/destination) so the runtime resolves the next step
+ * from the current question order. Returns the same object when the answer is
+ * already linear.
  */
 export function linearizeAnswer(
   answer: AdminTriageAnswer,
   nextId: string | null
 ): AdminTriageAnswer {
-  if (nextId) {
-    if (isLinearDestination(answer, nextId) && answer.destinationTarget == null) return answer;
+  if (isLinearDestination(answer, nextId)) {
+    if (!answer.destinationTarget) return answer;
     return {
       ...answer,
-      nextQuestionId: nextId,
+      nextQuestionId: null,
       auditType: null,
       destinationType: null,
       destinationTarget: null,
     };
   }
-  if (isLinearDestination(answer, null) && answer.destinationTarget == null) return answer;
   return {
     ...answer,
     nextQuestionId: null,
     auditType: null,
-    destinationType: "HUMAN_REVIEW",
+    destinationType: null,
     destinationTarget: null,
   };
 }
@@ -165,6 +171,7 @@ export function canReachTerminal(
 ): boolean {
   const byId = new Map(ordered.map((q) => [q.id, q]));
   const nextIds = new Map<string, string[]>();
+  const answersByQuestion = new Map<string, AdminTriageAnswer[]>();
   const exits = new Set<string>();
   const pushEdge = (from: string, to: string | null | undefined) => {
     if (!to) return;
@@ -176,13 +183,39 @@ export function canReachTerminal(
   };
   for (const q of ordered) {
     if (q.isActive === false) continue;
+    const bucket = answersByQuestion.get(q.id) ?? [];
     for (const a of q.answers) {
       if (a.isActive === false) continue;
+      bucket.push(a);
       pushEdge(q.id, a.nextQuestionId);
       if (a.auditType || a.destinationType) exits.add(q.id);
     }
+    answersByQuestion.set(q.id, bucket);
     if (q.defaultAuditType || q.defaultDestinationType) exits.add(q.id);
     pushEdge(q.id, q.defaultNextQuestionId);
+  }
+  // Dynamic linear default: an answer with no explicit route, or an option-less
+  // question with no explicit default, advances to the next active question —
+  // or ends the form when there is none. Explicit branching that loops still
+  // fails the walk (only genuine linear edges are added).
+  const activeOrdered = ordered.filter((q) => q.isActive !== false);
+  for (let index = 0; index < activeOrdered.length; index++) {
+    const question = activeOrdered[index];
+    const isChoice = isChoiceType(question.type);
+    const usesLinear = isChoice
+      ? (answersByQuestion.get(question.id) ?? []).some(
+          (a) => !a.nextQuestionId && !a.auditType && !a.destinationType
+        )
+      : !question.defaultNextQuestionId &&
+        !question.defaultAuditType &&
+        !question.defaultDestinationType;
+    if (!usesLinear) continue;
+    const follower = activeOrdered[index + 1];
+    if (!follower) {
+      exits.add(question.id);
+      continue;
+    }
+    pushEdge(question.id, follower.id);
   }
   const memo = new Map<string, boolean>();
   const dfs = (id: string, visiting: Set<string>): boolean => {
@@ -254,10 +287,9 @@ export function routeStatusOf(
           };
         }
       } else if (!a.auditType && !a.destinationType) {
-        return {
-          kind: "attention",
-          reason: `Option "${a.text}" has no destination — choose where it leads.`,
-        };
+        // No explicit route — follows the linear default ("Next question" or
+        // "End / Submit"). Always valid, never a warning.
+        continue;
       }
     }
     if (!canReachTerminal(question, list)) {
@@ -269,9 +301,9 @@ export function routeStatusOf(
     return { kind: "ok" };
   }
 
-  // Option-less questions route everything through one default destination.
-  // Publish requires one (a question with nowhere to go dead-ends
-  // respondents), so a missing default genuinely needs attention.
+  // Option-less questions route every answer along one linear default: the
+  // next active question in order, or "End / Submit" for the final question.
+  // An explicit destination is optional and still respected when configured.
   if (question.defaultNextQuestionId) {
     if (question.defaultNextQuestionId === question.id) {
       return { kind: "attention", reason: "This question points back to itself." };
@@ -294,8 +326,6 @@ export function routeStatusOf(
   if (question.defaultAuditType || question.defaultDestinationType) {
     return { kind: "ok" };
   }
-  return {
-    kind: "attention",
-    reason: "Set a default destination so respondents can continue.",
-  };
+  const nextId = nextLinearId(question, ordered);
+  return nextId ? { kind: "next", nextId } : { kind: "end" };
 }
