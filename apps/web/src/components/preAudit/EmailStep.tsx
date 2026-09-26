@@ -9,10 +9,11 @@ interface EmailStepProps {
   onEmailChange: (value: string) => void;
   onContinue: () => void;
   onBack: () => void;
+  optional?: boolean;
 }
 
 /** /** Email is collected near the end so results can be associated with the user. */
-export function EmailStep({ email, error, disabled, onEmailChange, onContinue, onBack }: EmailStepProps) {
+export function EmailStep({ email, error, disabled, onEmailChange, onContinue, onBack, optional = false }: EmailStepProps) {
   const inputId = "pre-audit-email";
 
   return (
@@ -36,7 +37,8 @@ export function EmailStep({ email, error, disabled, onEmailChange, onContinue, o
         </p>
 
         <label htmlFor={inputId} className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">
-          Email address <span className="text-orange-500">*</span>
+          Email address{" "}
+          <span className="text-orange-500">{optional ? "(optional)" : "*"}</span>
         </label>
         <input
           id={inputId}

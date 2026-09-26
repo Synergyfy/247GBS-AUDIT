@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { AlertCircle, ArrowRight, ChevronLeft, GitBranch, Info, Loader2 } from "lucide-react";
-import type { TriagePublicQuestion } from "@/services/triage/types";
+import type { TriageFormSettings, TriagePublicQuestion } from "@/services/triage/types";
 import { isChoiceType, isMultiSelectType } from "@/services/triage/types";
 import {
   ensureQuestion,
@@ -51,6 +51,7 @@ import { ReviewStep } from "./ReviewStep";
 import { ConsentStep } from "./ConsentStep";
 import { ConfirmationStep } from "./ConfirmationStep";
 import { QuestionInput } from "./QuestionInput";
+import { RichText } from "./RichText";
 
 interface PreAuditError {
   title: string;
@@ -72,6 +73,16 @@ function errorMessageOf(err: unknown, fallback: string): string {
 export function QuestionEngine(options: PreAuditEngineOptions) {
   const router = useRouter();
   const exitHref = options.exitHref ?? "/audit/pre-audit";
+  const title = options.title ?? "Business Pre-Audit";
+  const settings = {
+    collectEmail: true,
+    requireEmail: true,
+    allowEditing: true,
+    showProgressBar: true,
+    showConfirmation: true,
+    confirmationMessage: "",
+    ...(options.settings ?? {}),
+  } as TriageFormSettings;
 
   const [phase, setPhase] = useState<PreAuditPhase>("loading");
   const [visited, setVisited] = useState<PreAuditVisitedEntry[]>([]);
@@ -92,6 +103,19 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
 
   const questionType: PreAuditQuestionType = resolveQuestionType(currentQuestion);
 
+  /**
+   * Resolves the email that will be recorded with the submission, honouring the
+   * form's "collect email" / "email required" settings. Returns the accepted
+   * value ("" when email is not collected) or a validation failure.
+   */
+  const emailSubmissionValue = useCallback((): { ok: boolean; value: string; message?: string } => {
+    if (!settings.collectEmail) return { ok: true, value: "" };
+    const trimmed = email.trim();
+    if (!settings.requireEmail && trimmed === "") return { ok: true, value: "" };
+    const result = validateEmail(email);
+    return result.ok ? { ok: true, value: result.value } : { ok: false, value: "", message: result.message };
+  }, [settings.collectEmail, settings.requireEmail, email]);
+
   const startFresh = useCallback(async () => {
     setVisited([]);
     setEmail("");
@@ -108,7 +132,7 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
     setCurrentBranch(null);
     setPhase("loading");
     try {
-      const start = await ensureStartQuestion();
+      const start = await ensureStartQuestion(options.startOverride);
       setCurrentQuestion(start);
       setPhase("question");
     } catch (err) {
@@ -121,7 +145,7 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
       });
       setPhase("error");
     }
-  }, []);
+  }, [options.startOverride]);
 
   // ==================== INITIALISATION / HYDRATION ====================
 
@@ -379,7 +403,7 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
     try {
       let previousQuestion: TriagePublicQuestion;
       if (previousVisited.length === 0) {
-        previousQuestion = await ensureStartQuestion();
+        previousQuestion = await ensureStartQuestion(options.startOverride);
       } else {
         const questionId = previousVisited[previousVisited.length - 1].questionId;
         previousQuestion = await ensureQuestion(questionId);
@@ -395,7 +419,7 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
     } finally {
       setIsBusy(false);
     }
-  }, [isBusy, visited, currentBranch, exitHref, router]);
+  }, [isBusy, visited, currentBranch, exitHref, router, options.startOverride]);
 
   /**
    * Jumps to a previously answered question (from "Edit" on the review step or
@@ -453,16 +477,27 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
 
   // ==================== EMAIL & REVIEW ====================
 
-  const handleEmailContinue = () => {
-    const result = validateEmail(email);
-    if (result.ok) {
-      setEmailError(null);
-      setConsentGranted(false);
+  /** Review continues to the email step when the form collects email, else straight to consent. */
+  const continueFromReview = useCallback(() => {
+    setEmailError(null);
+    setConsentGranted(false);
+    if (!settings.collectEmail) {
       setPhase("consent");
-    } else {
-      setEmailError(result.message);
+      return;
     }
-  };
+    setPhase("email");
+  }, [settings.collectEmail]);
+
+  const continueFromEmail = useCallback(() => {
+    setEmailError(null);
+    setConsentGranted(false);
+    const result = emailSubmissionValue();
+    if (!result.ok) {
+      setEmailError(result.message ?? null);
+      return;
+    }
+    setPhase("consent");
+  }, [emailSubmissionValue]);
 
   // ==================== SUBMIT ====================
 
@@ -474,20 +509,24 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
       return;
     }
 
-    const result = validateEmail(email);
-    if (!result.ok) {
-      setEmailError(result.message);
+    const emailResult = emailSubmissionValue();
+    if (!emailResult.ok) {
+      setEmailError(emailResult.message ?? null);
       setPhase("email");
       return;
     }
 
-    const fingerprint = fingerprintOf(result.value, visited);
+    const fingerprint = fingerprintOf(emailResult.value, visited);
     const existing = findDuplicateSubmission(fingerprint);
     if (existing) {
       clearProgress();
-      setSubmission(existing);
-      setIsDuplicate(true);
-      setPhase("confirmation");
+      if (settings.showConfirmation) {
+        setSubmission(existing);
+        setIsDuplicate(true);
+        setPhase("confirmation");
+      } else {
+        router.push(options.afterSubmitHref ?? exitHref);
+      }
       return;
     }
 
@@ -504,7 +543,7 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
     let serverDestinationTarget: PreAuditSubmission["destinationTarget"] | null = null;
     let serverConsentGrantedAt: string | null | undefined;
     try {
-      const server = await submitPreAudit(result.value, visited);
+      const server = await submitPreAudit(emailResult.value, visited);
       serverSessionId = server.id;
       serverDestinationType = (server.destinationType as PreAuditSubmission["destinationType"]) ?? null;
       serverDestinationTarget = server.destinationTarget ?? null;
@@ -527,7 +566,7 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
 
     const serverReached = serverConsentGrantedAt !== undefined;
     const newSubmission = buildSubmission({
-      email: result.value,
+      email: emailResult.value,
       visited,
       existingId: createRecordId(),
       destinationType: serverReached && serverDestinationType ? serverDestinationType : undefined,
@@ -553,9 +592,13 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
     }
 
     clearProgress();
-    setSubmission(newSubmission);
-    setIsDuplicate(false);
-    setPhase("confirmation");
+    if (settings.showConfirmation) {
+      setSubmission(newSubmission);
+      setIsDuplicate(false);
+      setPhase("confirmation");
+    } else {
+      router.push(options.afterSubmitHref ?? exitHref);
+    }
   };
 
   // ==================== SCREENS ====================
@@ -639,20 +682,12 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
             email={email}
             error={emailError}
             disabled={isBusy}
+            optional={!settings.requireEmail}
             onEmailChange={(value) => {
               setEmail(value);
               if (emailError) setEmailError(null);
             }}
-            onContinue={() => {
-              const result = validateEmail(email);
-              if (!result.ok) {
-                setEmailError(result.message);
-                return;
-              }
-              setEmailError(null);
-              setConsentGranted(false);
-              setPhase("consent");
-            }}
+            onContinue={continueFromEmail}
             onBack={() => {
               setEmailError(null);
               setPhase("review");
@@ -689,8 +724,10 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
           <ReviewStep
             visited={visited}
             disabled={isBusy}
+            allowEdit={settings.allowEditing}
+            nextLabel={settings.collectEmail ? "Continue to email" : "Continue to consent"}
             onEditQuestion={(index) => void editQuestion(index)}
-            onContinue={handleEmailContinue}
+            onContinue={continueFromReview}
             onBack={() => {
               if (visited.length >= 1) void editQuestion(visited.length - 1);
             }}
@@ -733,6 +770,7 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
             submission={submission}
             isDuplicate={isDuplicate}
             afterSubmitHref={options.afterSubmitHref}
+            customMessage={settings.confirmationMessage || null}
           />
         </motion.div>
       </div>
@@ -754,7 +792,7 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/30">
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-10 pt-28 sm:pt-32">
-        <ProgressHeader answeredCount={answeredCount} />
+        {settings.showProgressBar && <ProgressHeader answeredCount={answeredCount} title={title} />}
 
         <div className="bg-white rounded-3xl shadow-2xl shadow-slate-200/50 border border-slate-50 relative z-10 overflow-hidden">
           <div className="p-6 sm:p-10 lg:p-14">
@@ -770,7 +808,7 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
                   <GitBranch size={16} />
                 </div>
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">
-                  Business Pre-Audit
+                  {title}
                 </span>
               </div>
 
@@ -796,7 +834,7 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
               )}
 
               <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 mb-6 sm:mb-8 leading-tight">
-                {currentQuestion.text}
+                <RichText text={currentQuestion.text} html={currentQuestion.config?.contentHtml} />
               </h2>
 
               {currentQuestion.description && (

@@ -66,6 +66,17 @@ export type QuestionType =
   | "rating"
   | "linear_scale";
 
+/**
+ * The stored destination of one answer option, captured so response-based
+ * navigation can be toggled off without destroying the configured routing.
+ */
+export interface AnswerDestinationSnapshot {
+  nextQuestionId?: string | null;
+  auditType?: TriageAuditType | null;
+  destinationType?: TriageDestinationType | null;
+  destinationTarget?: string | null;
+}
+
 export interface QuestionConfig {
   placeholder?: string;
   maxLength?: number;
@@ -79,6 +90,16 @@ export interface QuestionConfig {
   maxFileSizeMb?: number;
   minLabel?: string;
   maxLabel?: string;
+  /** Sanitised rich-text (HTML) version of the question text, rendered in the public form. */
+  contentHtml?: string;
+  /**
+   * Response-based navigation ("go to question based on answer"). When on,
+   * every choice option can point at a specific question or the end of the
+   * form instead of the linear "next question" default.
+   */
+  responseNavigation?: boolean;
+  /** Per-option destinations preserved while responseNavigation is off. */
+  preservedNavigation?: Record<string, AnswerDestinationSnapshot>;
 }
 
 export const CHOICE_QUESTION_TYPES: ReadonlySet<QuestionType> = new Set<QuestionType>([
@@ -134,6 +155,8 @@ export interface AdminTriageAnswer {
   auditType: TriageAuditType | null;
   destinationType: TriageDestinationType | null;
   destinationTarget: string | null;
+  internalValue: string | null;
+  tag: string | null;
   sortOrder: number;
   isActive: boolean;
   createdAt: string;
@@ -160,3 +183,105 @@ export interface AdminTriageQuestion {
 }
 
 export type AdminTriageResponse = AdminTriageQuestion[];
+
+// ============================================================
+// Form definition, publish state and responder settings
+// ============================================================
+
+export type TriageFormStatus = "draft" | "published";
+
+export interface TriageFormSettings {
+  acceptResponses: boolean;
+  collectEmail: boolean;
+  requireEmail: boolean;
+  allowEditing: boolean;
+  showProgressBar: boolean;
+  showConfirmation: boolean;
+  confirmationMessage: string;
+}
+
+export interface TriageForm {
+  id: string;
+  title: string;
+  description: string | null;
+  slug: string | null;
+  status: TriageFormStatus;
+  settings: TriageFormSettings;
+  publishedAt: string | null;
+}
+
+export interface PublishTriageFormResult {
+  id: string;
+  status: TriageFormStatus;
+  slug: string | null;
+  publicUrl: string | null;
+  publishedAt: string | null;
+}
+
+export interface PublishValidationResult {
+  ok: boolean;
+  issues: { message: string }[];
+  warnings: { message: string }[];
+}
+
+// ============================================================
+// Responses (stored pre-audit submissions)
+// ============================================================
+
+export interface TriageResponseSummary {
+  id: string;
+  email: string | null;
+  recommendedAuditType: string | null;
+  destinationType: string | null;
+  destinationTarget: string | null;
+  answeredCount: number;
+  completedAt: string | null;
+  createdAt: string;
+}
+
+export interface TriageResponsesOverview {
+  total: number;
+  withEmail: number;
+  uniqueEmails: number;
+  submittedToday: number;
+  byAuditType: Record<string, number>;
+  byDestination: Record<string, number>;
+  recent: TriageResponseSummary[];
+}
+
+export interface TriageResponseStep {
+  questionId: string;
+  questionText: string;
+  answerTexts: string[];
+  value?: unknown;
+  nextQuestionId: string | null;
+  destinationType: string | null;
+  destinationTarget: string | null;
+  auditType: string | null;
+}
+
+export interface TriageResponseDetail {
+  id: string;
+  email: string | null;
+  recommendedAuditType: string | null;
+  destinationType: string | null;
+  destinationTarget: string | null;
+  answeredCount: number;
+  steps: TriageResponseStep[];
+  consentGrantedAt: string | null;
+  consentVersion: string;
+  completedAt: string | null;
+  createdAt: string;
+}
+
+// ============================================================
+// Public responder (published form by slug)
+// ============================================================
+
+export interface PublicTriageForm {
+  title: string;
+  description: string | null;
+  status: TriageFormStatus;
+  settings: TriageFormSettings;
+  startQuestion: TriagePublicQuestion | null;
+}
