@@ -16,19 +16,10 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   Crown: <Crown className="w-full h-full" />
 };
 
-type BillingCycle = 'monthly' | 'quarterly' | 'annual';
-
 function parsePrice(priceStr: string): number {
   if (priceStr.toLowerCase() === 'free') return 0;
   const numStr = priceStr.replace(/[^0-9.]/g, '');
   return parseFloat(numStr) || 0;
-}
-
-function getDiscountedPrice(basePrice: number, cycle: BillingCycle): number {
-  if (basePrice === 0) return 0;
-  if (cycle === 'quarterly') return Math.floor(basePrice * 0.9);
-  if (cycle === 'annual') return Math.floor(basePrice * 0.8);
-  return basePrice;
 }
 
 function formatPrice(price: number, originalStr: string): string {
@@ -57,7 +48,6 @@ function getComparisonTableData(selectedSubTier: TierId) {
 
 export default function PricingPage() {
   const [selectedSubTier, setSelectedSubTier] = useState<TierId>('standard');
-  const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
   const [showComparison, setShowComparison] = useState(false);
   const comparisonFeatures = getComparisonTableData(selectedSubTier);
 
@@ -79,24 +69,6 @@ export default function PricingPage() {
           </motion.div>
 
           <div className="mt-8 md:mt-12 flex flex-col items-center gap-6">
-            {/* Billing Cycle Toggle */}
-            <div className="flex p-1 bg-slate-100 rounded-full">
-              {(['monthly', 'quarterly', 'annual'] as BillingCycle[]).map((cycle) => (
-                <button
-                  key={cycle}
-                  onClick={() => setBillingCycle(cycle)}
-                  className={cn(
-                    "px-5 py-2.5 rounded-full text-sm font-semibold transition-all flex items-center",
-                    billingCycle === cycle ? "bg-white text-orange-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                  )}
-                >
-                  <span className="capitalize">{cycle}</span>
-                  {cycle === 'quarterly' && <span className="ml-2 text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider hidden sm:inline-block">Save 10%</span>}
-                  {cycle === 'annual' && <span className="ml-2 text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider hidden sm:inline-block">Save 20%</span>}
-                </button>
-              ))}
-            </div>
-
             {/* Sub-tier Toggle */}
             <div className="flex gap-2 p-1.5 bg-orange-500/5 rounded-2xl border border-orange-500/10 overflow-x-auto w-full sm:w-auto">
               {(['standard', 'pro', 'pro-plus'] as TierId[]).map((tier) => (
@@ -130,9 +102,7 @@ export default function PricingPage() {
             const PlanIcon = ICON_MAP[plan.icon] || ICON_MAP['Star'];
             
             const basePrice = parsePrice(tierData.price);
-            const discountedPrice = getDiscountedPrice(basePrice, billingCycle);
-            const displayPrice = formatPrice(discountedPrice, tierData.price);
-            const totalBilled = billingCycle === 'annual' ? discountedPrice * 12 : billingCycle === 'quarterly' ? discountedPrice * 3 : discountedPrice;
+            const displayPrice = formatPrice(basePrice, tierData.price);
 
             return (
               <motion.div
@@ -167,11 +137,6 @@ export default function PricingPage() {
                     <span className="text-3xl md:text-4xl font-bold">{displayPrice}</span>
                     {tierData.priceSuffix && <span className={cn("text-sm", isGold ? "text-slate-400" : "text-slate-500")}>{tierData.priceSuffix}</span>}
                   </div>
-                  {basePrice > 0 && billingCycle !== 'monthly' && (
-                    <div className={cn("text-xs font-bold mt-1", isGold ? "text-green-400" : "text-green-600")}>
-                      Billed {formatPrice(totalBilled, tierData.price)} {billingCycle === 'annual' ? 'yearly' : 'quarterly'}
-                    </div>
-                  )}
                 </div>
 
                 <p className={cn("mb-6 md:mb-8 text-sm font-medium leading-relaxed", isGold ? "text-slate-300" : "text-slate-500")}>

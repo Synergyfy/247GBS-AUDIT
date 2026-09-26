@@ -125,6 +125,8 @@ export class BusinessTriageService {
         auditType: a.auditType,
         destinationType: a.destinationType,
         destinationTarget: a.destinationTarget,
+        internalValue: a.internalValue,
+        tag: a.tag,
         sortOrder: a.sortOrder,
         isActive: a.isActive,
         createdAt: a.createdAt,
@@ -255,6 +257,8 @@ export class BusinessTriageService {
       auditType: destination.auditType ?? null,
       destinationType: destination.destinationType ?? null,
       destinationTarget: destination.destinationTarget ?? null,
+      internalValue: dto.internalValue?.trim() || null,
+      tag: dto.tag?.trim() || null,
       sortOrder: dto.sortOrder ?? 0,
       isActive: dto.isActive ?? true,
     });
@@ -268,6 +272,8 @@ export class BusinessTriageService {
     if (dto.text !== undefined) answer.text = dto.text.trim();
     if (dto.isActive !== undefined) answer.isActive = dto.isActive;
     if (dto.sortOrder !== undefined) answer.sortOrder = dto.sortOrder;
+    if (dto.internalValue !== undefined) answer.internalValue = dto.internalValue?.trim() || null;
+    if (dto.tag !== undefined) answer.tag = dto.tag?.trim() || null;
 
     const destinationPatch = {
       nextQuestionId: dto.nextQuestionId,
@@ -511,6 +517,104 @@ export class BusinessTriageService {
   // ============================================================
   // Flow safety: cycle / dead-end detection
   // ============================================================
+
+  /**
+   * Publishes only after a full flow-health check. Every active question must:
+   * - have content configured,
+   * - route every active option (or its question-level default) somewhere,
+   * - not point to a missing or deactivated question,
+   * - be able to eventually reach an audit destestination (no dead-ends/loops).
+   * Non-blocking warnings are returned separately (e.g. multi-select options
+   * that route to different places are supported by the traversal engine, but
+   * worth surfacing to the builder admin).
+   */
+  async validateFlowForPublish(): Promise<{
+    ok: boolean;
+    issues: string[];
+    warnings: string[];
+  }> {
+    const questions = await this.questionRepository.find({ order: { order: 'ASC', createdAt: 'ASC' } });
+    const answers = await this.answerRepository.find({ order: { sortOrder: 'ASC', createdAt: 'ASC' } });
+    const byId = new Map(questions.map((q) => [q.id, q]));
+    const answersByQuestion = new Map<string, TriageAnswer[]>();
+    for (const answer of answers) {
+      const bucket = answersByQuestion.get(answer.questionId) ?? [];
+      bucket.push(answer);
+      answersByQuestion.set(answer.questionId, bucket);
+    }
+
+    const issues: string[] = [];
+    const warnings: string[] = [];
+
+    const active = questions.filter((q) => q.isActive);
+    if (active.length === 0) {
+      issues.push('There are no active questions in the form.');
+    }
+
+    const reachable = this.computeAuditReachability(questions, answers);
+
+    for (const question of active) {
+      if (!question.text?.trim()) {
+        issues.push(`Question #${question.order} has no text.`);
+      }
+      const qAnswers = (answersByQuestion.get(question.id) ?? []).filter((a) => a.isActive);
+      const type = normalizeQuestionType(question.type);
+
+      if (isChoiceType(type)) {
+        if (qAnswers.length === 0) {
+          issues.push(`Question "${question.text}" is a choice question but has no answer options.`);
+        }
+        for (const answer of qAnswers) {
+          const hasNext = Boolean(answer.nextQuestionId);
+          const hasDest = Boolean(answer.destinationType || answer.auditType);
+          if (!hasNext && !hasDest) {
+            issues.push(`Option "${answer.text}" on question "${question.text}" has no destination.`);
+          }
+          if (hasNext) {
+            const target = byId.get(answer.nextQuestionId as string);
+            if (!target) {
+              issues.push(`Option "${answer.text}" routes to a question that no longer exists.`);
+            } else if (!target.isActive) {
+              issues.push(`Option "${answer.text}" routes to the inactive question "${target.text}".`);
+            }
+          }
+        }
+        const destRoutes = new Set(
+          qAnswers.map((a) =>
+            JSON.stringify([a.nextQuestionId, a.destinationType ?? a.auditType, a.destinationTarget]),
+          ),
+        );
+        if ((type === 'multiple_choice' || type === 'checkbox') && destRoutes.size > 1) {
+          warnings.push(
+            `Multi-select question "${question.text}" has options that lead to different places. ` +
+              'Respondents who pick them will explore each branch in turn.',
+          );
+        }
+      } else {
+        const hasDefaultNext = Boolean(question.defaultNextQuestionId);
+        const hasDefaultDest = Boolean(question.defaultDestinationType || question.defaultAuditType);
+        if (!hasDefaultNext && !hasDefaultDest) {
+          issues.push(`Question "${question.text}" has no destination configured.`);
+        }
+        if (question.defaultNextQuestionId) {
+          const target = byId.get(question.defaultNextQuestionId);
+          if (!target) {
+            issues.push(`Question "${question.text}" points to a question that no longer exists.`);
+          } else if (!target.isActive) {
+            issues.push(`Question "${question.text}" points to the inactive question "${target.text}".`);
+          }
+        }
+      }
+
+      if (!reachable.has(question.id)) {
+        issues.push(
+          `Question "${question.text}" cannot reach an audit — it ends in a dead-end or a loop.`,
+        );
+      }
+    }
+
+    return { ok: issues.length === 0, issues, warnings };
+  }
 
   /**
    * For each question, determine whether it can reach an audit type through its

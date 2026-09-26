@@ -183,3 +183,51 @@ body {
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(234, 88, 12, 0.4);
 }
+
+/* ---- Rich question text (builder + public responder) ---- */
+.rich-text {
+  line-height: 1.45;
+}
+.rich-text p,
+.rich-text div,
+.rich-text span {
+  display: inline;
+}
+.rich-text b,
+.rich-text strong {
+  font-weight: 700;
+}
+.rich-text i,
+.rich-text em {
+  font-style: italic;
+}
+.rich-text u {
+  text-decoration: underline;
+}
+.rich-text a {
+  color: #ea580c;
+  text-decoration: underline;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.rich-text img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 0.25rem 0;
+}
+
+/* Question text editor (contentEditable) */
+.question-editor {
+  overflow-wrap: anywhere;
+}
+.question-editor:empty:before {
+  content: attr(data-placeholder);
+  color: #94a3b8;
+  pointer-events: none;
+}
+.question-editor img {
+  max-width: 100%;
+  border-radius: 8px;
+  vertical-align: middle;
+}

@@ -6,10 +6,16 @@ import { refreshAccessToken, handleSessionExpired } from "@/lib/auth";
 import type {
   AdminTriageQuestion,
   AdminTriageResponse,
+  PublishTriageFormResult,
+  PublishValidationResult,
   QuestionConfig,
   QuestionType,
   TriageAuditType,
   TriageDestinationType,
+  TriageForm,
+  TriageFormSettings,
+  TriageResponseDetail,
+  TriageResponsesOverview,
 } from "./types";
 
 function getToken(): string | null {
@@ -41,7 +47,11 @@ async function authFetch(path: string, init: RequestInit, retried = false): Prom
 
   if (!res.ok) {
     const errJson = await res.json().catch(() => ({}));
-    throw new Error(errJson.message || `Request failed (${res.status})`);
+    const err: any = new Error(errJson.message || `Request failed (${res.status})`);
+    err.status = res.status;
+    if (Array.isArray(errJson.issues)) err.issues = errJson.issues;
+    if (Array.isArray(errJson.warnings)) err.warnings = errJson.warnings;
+    throw err;
   }
 
   if (res.status === 204) return null;
@@ -139,8 +149,17 @@ export interface AnswerPayload {
   auditType?: TriageAuditType | null;
   destinationType?: TriageDestinationType | null;
   destinationTarget?: string | null;
+  internalValue?: string | null;
+  tag?: string | null;
   sortOrder?: number;
   isActive?: boolean;
+}
+
+/** Error surfaced by authFetch on a failed request (e.g. publish validation). */
+export interface FormApiError extends Error {
+  status?: number;
+  issues?: string[];
+  warnings?: string[];
 }
 
 export const triageApi = {
@@ -173,4 +192,55 @@ export const triageApi = {
 
   deleteAnswer: (id: string) =>
     authFetch(`/admin/triage/answers/${id}`, { method: "DELETE" }),
+};
+
+export interface UpdateFormPayload {
+  title?: string;
+  description?: string | null;
+  settings?: Partial<TriageFormSettings>;
+}
+
+export const formApi = {
+  getForm: async (): Promise<TriageForm> => {
+    const res = await authFetch("/admin/triage/form", { method: "GET" });
+    return res as unknown as TriageForm;
+  },
+
+  updateForm: (payload: UpdateFormPayload) =>
+    authFetch("/admin/triage/form", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
+  publish: async (): Promise<PublishTriageFormResult> => {
+    const res = await authFetch("/admin/triage/publish", { method: "POST" });
+    return res as unknown as PublishTriageFormResult;
+  },
+
+  unpublish: async (): Promise<PublishTriageFormResult> => {
+    const res = await authFetch("/admin/triage/unpublish", { method: "POST" });
+    return res as unknown as PublishTriageFormResult;
+  },
+
+  /** Publish-gate payload: errors carry the validation `issues`/`warnings` arrays. */
+  getValidationErrors: async (err: unknown): Promise<PublishValidationResult> => {
+    const e = err as FormApiError;
+    return {
+      ok: false,
+      issues: (e?.issues ?? []).map((issue) => ({ message: issue })),
+      warnings: (e?.warnings ?? []).map((warning) => ({ message: warning })),
+    };
+  },
+};
+
+export const responsesApi = {
+  list: async (): Promise<TriageResponsesOverview> => {
+    const res = await authFetch("/admin/triage/responses", { method: "GET" });
+    return res as unknown as TriageResponsesOverview;
+  },
+
+  get: async (id: string): Promise<TriageResponseDetail> => {
+    const res = await authFetch(`/admin/triage/responses/${id}`, { method: "GET" });
+    return res as unknown as TriageResponseDetail;
+  },
 };

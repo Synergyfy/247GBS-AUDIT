@@ -142,6 +142,24 @@ export class CreateTriageAnswerDto {
   @MaxLength(255)
   destinationTarget?: string | null;
 
+  @ApiPropertyOptional({
+    description: 'Hidden internal value used by business logic (never shown to respondents).',
+    nullable: true,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  internalValue?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Optional tag attached to the option (never shown to respondents).',
+    nullable: true,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  tag?: string | null;
+
   @ApiPropertyOptional({ description: 'Display order of the option within the question.' })
   @IsOptional()
   @IsInt({ message: 'sortOrder must be a whole number.' })
@@ -191,6 +209,8 @@ export class AdminTriageAnswerDto {
   @ApiProperty({ enum: AuditType, nullable: true }) auditType: string | null;
   @ApiProperty({ enum: DESTINATION_TYPES, nullable: true }) destinationType: string | null;
   @ApiProperty({ nullable: true }) destinationTarget: string | null;
+  @ApiProperty({ nullable: true }) internalValue: string | null;
+  @ApiProperty({ nullable: true }) tag: string | null;
   @ApiProperty({ default: 0 }) sortOrder: number;
   @ApiProperty() isActive: boolean;
   @ApiProperty() createdAt: Date;

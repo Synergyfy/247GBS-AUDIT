@@ -29,6 +29,16 @@ export class TriageAnswer {
   @Column({ type: 'varchar', length: 255, nullable: true })
   destinationTarget: string | null;
 
+  // Hidden internal value used by the business logic (e.g. "funding_need").
+  // Never exposed to the public responder.
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  internalValue: string | null;
+
+  // Optional tag/label attached to the option (e.g. "needs-funding").
+  // Never exposed to the public responder.
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  tag: string | null;
+
   // Controls option display order in the builder / public flow.
   @Column({ type: 'int', default: 0 })
   sortOrder: number;

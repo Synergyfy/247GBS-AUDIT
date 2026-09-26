@@ -7,6 +7,8 @@ import {
   Patch,
   Param,
   Delete,
+  HttpCode,
+  HttpStatus,
   UseGuards,
   ForbiddenException,
 } from '@nestjs/common';
@@ -14,6 +16,8 @@ import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagg
 import { AccessTokenGuard } from '../auth/guards/accessToken.guard';
 import { AdminService } from '../admin/admin.service';
 import { BusinessTriageService } from './business-triage.service';
+import { TriageFormService } from './triage-form.service';
+import { PreAuditService } from './pre-audit.service';
 import {
   CreateTriageQuestionDto,
   UpdateTriageQuestionDto,
@@ -22,6 +26,13 @@ import {
   AdminTriageQuestionDto,
   DeleteMessageDto,
 } from './dto/triage-question.dto';
+import {
+  PublishTriageFormResultDto,
+  TriageFormDto,
+  TriageResponseDetailDto,
+  TriageResponsesOverviewDto,
+  UpdateTriageFormDto,
+} from './dto/triage-form.dto';
 import type { Request } from 'express';
 
 @ApiTags('Admin Business Triage')
@@ -31,6 +42,8 @@ import type { Request } from 'express';
 export class AdminTriageController {
   constructor(
     private readonly businessTriageService: BusinessTriageService,
+    private readonly triageFormService: TriageFormService,
+    private readonly preAuditService: PreAuditService,
     private readonly adminService: AdminService,
   ) {}
 
@@ -100,5 +113,59 @@ export class AdminTriageController {
   async removeAnswer(@Req() req: Request, @Param('id') id: string) {
     await this.verifyAdmin(req);
     return this.businessTriageService.removeAnswer(id);
+  }
+
+  // --- Form / publish state ---
+
+  @Get('form')
+  @ApiOperation({ summary: 'Get the Business Triage form definition', description: 'Title, description, publish state, public slug and responder settings.' })
+  @ApiResponse({ status: 200, type: TriageFormDto })
+  async getForm(@Req() req: Request) {
+    await this.verifyAdmin(req);
+    return this.triageFormService.getForm();
+  }
+
+  @Patch('form')
+  @ApiOperation({ summary: 'Update the Business Triage form definition', description: 'Update title/description/settings. Publish state is managed via publish/unpublish.' })
+  @ApiResponse({ status: 200, type: TriageFormDto })
+  async updateForm(@Req() req: Request, @Body() dto: UpdateTriageFormDto) {
+    await this.verifyAdmin(req);
+    return this.triageFormService.updateForm(dto);
+  }
+
+  @Post('publish')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Validate and publish the Business Triage', description: 'Runs the full flow-health check; fails with the validation issues when the flow cannot reach an audit.' })
+  @ApiResponse({ status: 200, type: PublishTriageFormResultDto })
+  async publish(@Req() req: Request) {
+    await this.verifyAdmin(req);
+    return this.triageFormService.publish();
+  }
+
+  @Post('unpublish')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Unpublish the Business Triage', description: 'Takes the form offline. The public slug is retained for a future re-publish.' })
+  @ApiResponse({ status: 200, type: PublishTriageFormResultDto })
+  async unpublish(@Req() req: Request) {
+    await this.verifyAdmin(req);
+    return this.triageFormService.unpublish();
+  }
+
+  // --- Responses ---
+
+  @Get('responses')
+  @ApiOperation({ summary: 'List stored Business Triage submissions', description: 'Summary stats plus the most recent submissions. Submissions are re-evaluated server-side before storage.' })
+  @ApiResponse({ status: 200, type: TriageResponsesOverviewDto })
+  async listResponses(@Req() req: Request) {
+    await this.verifyAdmin(req);
+    return this.preAuditService.listResponses();
+  }
+
+  @Get('responses/:id')
+  @ApiOperation({ summary: 'Get a single Business Triage submission', description: 'Immutable record of the questions shown, the answers given and the routing that concluded.' })
+  @ApiResponse({ status: 200, type: TriageResponseDetailDto })
+  async getResponse(@Req() req: Request, @Param('id') id: string) {
+    await this.verifyAdmin(req);
+    return this.preAuditService.getResponse(id);
   }
 }
