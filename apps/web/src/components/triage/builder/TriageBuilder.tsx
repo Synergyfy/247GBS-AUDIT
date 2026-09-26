@@ -22,7 +22,6 @@ import type {
   AnswerDestinationSnapshot,
   QuestionConfig,
   QuestionType,
-  TriageDestinationType,
   TriageForm,
   TriageFormSettings,
 } from "@/services/triage/types";
@@ -227,7 +226,6 @@ export function TriageBuilder() {
       qid: string,
       text: string,
       internalValue: string | null,
-      fallbackTarget: string | null,
       sortOrder = 1
     ): AdminTriageAnswer => ({
       id: tempId("a"),
@@ -235,9 +233,11 @@ export function TriageBuilder() {
       text,
       internalValue,
       tag: null,
-      nextQuestionId: fallbackTarget,
+      // No explicit route — follows the linear default, resolved from the
+      // question order at runtime ("next question" or "End / Submit").
+      nextQuestionId: null,
       auditType: null,
-      destinationType: fallbackTarget ? null : ("HUMAN_REVIEW" as TriageDestinationType),
+      destinationType: null,
       destinationTarget: null,
       sortOrder,
       isActive: true,
@@ -250,8 +250,7 @@ export function TriageBuilder() {
     (question: AdminTriageQuestion, others: AdminTriageQuestion[]): AdminTriageAnswer[] => {
       const active = question.answers.filter((a) => a.isActive);
       if (active.length > 0) return question.answers;
-      const fallback = others.find((o) => o.id !== question.id && o.isActive)?.id ?? null;
-      return [makeDraftAnswer(question.id, "Yes", "yes", fallback), makeDraftAnswer(question.id, "No", "no", fallback)];
+      return [makeDraftAnswer(question.id, "Yes", "yes"), makeDraftAnswer(question.id, "No", "no")];
     },
     [makeDraftAnswer]
   );
@@ -374,15 +373,13 @@ export function TriageBuilder() {
           createdAt: new Date().toISOString(),
           answers: [],
         };
-        const fallback =
-          prev.find((o) => o.id !== question.id && o.isActive)?.id ?? null;
         return syncLinearDestinations([
           ...prev,
           {
             ...question,
             answers: [
-              makeDraftAnswer(question.id, "Option 1", null, fallback, 1),
-              makeDraftAnswer(question.id, "Option 2", null, fallback, 2),
+              makeDraftAnswer(question.id, "Option 1", null, 1),
+              makeDraftAnswer(question.id, "Option 2", null, 2),
             ],
           },
         ]);
@@ -401,16 +398,15 @@ export function TriageBuilder() {
             const active = q.answers
               .filter((a) => a.isActive)
               .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-            const nextTarget = prev.find((x) => x.id !== qid && x.isActive)?.id ?? null;
             const answer: AdminTriageAnswer = {
               id: tempId("a"),
               questionId: qid,
               text: `Option ${active.length + 1}`,
               internalValue: null,
               tag: null,
-              nextQuestionId: nextTarget,
+              nextQuestionId: null,
               auditType: null,
-              destinationType: nextTarget ? null : ("HUMAN_REVIEW" as TriageDestinationType),
+              destinationType: null,
               destinationTarget: null,
               sortOrder: active.reduce((m, a) => Math.max(m, a.sortOrder ?? 0), 0) + 1,
               isActive: true,
@@ -535,15 +531,16 @@ export function TriageBuilder() {
             prev
               .filter((x) => x.id !== q.id)
               .map((question) => {
-                let adjusted = question;
-                if (question.defaultNextQuestionId === q.id) {
-                  adjusted = {
-                    ...question,
-                    defaultNextQuestionId: null,
-                    defaultDestinationType: "HUMAN_REVIEW" as TriageDestinationType,
-                    defaultDestinationTarget: null,
-                  };
-                }
+                const adjusted =
+                  question.defaultNextQuestionId === q.id
+                    ? {
+                        ...question,
+                        defaultNextQuestionId: null,
+                        defaultAuditType: null,
+                        defaultDestinationType: null,
+                        defaultDestinationTarget: null,
+                      }
+                    : question;
                 if (!question.answers.some((a) => a.nextQuestionId === q.id)) return adjusted;
                 return {
                   ...adjusted,
@@ -552,7 +549,8 @@ export function TriageBuilder() {
                       ? {
                           ...a,
                           nextQuestionId: null,
-                          destinationType: "HUMAN_REVIEW" as TriageDestinationType,
+                          auditType: null,
+                          destinationType: null,
                           destinationTarget: null,
                         }
                       : a
@@ -861,9 +859,9 @@ export function TriageBuilder() {
               {form?.description || "Design how visitors are routed to the right audit or service."}
             </p>
           </div>
-          <div className="grid w-full shrink-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
+          <div className="flex w-full min-w-0 items-center gap-2 overflow-x-auto overscroll-x-contain sm:w-auto">
             {dirty && (
-              <span className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-full bg-amber-50 text-amber-700 px-3 py-1.5 text-xs font-bold uppercase tracking-widest sm:col-span-1">
+              <span className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-amber-50 text-amber-700 px-3 py-1.5 text-xs font-bold uppercase tracking-widest">
                 <PencilLine size={13} /> Unsaved changes
               </span>
             )}
@@ -872,7 +870,7 @@ export function TriageBuilder() {
                 type="button"
                 disabled={busy}
                 onClick={discard}
-                className="inline-flex min-w-0 items-center justify-center gap-2 text-center rounded-2xl bg-white border-2 border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600 hover:border-slate-300 transition-all disabled:opacity-50"
+                className="inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-white border-2 border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600 hover:border-slate-300 transition-all disabled:opacity-50"
               >
                 <RotateCcw size={14} /> Discard
               </button>
@@ -881,7 +879,7 @@ export function TriageBuilder() {
               type="button"
               disabled={!dirty || busy}
               onClick={() => void saveDraft()}
-              className="inline-flex min-w-0 items-center justify-center gap-2 text-center rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-black transition-all disabled:opacity-50"
+              className="inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-black transition-all disabled:opacity-50"
             >
               <Save size={15} />
               Save
@@ -889,7 +887,7 @@ export function TriageBuilder() {
             <button
               type="button"
               onClick={localAddQuestion}
-              className="inline-flex min-w-0 items-center justify-center gap-2 text-center rounded-2xl border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:border-slate-300 transition-all"
+              className="inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-2xl border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:border-slate-300 transition-all"
             >
               <Plus size={15} />
               Add Question
@@ -897,7 +895,7 @@ export function TriageBuilder() {
             <button
               type="button"
               onClick={() => setImportOpen(true)}
-              className="inline-flex min-w-0 items-center justify-center gap-2 text-center rounded-2xl border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:border-slate-300 transition-all"
+              className="inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-2xl border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:border-slate-300 transition-all"
             >
               <Upload size={15} />
               Import
@@ -905,7 +903,7 @@ export function TriageBuilder() {
             <button
               type="button"
               onClick={() => setPreviewOpen(true)}
-              className="inline-flex min-w-0 items-center justify-center gap-2 text-center rounded-2xl bg-slate-100 px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 transition-all"
+              className="inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-slate-100 px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 transition-all"
             >
               <Eye size={15} />
               Preview
@@ -914,7 +912,7 @@ export function TriageBuilder() {
               type="button"
               disabled={busy}
               onClick={() => setPublishOpen(true)}
-              className="inline-flex min-w-0 items-center justify-center gap-2 text-center rounded-2xl bg-orange-500 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-orange-500/25 hover:bg-orange-600 transition-all disabled:opacity-50"
+              className="inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-orange-500 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-orange-500/25 hover:bg-orange-600 transition-all disabled:opacity-50"
             >
               <Send size={15} />
               Publish
@@ -923,7 +921,7 @@ export function TriageBuilder() {
         </div>
 
         {/* Tabs */}
-        <div className="mt-5 flex items-center gap-1 overflow-x-auto border-b border-slate-100">
+        <div className="mt-5 flex items-center gap-1 overflow-x-auto overflow-y-hidden border-b border-slate-100">
           {tabMeta.map((meta) => {
             const Icon = meta.icon;
             return (
@@ -967,6 +965,7 @@ export function TriageBuilder() {
             onUpdateTitle={updateTitle}
             onUpdateDescription={updateDescription}
             onUpdateSettings={updateSettings}
+            onCopy={copyLink}
             busy={busy}
           />
         )}

@@ -35,14 +35,12 @@ export class BusinessTriageService {
   // ============================================================
 
   async getStartQuestion(): Promise<TriageQuestionItemDto> {
-    const question = await this.questionRepository.findOne({
-      where: { isActive: true },
-      order: { order: 'ASC', createdAt: 'ASC' },
-    });
+    const ordered = await this.linearOrder();
+    const question = ordered[0];
     if (!question) {
       throw new NotFoundException('No active triage questions are configured yet.');
     }
-    return this.toPublicQuestion(question);
+    return this.toPublicQuestion(question, ordered);
   }
 
   async getQuestion(id: string): Promise<TriageQuestionItemDto> {
@@ -50,14 +48,69 @@ export class BusinessTriageService {
     if (!question || !question.isActive) {
       throw new NotFoundException('Triage question not found.');
     }
-    return this.toPublicQuestion(question);
+    const ordered = await this.linearOrder();
+    return this.toPublicQuestion(question, ordered);
   }
 
-  private async toPublicQuestion(question: TriageQuestion): Promise<TriageQuestionItemDto> {
+  /**
+   * All active questions in linear (order) sequence. Used to resolve the
+   * dynamic "next question" default: anything without an explicit destination
+   * advances to the next active question, or ends the form ("End / Submit")
+   * when it is last. Because the next step is derived from `order` at request
+   * time, drag-and-drop reordering never leaves a stale stored next id behind.
+   */
+  private async linearOrder(): Promise<TriageQuestion[]> {
+    return this.questionRepository.find({
+      where: { isActive: true },
+      order: { order: 'ASC', createdAt: 'ASC' },
+    });
+  }
+
+  private nextLinearQuestionId(
+    questionId: string,
+    ordered: TriageQuestion[],
+  ): string | null {
+    const index = ordered.findIndex((q) => q.id === questionId);
+    if (index < 0) return null;
+    return ordered[index + 1]?.id ?? null;
+  }
+
+  /**
+   * Effective linear default for an edge with no explicit destination: the
+   * next active question, or the "End / Submit" terminal (human review) for
+   * the final question. Mirrored by the server-side replay in PreAuditService
+   * so the client's (baked) routing always matches what the server re-walks.
+   */
+  private async toPublicQuestion(
+    question: TriageQuestion,
+    ordered: TriageQuestion[],
+  ): Promise<TriageQuestionItemDto> {
     const answers = await this.answerRepository.find({
       where: { questionId: question.id, isActive: true },
       order: { sortOrder: 'ASC', createdAt: 'ASC' },
     });
+    const linearNext = this.nextLinearQuestionId(question.id, ordered);
+
+    const defaultNext = question.defaultNextQuestionId;
+    const hasDefault = Boolean(
+      defaultNext ||
+        question.defaultDestinationType ||
+        question.defaultAuditType,
+    );
+    const isTail = linearNext === null;
+
+    const defaultNextQuestionId = hasDefault
+      ? defaultNext
+      : linearNext;
+    const defaultDestinationType = hasDefault
+      ? (question.defaultDestinationType ?? question.defaultAuditType)
+      : isTail
+        ? 'HUMAN_REVIEW'
+        : null;
+    const defaultDestinationTarget = hasDefault
+      ? question.defaultDestinationTarget
+      : null;
+
     return {
       id: question.id,
       text: question.text,
@@ -66,18 +119,39 @@ export class BusinessTriageService {
       hint: question.hint,
       required: question.required,
       config: question.config ?? {},
-      defaultNextQuestionId: question.defaultNextQuestionId,
-      defaultAuditType: question.defaultAuditType,
-      defaultDestinationType: question.defaultDestinationType,
-      defaultDestinationTarget: question.defaultDestinationTarget,
-      answers: answers.map((a) => ({
-        id: a.id,
-        text: a.text,
-        nextQuestionId: a.nextQuestionId,
-        auditType: a.auditType,
-        destinationType: a.destinationType,
-        destinationTarget: a.destinationTarget,
-      })),
+      defaultNextQuestionId,
+      defaultAuditType:
+        defaultDestinationType === null
+          ? hasDefault
+            ? question.defaultAuditType
+            : null
+          : defaultDestinationType,
+      defaultDestinationType,
+      defaultDestinationTarget,
+      answers: answers.map((a) => {
+        const hasExplicit = Boolean(
+          a.nextQuestionId || a.destinationType || a.auditType,
+        );
+        if (hasExplicit) {
+          return {
+            id: a.id,
+            text: a.text,
+            nextQuestionId: a.nextQuestionId,
+            auditType: a.auditType,
+            destinationType: a.destinationType,
+            destinationTarget: a.destinationTarget,
+          };
+        }
+        // No explicit route — follow the linear default.
+        return {
+          id: a.id,
+          text: a.text,
+          nextQuestionId: isTail ? null : linearNext,
+          auditType: isTail ? ('HUMAN_REVIEW' as string) : null,
+          destinationType: isTail ? ('HUMAN_REVIEW' as string) : null,
+          destinationTarget: null,
+        };
+      }),
     };
   }
 
@@ -565,18 +639,15 @@ export class BusinessTriageService {
           issues.push(`Question "${question.text}" is a choice question but has no answer options.`);
         }
         for (const answer of qAnswers) {
-          const hasNext = Boolean(answer.nextQuestionId);
-          const hasDest = Boolean(answer.destinationType || answer.auditType);
-          if (!hasNext && !hasDest) {
-            issues.push(`Option "${answer.text}" on question "${question.text}" has no destination.`);
-          }
-          if (hasNext) {
-            const target = byId.get(answer.nextQuestionId as string);
-            if (!target) {
-              issues.push(`Option "${answer.text}" routes to a question that no longer exists.`);
-            } else if (!target.isActive) {
-              issues.push(`Option "${answer.text}" routes to the inactive question "${target.text}".`);
-            }
+          // An answer without an explicit route follows the linear default
+          // (next active question, or "End / Submit" for the final question),
+          // so it is always valid — only explicit routes need checking.
+          if (!answer.nextQuestionId) continue;
+          const target = byId.get(answer.nextQuestionId);
+          if (!target) {
+            issues.push(`Option "${answer.text}" routes to a question that no longer exists.`);
+          } else if (!target.isActive) {
+            issues.push(`Option "${answer.text}" routes to the inactive question "${target.text}".`);
           }
         }
         const destRoutes = new Set(
@@ -591,18 +662,14 @@ export class BusinessTriageService {
           );
         }
       } else {
-        const hasDefaultNext = Boolean(question.defaultNextQuestionId);
-        const hasDefaultDest = Boolean(question.defaultDestinationType || question.defaultAuditType);
-        if (!hasDefaultNext && !hasDefaultDest) {
-          issues.push(`Question "${question.text}" has no destination configured.`);
-        }
-        if (question.defaultNextQuestionId) {
-          const target = byId.get(question.defaultNextQuestionId);
-          if (!target) {
-            issues.push(`Question "${question.text}" points to a question that no longer exists.`);
-          } else if (!target.isActive) {
-            issues.push(`Question "${question.text}" points to the inactive question "${target.text}".`);
-          }
+        // Option-less questions default to the next active question in order
+        // (or "End / Submit" when last) — no explicit destination is required.
+        if (!question.defaultNextQuestionId) continue;
+        const target = byId.get(question.defaultNextQuestionId);
+        if (!target) {
+          issues.push(`Question "${question.text}" points to a question that no longer exists.`);
+        } else if (!target.isActive) {
+          issues.push(`Question "${question.text}" points to the inactive question "${target.text}".`);
         }
       }
 
@@ -628,9 +695,13 @@ export class BusinessTriageService {
 
     const nextIds = new Map<string, string[]>();
     const exitsToAudit = new Map<string, boolean>();
+    const answersByQuestion = new Map<string, TriageAnswer[]>();
     for (const answer of answers) {
       if (!answer.isActive) continue;
       if (!answer.questionId) continue;
+      const bucket = answersByQuestion.get(answer.questionId) ?? [];
+      bucket.push(answer);
+      answersByQuestion.set(answer.questionId, bucket);
       if (!nextIds.has(answer.questionId)) nextIds.set(answer.questionId, []);
       if (answer.nextQuestionId && byId.has(answer.nextQuestionId) && byId.get(answer.nextQuestionId)!.isActive) {
         nextIds.get(answer.questionId)!.push(answer.nextQuestionId);
@@ -647,6 +718,42 @@ export class BusinessTriageService {
         if (!nextIds.has(question.id)) nextIds.set(question.id, []);
         nextIds.get(question.id)!.push(question.defaultNextQuestionId);
       }
+    }
+    // Dynamic linear default: a question advances to the next active question
+    // (or ends the form) whenever an active answer carries no explicit route,
+    // or an option-less question declares no explicit default. Only routes
+    // that genuinely participate in runtime traffic are added, so explicit
+    // branching loops still fail the reachability walk.
+    const ordered = questions
+      .filter((q) => q.isActive)
+      .sort((a, b) => a.order - b.order || a.createdAt.getTime() - b.createdAt.getTime());
+    for (let index = 0; index < ordered.length; index++) {
+      const question = ordered[index];
+      const isChoice = isChoiceType(normalizeQuestionType(question.type));
+      let usesLinear = false;
+      if (isChoice) {
+        usesLinear = (answersByQuestion.get(question.id) ?? []).some(
+          (a) =>
+            a.isActive &&
+            !a.nextQuestionId &&
+            !a.auditType &&
+            !a.destinationType,
+        );
+      } else {
+        usesLinear =
+          !question.defaultNextQuestionId &&
+          !question.defaultAuditType &&
+          !question.defaultDestinationType;
+      }
+      if (!usesLinear) continue;
+      const follower = ordered[index + 1];
+      if (!follower || !follower.isActive) {
+        // Final question — the form concludes ("End / Submit").
+        exitsToAudit.set(question.id, true);
+        continue;
+      }
+      if (!nextIds.has(question.id)) nextIds.set(question.id, []);
+      nextIds.get(question.id)!.push(follower.id);
     }
 
     const reachable = new Set<string>();

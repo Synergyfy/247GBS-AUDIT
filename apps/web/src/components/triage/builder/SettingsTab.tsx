@@ -1,6 +1,7 @@
 "use client";
 
 import type { TriageForm, TriageFormSettings } from "@/services/triage/types";
+import { PublicLinkRow } from "./PublicLinkRow";
 import { SETTINGS_GROUPS } from "./shared";
 import { useSyncedString } from "./useSyncedState";
 import { FieldLabel, TextArea, TextInput, Toggle } from "./ui";
@@ -10,12 +11,14 @@ export function SettingsTab({
   onUpdateTitle,
   onUpdateDescription,
   onUpdateSettings,
+  onCopy,
   busy,
 }: {
   form: TriageForm;
   onUpdateTitle: (title: string) => void;
   onUpdateDescription: (description: string | null) => void;
   onUpdateSettings: (patch: Partial<TriageFormSettings>) => void;
+  onCopy: (path: string) => void;
   busy: boolean;
 }) {
   const [titleDraft, setTitleDraft] = useSyncedString(form.title);
@@ -41,6 +44,12 @@ export function SettingsTab({
 
   return (
     <div className="space-y-6">
+      <PublicLinkRow
+        slug={form.slug ?? null}
+        status={form.status}
+        onCopy={onCopy}
+      />
+
       <div className="rounded-3xl border border-slate-100 bg-white p-5 sm:p-6">
         <h3 className="mb-1 text-sm font-bold text-slate-900">Form details</h3>
         <p className="mb-5 text-xs text-slate-400 font-medium">

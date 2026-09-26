@@ -91,10 +91,15 @@ export class PreAuditService {
       );
     }
 
-    const startQuestion = await this.questionRepository.findOne({
+    // All active questions in linear order. Used both for the start question
+    // and to resolve the dynamic "next question" default for edges that carry
+    // no explicit destination (mirror of the public payload resolution).
+    const activeQuestions = await this.questionRepository.find({
       where: { isActive: true },
       order: { order: 'ASC', createdAt: 'ASC' },
     });
+    const activeById = new Map(activeQuestions.map((q) => [q.id, q]));
+    const startQuestion = activeQuestions[0];
     if (!startQuestion) {
       throw new BadRequestException('No active questions are configured yet.');
     }
@@ -141,7 +146,7 @@ export class PreAuditService {
       }
 
       if (i > 0) {
-        const question = await this.questionRepository.findOne({ where: { id: step.questionId } });
+        const question = activeById.get(step.questionId) ?? null;
         if (!question || !question.isActive) {
           throw new BadRequestException(
             `Step ${i + 1} referenced an inactive or missing question. Please refresh and try again.`,
@@ -151,7 +156,12 @@ export class PreAuditService {
       }
 
       const type = normalizeQuestionType(current.type);
-      const { result: stepResult, branches } = await this.evaluateStep(current, step, type);
+      const { result: stepResult, branches } = await this.evaluateStep(
+        current,
+        step,
+        type,
+        activeQuestions,
+      );
       evaluated.push(stepResult);
       visitedQuestionIds.add(current.id);
 
@@ -176,9 +186,10 @@ export class PreAuditService {
         destinationTarget = stepResult.destinationTarget;
         expectedNext = this.resolvePendingNext(pending, visitedQuestionIds);
       } else {
-        // No destination configured — the flow cannot continue.
+        // Defensive only: evaluation always resolves a route (linear default or
+        // an explicit destination), so this is never reached for valid flows.
         throw new BadRequestException(
-          `Question "${current.text}" has no destination configured for the selected answer.`,
+          'The submitted flow could not determine the next step. Please refresh and try again.',
         );
       }
     }
@@ -229,17 +240,58 @@ export class PreAuditService {
     question: TriageQuestion,
     step: PreAuditStepDto,
     type: string,
+    ordered: TriageQuestion[],
   ): Promise<EvaluatedChoice> {
     if (isChoiceType(type)) {
-      return this.evaluateChoice(question, step, type);
+      return this.evaluateChoice(question, step, type, ordered);
     }
-    return { result: this.evaluateTyped(question, step, type), branches: [] };
+    return { result: this.evaluateTyped(question, step, type, ordered), branches: [] };
+  }
+
+  /**
+   * The next active question that follows `question` in linear order, or null
+   * when `question` is the final step of the form.
+   */
+  private linearNextOf(
+    ordered: TriageQuestion[],
+    questionId: string,
+  ): string | null {
+    const index = ordered.findIndex((q) => q.id === questionId);
+    if (index < 0) return null;
+    return ordered[index + 1]?.id ?? null;
+  }
+
+  /**
+   * Linear default for an edge with no explicit destination: advance to the
+   * next active question, or conclude the form ("End / Submit" — human review)
+   * when the current question is last. Mirrors the public payload resolution
+   * so the engine's re-walk matches the baked routing the client followed.
+   */
+  private linearFallback(
+    question: TriageQuestion,
+    ordered: TriageQuestion[],
+  ): Destination {
+    const linearNext = this.linearNextOf(ordered, question.id);
+    return linearNext
+      ? { nextQuestionId: linearNext, destinationType: null, destinationTarget: null }
+      : { nextQuestionId: null, destinationType: 'HUMAN_REVIEW', destinationTarget: null };
+  }
+
+  private effectiveDestinationOf(
+    answer: TriageAnswer,
+    question: TriageQuestion,
+    ordered: TriageQuestion[],
+  ): Destination {
+    const stored = this.destinationOf(answer);
+    const hasExplicit = Boolean(answer.nextQuestionId || stored.destinationType);
+    return hasExplicit ? stored : this.linearFallback(question, ordered);
   }
 
   private async evaluateChoice(
     question: TriageQuestion,
     step: PreAuditStepDto,
     type: string,
+    orderedQuestions: TriageQuestion[],
   ): Promise<EvaluatedChoice> {
     const optionIds = Array.isArray(step.optionIds) ? step.optionIds : [];
     const isSingle = type === 'single_choice' || type === 'dropdown' || type === 'yes_no';
@@ -282,7 +334,7 @@ export class PreAuditService {
     // route; every other route is queued as a pending branch (DFS).
     const groups: { route: string; options: TriageAnswer[]; destination: Destination }[] = [];
     for (const option of ordered) {
-      const destination = this.destinationOf(option);
+      const destination = this.effectiveDestinationOf(option, question, orderedQuestions);
       const route = JSON.stringify([
         destination.nextQuestionId ?? null,
         destination.destinationType ?? null,
@@ -298,23 +350,6 @@ export class PreAuditService {
 
     const primary = groups[0];
     const destination = primary.destination;
-
-    if (!destination.nextQuestionId && !destination.destinationType) {
-      return {
-        result: {
-          questionId: question.id,
-          questionText: question.text,
-          type,
-          optionIds,
-          optionTexts: selected.map((o) => o.text),
-          nextQuestionId: null,
-          destinationType: null,
-          destinationTarget: null,
-          auditType: null,
-        },
-        branches: [],
-      };
-    }
 
     const branches: PendingBranch[] = [];
     for (let i = 1; i < groups.length; i++) {
@@ -377,30 +412,22 @@ export class PreAuditService {
     question: TriageQuestion,
     step: PreAuditStepDto,
     type: string,
+    ordered: TriageQuestion[],
   ): EvaluatedStep {
     const cfg = question.config ?? {};
     const value = step.value;
     const required = question.required;
 
     if (value === undefined || value === null || value === '') {
-      const resolved = resolveDestination(question);
       if (required) {
         throw new BadRequestException(`Question "${question.text}" must be answered.`);
       }
-      if (!question.defaultNextQuestionId && !resolved.destinationType) {
-        throw new BadRequestException(
-          `Question "${question.text}" has no destination. Please refresh and try again.`,
-        );
-      }
       return {
+        ...this.effectiveTypedRoute(question, ordered),
         questionId: question.id,
         questionText: question.text,
         type,
         value: null,
-        nextQuestionId: question.defaultNextQuestionId,
-        destinationType: resolved.destinationType,
-        destinationTarget: resolved.destinationTarget,
-        auditType: destinationAuditType(resolved.destinationType),
       };
     }
 
@@ -430,16 +457,41 @@ export class PreAuditService {
         throw new BadRequestException(`Unsupported answer type "${type}".`);
     }
 
-    const resolved = resolveDestination(question);
     return {
+      ...this.effectiveTypedRoute(question, ordered),
       questionId: question.id,
       questionText: question.text,
       type,
       value: normalized,
-      nextQuestionId: question.defaultNextQuestionId,
-      destinationType: resolved.destinationType,
-      destinationTarget: resolved.destinationTarget,
-      auditType: destinationAuditType(resolved.destinationType),
+    };
+  }
+
+  /**
+   * The route an option-less question flows along: an explicit default when
+   * one is configured, otherwise the next active question in order — or the
+   * "End / Submit" terminal for the final question.
+   */
+  private effectiveTypedRoute(
+    question: TriageQuestion,
+    ordered: TriageQuestion[],
+  ): Pick<EvaluatedStep, 'nextQuestionId' | 'destinationType' | 'destinationTarget' | 'auditType'> {
+    const explicitNext = question.defaultNextQuestionId;
+    const explicitDest = resolveDestination(question);
+    const hasExplicit = Boolean(explicitNext || explicitDest.destinationType);
+    if (hasExplicit) {
+      return {
+        nextQuestionId: explicitNext,
+        destinationType: explicitDest.destinationType,
+        destinationTarget: explicitDest.destinationTarget,
+        auditType: destinationAuditType(explicitDest.destinationType),
+      };
+    }
+    const fallback = this.linearFallback(question, ordered);
+    return {
+      nextQuestionId: fallback.nextQuestionId,
+      destinationType: fallback.destinationType,
+      destinationTarget: fallback.destinationTarget,
+      auditType: destinationAuditType(fallback.destinationType),
     };
   }
 
