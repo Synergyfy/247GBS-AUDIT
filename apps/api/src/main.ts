@@ -22,7 +22,12 @@ async function bootstrap() {
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
   const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
-    : [frontendUrl, 'http://localhost:3000', 'http://localhost:3001'];
+    : [
+        frontendUrl,
+        'https://247gbsaudit.centralhubsolution.com',
+        'http://localhost:3000',
+        'http://localhost:3001',
+      ];
 
   console.log('[CORS] Allowed origins:', allowedOrigins);
 
