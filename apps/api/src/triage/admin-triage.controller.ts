@@ -17,7 +17,7 @@ import { AccessTokenGuard } from '../auth/guards/accessToken.guard';
 import { AdminService } from '../admin/admin.service';
 import { BusinessTriageService } from './business-triage.service';
 import { TriageFormService } from './triage-form.service';
-import { PreAuditService } from './pre-audit.service';
+import { TriageReportService } from './triage-report.service';
 import {
   CreateTriageQuestionDto,
   UpdateTriageQuestionDto,
@@ -43,7 +43,7 @@ export class AdminTriageController {
   constructor(
     private readonly businessTriageService: BusinessTriageService,
     private readonly triageFormService: TriageFormService,
-    private readonly preAuditService: PreAuditService,
+    private readonly triageReportService: TriageReportService,
     private readonly adminService: AdminService,
   ) {}
 
@@ -58,7 +58,7 @@ export class AdminTriageController {
   // --- Questions ---
 
   @Get('questions')
-  @ApiOperation({ summary: 'List all Business Triage questions', description: 'Returns every question with its answer options and flow-safety flags.' })
+  @ApiOperation({ summary: 'List all questions with their answers', description: 'Returns all questions (active and inactive) in display order, including answer counts and target routing.' })
   @ApiResponse({ status: 200, type: [AdminTriageQuestionDto] })
   async listQuestions(@Req() req: Request) {
     await this.verifyAdmin(req);
@@ -66,21 +66,27 @@ export class AdminTriageController {
   }
 
   @Post('questions')
-  @ApiOperation({ summary: 'Create a Business Triage question' })
+  @ApiOperation({ summary: 'Create a new triage question', description: 'Creates a question. Default destinations are validated against existing questions.' })
+  @ApiResponse({ status: 201, type: AdminTriageQuestionDto })
   async createQuestion(@Req() req: Request, @Body() dto: CreateTriageQuestionDto) {
     await this.verifyAdmin(req);
     return this.businessTriageService.createQuestion(dto);
   }
 
   @Patch('questions/:id')
-  @ApiOperation({ summary: 'Update a Business Triage question' })
-  async updateQuestion(@Req() req: Request, @Param('id') id: string, @Body() dto: UpdateTriageQuestionDto) {
+  @ApiOperation({ summary: 'Update a triage question', description: 'Updates question text, type, order or routing destinations.' })
+  @ApiResponse({ status: 200, type: AdminTriageQuestionDto })
+  async updateQuestion(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() dto: UpdateTriageQuestionDto,
+  ) {
     await this.verifyAdmin(req);
     return this.businessTriageService.updateQuestion(id, dto);
   }
 
   @Delete('questions/:id')
-  @ApiOperation({ summary: 'Deactivate a Business Triage question', description: 'Soft-deletes the question. Fails if another answer points to it.' })
+  @ApiOperation({ summary: 'Delete a triage question', description: 'Deletes question and its answers. Fails if other questions/answers route to it.' })
   @ApiResponse({ status: 200, type: DeleteMessageDto })
   async removeQuestion(@Req() req: Request, @Param('id') id: string) {
     await this.verifyAdmin(req);
@@ -89,22 +95,30 @@ export class AdminTriageController {
 
   // --- Answers ---
 
-  @Post('questions/:id/answers')
-  @ApiOperation({ summary: 'Add an answer option to a question', description: 'The answer must point to a next question OR an audit type — not both.' })
-  async createAnswer(@Req() req: Request, @Param('id') id: string, @Body() dto: CreateTriageAnswerDto) {
+  @Post('questions/:questionId/answers')
+  @ApiOperation({ summary: 'Add an answer option to a question', description: 'Must specify either nextQuestionId or destinationType/auditType.' })
+  async createAnswer(
+    @Req() req: Request,
+    @Param('questionId') questionId: string,
+    @Body() dto: CreateTriageAnswerDto,
+  ) {
     await this.verifyAdmin(req);
-    return this.businessTriageService.createAnswer(id, dto);
+    return this.businessTriageService.createAnswer(questionId, dto);
   }
 
   @Patch('answers/:id')
-  @ApiOperation({ summary: 'Update an answer option', description: 'Update the answer text, status, or its destination.' })
-  async updateAnswer(@Req() req: Request, @Param('id') id: string, @Body() dto: UpdateTriageAnswerDto) {
+  @ApiOperation({ summary: 'Update an answer option', description: 'Updates text, value, scoreImpact or destination.' })
+  async updateAnswer(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() dto: UpdateTriageAnswerDto,
+  ) {
     await this.verifyAdmin(req);
     return this.businessTriageService.updateAnswer(id, dto);
   }
 
   @Delete('answers/:id')
-  @ApiOperation({ summary: 'Deactivate an answer option' })
+  @ApiOperation({ summary: 'Delete an answer option' })
   @ApiResponse({ status: 200, type: DeleteMessageDto })
   async removeAnswer(@Req() req: Request, @Param('id') id: string) {
     await this.verifyAdmin(req);
@@ -154,7 +168,7 @@ export class AdminTriageController {
   @ApiResponse({ status: 200, type: TriageResponsesOverviewDto })
   async listResponses(@Req() req: Request) {
     await this.verifyAdmin(req);
-    return this.preAuditService.listResponses();
+    return this.triageReportService.listResponses();
   }
 
   @Get('responses/:id')
@@ -162,6 +176,6 @@ export class AdminTriageController {
   @ApiResponse({ status: 200, type: TriageResponseDetailDto })
   async getResponse(@Req() req: Request, @Param('id') id: string) {
     await this.verifyAdmin(req);
-    return this.preAuditService.getResponse(id);
+    return this.triageReportService.getResponse(id);
   }
 }
