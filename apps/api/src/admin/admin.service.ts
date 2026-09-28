@@ -27,15 +27,18 @@ export class AdminService {
   ) {}
 
   async verifyAdmin(userId: string): Promise<User> {
-    // TODO(dev): TEMPORARY DEV-ONLY bypass. Skip admin role verification while
-    // NODE_ENV === 'development' so admin management endpoints work on
-    // localhost without an Administrator account. Admin auth MUST be restored
-    // before production (remove this block).
-    if (process.env.NODE_ENV === 'development') return null as unknown as User;
+    if (!userId) {
+      throw new ForbiddenException('Access denied. Administrator privileges required.');
+    }
 
     const user = await this.userRepository.findOne({ where: { id: userId } });
-    if (!user || user.role !== 'Administrator') {
-       throw new ForbiddenException('Access denied. Admin only.');
+    if (!user) {
+      throw new ForbiddenException('Access denied. User not found.');
+    }
+
+    const role = (user.role || '').toLowerCase();
+    if (role !== 'administrator' && role !== 'admin') {
+      throw new ForbiddenException('Access denied. Administrator privileges required.');
     }
     return user;
   }

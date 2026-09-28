@@ -9,10 +9,12 @@ interface ReviewStepProps {
   onEditQuestion: (index: number) => void;
   onContinue: () => void;
   onBack: () => void;
+  allowEdit?: boolean;
+  nextLabel?: string;
 }
 
 /** Shows every answered question, with per-row edit. Email + consent come next. */
-export function ReviewStep({ visited, disabled, onEditQuestion, onContinue, onBack }: ReviewStepProps) {
+export function ReviewStep({ visited, disabled, onEditQuestion, onContinue, onBack, allowEdit = true, nextLabel = "Continue to email" }: ReviewStepProps) {
   return (
     <div className="bg-white rounded-3xl shadow-2xl shadow-slate-200/50 border border-slate-50 relative z-10 overflow-hidden">
       <div className="p-6 sm:p-10 lg:p-12">
@@ -53,9 +55,11 @@ export function ReviewStep({ visited, disabled, onEditQuestion, onContinue, onBa
                 </div>
                 <button
                   type="button"
-                  disabled={disabled}
+                  disabled={disabled || !allowEdit}
                   onClick={() => onEditQuestion(index)}
-                  className="shrink-0 inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[10px] sm:text-xs font-bold uppercase tracking-widest text-slate-500 hover:text-orange-600 hover:border-orange-300 transition-all disabled:opacity-50"
+                  className={`shrink-0 inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[10px] sm:text-xs font-bold uppercase tracking-widest text-slate-500 transition-all disabled:opacity-50 ${
+                    allowEdit ? "hover:text-orange-600 hover:border-orange-300" : "cursor-default"
+                  }`}
                 >
                   <Pencil size={12} />
                   Edit
@@ -82,7 +86,7 @@ export function ReviewStep({ visited, disabled, onEditQuestion, onContinue, onBa
             onClick={onContinue}
             className="inline-flex items-center justify-center gap-3 bg-orange-500 hover:bg-orange-600 text-white px-8 py-4 rounded-2xl font-bold text-sm sm:text-base shadow-xl shadow-orange-500/30 transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:translate-y-0"
           >
-            Continue to email
+            {nextLabel}
             <ArrowRight size={16} />
           </motion.button>
         </div>

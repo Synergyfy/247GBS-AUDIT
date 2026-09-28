@@ -49,7 +49,7 @@ async function authFetch<T>(path: string, init: RequestInit = {}, retried = fals
   };
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  let res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+  let res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers, credentials: "include" });
 
   if (res.status === 401 && !retried) {
     const newToken = await refreshAccessToken();
@@ -59,7 +59,7 @@ async function authFetch<T>(path: string, init: RequestInit = {}, retried = fals
     }
     if (newToken) {
       headers["Authorization"] = `Bearer ${newToken}`;
-      res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+      res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers, credentials: "include" });
     }
   }
 

@@ -1,4 +1,10 @@
-import type { TriageAuditType, TriageDestinationType, TriagePublicQuestion, QuestionType } from "@/services/triage/types";
+import type {
+  TriageAuditType,
+  TriageDestinationType,
+  TriagePublicQuestion,
+  QuestionType,
+  TriageFormSettings,
+} from "@/services/triage/types";
 
 /**
  * The kind of answer input a pre-audit question supports, driven by the
@@ -109,4 +115,17 @@ export interface PreAuditEngineOptions {
   exitHref?: string;
   /** Where the flow navigates after completing the pre-audit. */
   afterSubmitHref?: string;
+  /** Form title shown in the header. Defaults to "Business Pre-Audit". */
+  title?: string;
+  /**
+   * Responder settings from a published Business Triage form. Omitted values
+   * keep the legacy behavior (email collected and required, progress + confirmation
+   * shown) so existing routes render unchanged.
+   */
+  settings?: Partial<TriageFormSettings>;
+  /**
+   * The form's own start question (from GET /triage/form/:slug). When provided
+   * it avoids the extra "start" fetch and can differ per published form later.
+   */
+  startOverride?: TriagePublicQuestion | null;
 }
