@@ -48,14 +48,10 @@ export class AdminTriageController {
   ) {}
 
   private async verifyAdmin(req: Request): Promise<void> {
-    // TODO(dev): TEMPORARY DEV-ONLY bypass. Skip admin authorization while
-    // NODE_ENV === 'development' so the admin triage area can be used on
-    // localhost without signing in. Admin auth MUST be restored before
-    // production (remove this block).
-    if (process.env.NODE_ENV === 'development') return;
-
     const user = (req as any).user;
-    if (!user || !user.sub) throw new ForbiddenException();
+    if (!user || !user.sub) {
+      throw new ForbiddenException('Access denied. Administrator authentication required.');
+    }
     await this.adminService.verifyAdmin(user.sub);
   }
 

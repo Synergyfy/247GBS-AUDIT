@@ -14,14 +14,14 @@ export class TriageService {
     private auditService: AuditService,
   ) { }
 
-  async create(createTriageDto: CreateTriageDto, user: User) {
+  async create(createTriageDto: CreateTriageDto, user?: User) {
     // 1. Calculate Decision Logic (The Henry Model)
     const { decision, auditType } = this.calculateDecision(createTriageDto);
 
     // 2. Save Triage Result
     const triage = this.triageRepository.create({
       ...createTriageDto,
-      userId: user.id,
+      userId: user?.id,
       decision,
       recommendedAuditType: auditType,
     });
@@ -36,9 +36,9 @@ export class TriageService {
       scopes.push('SPARE_CAPACITY');
     }
 
-    // 4. Create Audit Session automatically if an audit is recommended
+    // 4. Create Audit Session automatically if an audit is recommended and user is provided
     let auditSessionId: string | null = null;
-    if (auditType !== AuditType.NONE) {
+    if (user && auditType !== AuditType.NONE) {
       const session = await this.auditService.createFromTriage(user, auditType, scopes);
       auditSessionId = session.id;
     }
