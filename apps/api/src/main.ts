@@ -19,32 +19,40 @@ async function bootstrap() {
   app.useGlobalGuards(new JwtAuthGuard(app.get('Reflector')));
   app.setGlobalPrefix('api/v1');
 
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-  const allowedOrigins = process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
-    : [
-        frontendUrl,
-        'https://247gbsaudit.centralhubsolution.com',
-        'http://localhost:3000',
-        'http://localhost:3001',
-      ];
+  const defaultOrigins = [
+    'https://247gbsaudit.centralhubsolution.com',
+    'http://localhost:3000',
+    'http://localhost:3001',
+    process.env.FRONTEND_URL,
+  ]
+    .filter(Boolean)
+    .map((o) => (o as string).trim().replace(/\/+$/, ''));
+
+  const envOrigins = (process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((o) => o.trim().replace(/^['"]|['"]$/g, '').replace(/\/+$/, ''))
+    .filter(Boolean);
+
+  const allowedOrigins = Array.from(new Set([...defaultOrigins, ...envOrigins]));
 
   console.log('[CORS] Allowed origins:', allowedOrigins);
 
   app.enableCors({
     origin: (requestOrigin, callback) => {
-      // Allow server-to-server requests (no Origin header)
+      // Allow requests with no origin (e.g. mobile apps, curl, server-to-server)
       if (!requestOrigin) return callback(null, true);
 
-      if (allowedOrigins.includes(requestOrigin)) {
-        callback(null, true);
-      } else {
-        console.warn(`[CORS] Blocked origin: "${requestOrigin}"`);
-        console.warn(`[CORS] Allowed: ${JSON.stringify(allowedOrigins)}`);
-        callback(new Error(`CORS policy: origin "${requestOrigin}" not allowed`));
+      const normalized = requestOrigin.trim().replace(/\/+$/, '');
+      if (allowedOrigins.includes(normalized)) {
+        return callback(null, true);
       }
+
+      console.warn(`[CORS] Blocked origin: "${requestOrigin}" (Normalized: "${normalized}")`);
+      console.warn(`[CORS] Allowed list: ${JSON.stringify(allowedOrigins)}`);
+      return callback(null, false);
     },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With', 'Origin'],
     credentials: true,
   });
 
@@ -56,7 +64,7 @@ async function bootstrap() {
     .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'refresh-token')
     .build();
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api-docs', app, document, {
+  SwaggerModule.setup('api/v1/api-docs', app, document, {
     customSiteTitle: '247 GBS Audit API Docs',
     customJs: [
       'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.18.2/swagger-ui-bundle.min.js',
