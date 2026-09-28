@@ -107,7 +107,7 @@ export default function AdminLayout({
     const mobileTabs = menuItems;
 
     return (
-        <div className="min-h-screen bg-slate-50 flex flex-col lg:flex-row font-sans selection:bg-orange-100">
+        <div className="h-dvh overflow-hidden bg-slate-50 flex flex-col lg:flex-row font-sans selection:bg-orange-100">
             {/* Sidebar Overlay (Mobile only) */}
             {isSidebarOpen && (
                 <div
@@ -177,9 +177,9 @@ export default function AdminLayout({
             </aside>
 
             {/* Main Content Area */}
-            <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+            <div className="flex-1 flex flex-col min-w-0 min-h-0">
                 {/* Header - Native Feel */}
-                <header className="h-16 md:h-20 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-8 sticky top-0 z-40">
+                <header className="h-16 md:h-20 shrink-0 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-8 z-40">
                     <div className="flex items-center gap-4">
                         <button
                             className="lg:hidden p-2 -ml-2 text-slate-500 hover:text-orange-500 active:scale-95 transition-all"
@@ -203,8 +203,9 @@ export default function AdminLayout({
                     </div>
                 </header>
 
-                {/* Page Content */}
-                <main className="flex-1 pb-24 lg:pb-8 p-4 md:p-8">
+                {/* Page Content — scrolls on its own so a long page (e.g. the triage
+                    question list) never has to grow the whole document. */}
+                <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain pb-24 lg:pb-8 p-4 md:p-8">
                     {children}
                 </main>
 
