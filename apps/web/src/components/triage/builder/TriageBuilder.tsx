@@ -40,6 +40,7 @@ import type { PublishOutcome } from "./PublishPanel";
 import { PreviewModal } from "./PreviewModal";
 import { PublishModal } from "./PublishModal";
 import { ImportQuestionsModal } from "./ImportQuestionsModal";
+import { DeleteQuestionModal } from "./DeleteQuestionModal";
 import { Spinner } from "./ui";
 import {
   answerPayloadOf,
@@ -79,6 +80,7 @@ export function TriageBuilder() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [questionPendingDelete, setQuestionPendingDelete] = useState<AdminTriageQuestion | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -595,7 +597,7 @@ export function TriageBuilder() {
       reorderAnswers: localReorderAnswers,
       moveQuestion: localMoveQuestion,
       duplicate: localDuplicate,
-      remove: localRemoveQuestion,
+      remove: (q: AdminTriageQuestion) => setQuestionPendingDelete(q),
     }),
     [
       localUpdateQuestion,
@@ -608,7 +610,6 @@ export function TriageBuilder() {
       localReorderAnswers,
       localMoveQuestion,
       localDuplicate,
-      localRemoveQuestion,
     ]
   );
 
@@ -999,6 +1000,17 @@ export function TriageBuilder() {
           existing={draft.map((q) => ({ id: q.id, text: q.text }))}
           onImport={localImportQuestions}
           onClose={() => setImportOpen(false)}
+        />
+      )}
+      {questionPendingDelete && (
+        <DeleteQuestionModal
+          question={questionPendingDelete}
+          allQuestions={draft}
+          onConfirm={() => {
+            localRemoveQuestion(questionPendingDelete);
+            showToast("Question removed from draft.");
+          }}
+          onClose={() => setQuestionPendingDelete(null)}
         />
       )}
     </div>
