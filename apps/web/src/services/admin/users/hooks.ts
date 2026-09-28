@@ -18,7 +18,7 @@ export function useAdminUsers() {
       const headers: Record<string, string> = { Accept: "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      let res = await fetch(`${API_BASE_URL}/admin/users`, { method: "GET", headers, signal });
+      let res = await fetch(`${API_BASE_URL}/admin/users`, { method: "GET", headers, signal, credentials: "include" });
 
       if (res.status === 401) {
         const newToken = await refreshAccessToken();
@@ -28,7 +28,7 @@ export function useAdminUsers() {
         }
         if (newToken) {
           headers["Authorization"] = `Bearer ${newToken}`;
-          res = await fetch(`${API_BASE_URL}/admin/users`, { method: "GET", headers, signal });
+          res = await fetch(`${API_BASE_URL}/admin/users`, { method: "GET", headers, signal, credentials: "include" });
         }
       }
 

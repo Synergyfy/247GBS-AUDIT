@@ -1,8 +1,14 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TriageForm } from './entities/triage-form.entity';
-import { BusinessTriageService } from './business-triage.service';
+import { TriageFlowValidatorService } from './triage-flow-validator.service';
+import { TriageQuestionService } from './triage-question.service';
 import {
   PublicTriageFormDto,
   PublishTriageFormResultDto,
@@ -11,6 +17,8 @@ import {
   TriageFormSettingsDto,
   UpdateTriageFormDto,
 } from './dto/triage-form.dto';
+
+export const DEFAULT_TRIAGE_FORM_ID = '00000000-0000-0000-0000-000000000001';
 
 const DEFAULT_TRIAGE_FORM_SETTINGS: Record<string, any> = {
   acceptResponses: true,
@@ -39,29 +47,55 @@ function booleanOr(value: unknown, fallback: boolean): boolean {
 }
 
 @Injectable()
-export class TriageFormService {
+export class TriageFormService implements OnModuleInit {
+  private activeFormId: string = DEFAULT_TRIAGE_FORM_ID;
+
   constructor(
     @InjectRepository(TriageForm)
     private readonly formRepository: Repository<TriageForm>,
-    private readonly businessTriageService: BusinessTriageService,
+    private readonly validatorService: TriageFlowValidatorService,
+    private readonly questionService: TriageQuestionService,
   ) {}
 
-  /** Returns the single form row, creating it (with defaults) on first access. */
-  private async getOrCreate(): Promise<TriageForm> {
-    const existing = await this.formRepository.findOne({
-      order: { createdAt: 'ASC' },
-    });
+  async onModuleInit() {
+    await this.ensureInitialized();
+  }
+
+  /**
+   * Deterministically ensures the single form row exists on startup,
+   * migrating existing legacy rows if present without generating duplicates.
+   */
+  private async ensureInitialized(): Promise<TriageForm> {
+    const existing = await this.formRepository.findOne({ where: { id: this.activeFormId } });
     if (existing) return existing;
 
+    const [legacy] = await this.formRepository.find({
+      order: { createdAt: 'ASC' },
+      take: 1,
+    });
+    if (legacy) {
+      this.activeFormId = legacy.id;
+      return legacy;
+    }
+
     const created = this.formRepository.create({
+      id: DEFAULT_TRIAGE_FORM_ID,
       title: 'Business Triage',
       description: null,
       slug: null,
       status: 'draft',
-      settings: {},
+      settings: DEFAULT_TRIAGE_FORM_SETTINGS,
       publishedAt: null,
     });
-    return this.formRepository.save(created);
+    const saved = await this.formRepository.save(created);
+    this.activeFormId = saved.id;
+    return saved;
+  }
+
+  private async getActiveForm(): Promise<TriageForm> {
+    const form = await this.formRepository.findOne({ where: { id: this.activeFormId } });
+    if (form) return form;
+    return this.ensureInitialized();
   }
 
   private normalizeSettings(input: TriageFormSettingsDto): Record<string, any> {
@@ -130,11 +164,11 @@ export class TriageFormService {
   // ============================================================
 
   async getForm(): Promise<TriageFormDto> {
-    return this.toFormDto(await this.getOrCreate());
+    return this.toFormDto(await this.getActiveForm());
   }
 
   async updateForm(dto: UpdateTriageFormDto): Promise<TriageFormDto> {
-    const form = await this.getOrCreate();
+    const form = await this.getActiveForm();
     if (dto.title !== undefined) {
       form.title = dto.title.trim() || 'Business Triage';
     }
@@ -152,7 +186,7 @@ export class TriageFormService {
    * stable public slug (when one does not exist yet).
    */
   async publish(): Promise<PublishTriageFormResultDto> {
-    const validation = await this.businessTriageService.validateFlowForPublish();
+    const validation = await this.validatorService.validateFlowForPublish();
     if (!validation.ok) {
       throw new BadRequestException({
         message:
@@ -163,7 +197,7 @@ export class TriageFormService {
       });
     }
 
-    const form = await this.getOrCreate();
+    const form = await this.getActiveForm();
     if (!form.slug) {
       form.slug = this.makeSlug(form.title);
       const clash = await this.formRepository.findOne({ where: { slug: form.slug } });
@@ -177,7 +211,7 @@ export class TriageFormService {
   }
 
   async unpublish(): Promise<PublishTriageFormResultDto> {
-    const form = await this.getOrCreate();
+    const form = await this.getActiveForm();
     form.status = 'draft';
     return this.toPublishResult(await this.formRepository.save(form));
   }
@@ -200,7 +234,7 @@ export class TriageFormService {
         startQuestion: null,
       };
     }
-    const startQuestion = await this.businessTriageService.getStartQuestion();
+    const startQuestion = await this.questionService.getStartQuestion();
     return {
       title: form.title,
       description: form.description,

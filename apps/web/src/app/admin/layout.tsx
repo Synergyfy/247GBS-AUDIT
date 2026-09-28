@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { API_BASE_URL } from "@/lib/api";
 import { motion } from "framer-motion";
 import {
     LayoutDashboard,
@@ -26,7 +27,73 @@ export default function AdminLayout({
     children: React.ReactNode;
 }) {
     const pathname = usePathname();
+    const router = useRouter();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [isCheckingAuth, setIsCheckingAuth] = useState(pathname !== "/admin/login");
+    const [adminUser, setAdminUser] = useState<{ email?: string; firstName?: string; lastName?: string; role?: string } | null>(null);
+
+    // If on /admin/login, render standalone without admin shell
+    const isLoginPage = pathname === "/admin/login";
+
+    useEffect(() => {
+        if (isLoginPage) {
+            setIsCheckingAuth(false);
+            return;
+        }
+
+        try {
+            const token = localStorage.getItem("247gbs_token");
+            const userStr = localStorage.getItem("247gbs_user");
+
+            if (!token || !userStr) {
+                window.location.assign("/admin/login?reason=session-expired");
+                return;
+            }
+
+            const user = JSON.parse(userStr);
+            const role = (user.role || "").toLowerCase();
+            if (role !== "administrator" && role !== "admin") {
+                window.location.assign("/admin/login?reason=unauthorized");
+                return;
+            }
+
+            setAdminUser(user);
+            setIsCheckingAuth(false);
+        } catch {
+            window.location.assign("/admin/login?reason=session-expired");
+        }
+    }, [pathname, isLoginPage]);
+
+    const handleLogout = async () => {
+        try {
+            const token = localStorage.getItem("247gbs_token");
+            await fetch(`${API_BASE_URL}/auth/logout`, {
+                method: "GET",
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+                credentials: "include",
+            }).catch(() => ({}));
+        } finally {
+            localStorage.removeItem("247gbs_token");
+            localStorage.removeItem("auth_token");
+            localStorage.removeItem("247gbs_user");
+            window.location.assign("/admin/login");
+        }
+    };
+
+    if (isLoginPage) {
+        return <>{children}</>;
+    }
+
+    if (isCheckingAuth) {
+        return (
+            <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white">
+                <div className="w-12 h-12 bg-orange-500/20 border border-orange-500/40 rounded-2xl flex items-center justify-center text-orange-400 mb-4 animate-pulse">
+                    <Shield size={24} />
+                </div>
+                <p className="text-xs uppercase tracking-widest text-slate-400 font-bold">Verifying Administrator Access...</p>
+            </div>
+        );
+    }
 
     const menuItems = [
         { icon: LayoutDashboard, label: "Overview", href: "/admin" },
@@ -96,9 +163,13 @@ export default function AdminLayout({
                             <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-orange-500 shadow-inner">
                                 <Shield size={20} />
                             </div>
-                            <div>
-                                <div className="text-sm font-bold text-white">Super Admin</div>
-                                <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Protocol Level 5</div>
+                            <div className="min-w-0 flex-1">
+                                <div className="text-sm font-bold text-white truncate">
+                                    {adminUser?.firstName ? `${adminUser.firstName} ${adminUser.lastName || ''}`.trim() : "Super Admin"}
+                                </div>
+                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate">
+                                    {adminUser?.role || "Administrator"}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -121,28 +192,14 @@ export default function AdminLayout({
                         </h1>
                     </div>
 
-                    <div className="flex-1 max-w-md mx-6 hidden md:block relative">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                        <input
-                            type="text"
-                            placeholder="Forensic search..."
-                            className="w-full pl-12 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:border-orange-500 focus:bg-white transition-all"
-                        />
-                    </div>
-
-                    <div className="flex items-center gap-2 md:gap-4">
-                        <button className="p-2 text-slate-400 hover:text-orange-500 transition-colors relative active:scale-90">
-                            <Bell size={22} />
-                            <span className="absolute top-2 right-2 w-2 h-2 bg-orange-500 rounded-full border-2 border-white" />
-                        </button>
-                        <div className="h-8 w-px bg-slate-200 mx-1 hidden md:block" />
-                        <Link
-                            href="/"
-                            className="flex items-center justify-center w-10 h-10 md:w-auto md:px-4 md:py-2 rounded-xl text-slate-600 hover:text-red-600 hover:bg-red-50 transition-all font-bold text-sm"
+                    <div className="flex items-center gap-2 md:gap-4 ml-auto">
+                        <button
+                            onClick={handleLogout}
+                            className="flex items-center justify-center px-4 py-2 rounded-xl text-slate-600 hover:text-red-600 hover:bg-red-50 transition-all font-bold text-sm gap-2"
                         >
-                            <LogOut size={20} />
-                            <span className="hidden md:inline ml-2">Exit</span>
-                        </Link>
+                            <LogOut size={18} />
+                            <span>Sign Out</span>
+                        </button>
                     </div>
                 </header>
 

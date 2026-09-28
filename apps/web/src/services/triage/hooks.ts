@@ -31,7 +31,7 @@ async function authFetch(path: string, init: RequestInit, retried = false): Prom
   };
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  let res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+  let res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers, credentials: "include" });
 
   if (res.status === 401 && !retried) {
     const newToken = await refreshAccessToken();
@@ -41,7 +41,7 @@ async function authFetch(path: string, init: RequestInit, retried = false): Prom
     }
     if (newToken) {
       headers["Authorization"] = `Bearer ${newToken}`;
-      res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+      res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers, credentials: "include" });
     }
   }
 
