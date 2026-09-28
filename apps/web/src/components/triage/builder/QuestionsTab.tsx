@@ -41,7 +41,7 @@ export function QuestionsTab({
 
   if (questions.length === 0) {
     return (
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+      <div>
         <EmptyState
           title="No questions yet"
           description="Add your first Business Triage question to start building the flow. Question order is used as the entry point."
@@ -60,7 +60,7 @@ export function QuestionsTab({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div>
       {/* List navigation: count, jump-to-question, expand/collapse all.
           On phones the count shares a row with expand/collapse so the whole
           toolbar costs two rows instead of three. */}
@@ -96,11 +96,9 @@ export function QuestionsTab({
         </div>
       </div>
 
-      {/* Only the question list scrolls — the builder header above it stays put.
-          `min-h` stops the viewport collapsing to an unusable sliver on short or
-          narrow screens; past that floor the page scrolls instead, so the list is
-          never squeezed below a comfortable size. */}
-      <div className="flex-1 overflow-y-auto overscroll-contain pb-2 min-h-[25rem]">
+      {/* The questions flow in the normal document — the admin page's <main>
+          scrolls them as one, together with the toolbar above. */}
+      <div className="pb-2">
         <Reorder.Group
           axis="y"
           values={questions}
