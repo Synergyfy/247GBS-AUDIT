@@ -12,27 +12,45 @@ import { AuthService } from './auth.service';
 export class AuthController {
   constructor(private authService: AuthService) {}
 
-  private setRefreshTokenCookie(res: Response, token: string) {
+  private setCookies(res: Response, accessToken: string, refreshToken: string) {
     const isProd = process.env.NODE_ENV === 'production';
-    res.cookie('refresh_token', token, {
+    const domain = isProd ? '.centralhubsolution.com' : undefined;
+
+    res.cookie('access_token', accessToken, {
       httpOnly: true,
       secure: isProd,
       sameSite: isProd ? 'none' : 'lax',
-      domain: isProd ? '.centralhubsolution.com' : undefined,
+      domain,
+      maxAge: 15 * 60 * 1000, // 15 mins
+    });
+
+    res.cookie('refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: isProd ? 'none' : 'lax',
+      domain,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
   }
 
-  @ApiOperation({ summary: 'Register a new user', description: 'Creates a new user account and sets HttpOnly refresh cookie.' })
+  private clearCookies(res: Response) {
+    const isProd = process.env.NODE_ENV === 'production';
+    const domain = isProd ? '.centralhubsolution.com' : undefined;
+
+    res.clearCookie('access_token', { domain, path: '/' });
+    res.clearCookie('refresh_token', { domain, path: '/' });
+  }
+
+  @ApiOperation({ summary: 'Register a new user', description: 'Creates a new user account and sets HttpOnly cookies.' })
   @ApiResponse({ status: 201, description: 'User successfully registered.', schema: { example: { accessToken: 'jwt...' } } })
   @Post('signup')
   async signup(@Body() createUserDto: CreateUserDto, @Res({ passthrough: true }) res: Response) {
     const { tokens, user } = await this.authService.signup(createUserDto);
-    this.setRefreshTokenCookie(res, tokens.refreshToken);
-    return { accessToken: tokens.accessToken, user };
+    this.setCookies(res, tokens.accessToken, tokens.refreshToken);
+    return { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken, user };
   }
 
-  @ApiOperation({ summary: 'Sign in', description: 'Authenticates a user and sets HttpOnly refresh cookie.' })
+  @ApiOperation({ summary: 'Sign in', description: 'Authenticates a user and sets HttpOnly cookies.' })
   @ApiResponse({ status: 201, description: 'User successfully logged in or MFA required.', schema: { example: { accessToken: 'jwt...', mfaRequired: false } } })
   @Post('signin')
   async signin(@Body() data: AuthDto, @Res({ passthrough: true }) res: Response) {
@@ -43,8 +61,23 @@ export class AuthController {
     }
 
     const { tokens, user } = result;
-    this.setRefreshTokenCookie(res, tokens.refreshToken);
-    return { accessToken: tokens.accessToken, user };
+    this.setCookies(res, tokens.accessToken, tokens.refreshToken);
+    return { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken, user };
+  }
+
+  @ApiOperation({ summary: 'Admin Dedicated Sign in', description: 'Authenticates an administrator exclusively and sets HttpOnly cookies.' })
+  @ApiResponse({ status: 200, description: 'Admin successfully logged in.', schema: { example: { accessToken: 'jwt...' } } })
+  @Post('admin/signin')
+  async adminSignin(@Body() data: AuthDto, @Res({ passthrough: true }) res: Response) {
+    const result = await this.authService.adminSignin(data);
+
+    if ('mfaRequired' in result) {
+      return result;
+    }
+
+    const { tokens, user } = result;
+    this.setCookies(res, tokens.accessToken, tokens.refreshToken);
+    return { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken, user };
   }
 
   @ApiOperation({ summary: 'Generate MFA Secret', description: 'Generates a new TOTP secret and QR code for the authenticated user.' })
@@ -71,22 +104,22 @@ export class AuthController {
   @Post('mfa/authenticate')
   async authenticateWithMfa(@Body('userId') userId: string, @Body('code') code: string, @Res({ passthrough: true }) res: Response) {
     const { tokens, user } = await this.authService.signinWithMfa(userId, code);
-    this.setRefreshTokenCookie(res, tokens.refreshToken);
-    return { accessToken: tokens.accessToken, user };
+    this.setCookies(res, tokens.accessToken, tokens.refreshToken);
+    return { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken, user };
   }
 
-  @ApiOperation({ summary: 'Logout', description: 'Invalidates the refresh token and clears the cookie.' })
+  @ApiOperation({ summary: 'Logout', description: 'Invalidates the refresh token and clears the cookies.' })
   @ApiBearerAuth('access-token')
   @ApiResponse({ status: 200, description: 'Successfully logged out.' })
   @UseGuards(AccessTokenGuard)
   @Get('logout')
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     await this.authService.logout((req as any).user['sub']);
-    res.clearCookie('refresh_token');
+    this.clearCookies(res);
     return { message: 'Logged out' };
   }
 
-  @ApiOperation({ summary: 'Refresh Tokens', description: 'Uses the HttpOnly Refresh Cookie to obtain a new Access Token.' })
+  @ApiOperation({ summary: 'Refresh Tokens', description: 'Uses the HttpOnly Refresh Cookie or Bearer token to obtain new tokens.' })
   @ApiResponse({ status: 200, description: 'Tokens successfully refreshed.', schema: { example: { accessToken: 'jwt...' } } })
   @UseGuards(RefreshTokenGuard)
   @Get('refresh')
@@ -95,9 +128,9 @@ export class AuthController {
     const refreshToken = (req as any).user['refreshToken'];
     const tokens = await this.authService.refreshTokens(userId, refreshToken);
     
-    // Rotate the refresh token (security best practice)
-    this.setRefreshTokenCookie(res, tokens.refreshToken);
+    // Rotate tokens and update HttpOnly cookies
+    this.setCookies(res, tokens.accessToken, tokens.refreshToken);
     
-    return { accessToken: tokens.accessToken };
+    return { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken };
   }
 }

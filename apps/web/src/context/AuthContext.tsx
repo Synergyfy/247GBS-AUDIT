@@ -60,7 +60,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 // session token exists — the stale session is silently cleared
                 // by invalidateStaleSession.
                 if (!isProtectedRoute(current)) return;
-                window.location.assign("/auth/signin?reason=session-expired");
+                if (current.startsWith("/admin")) {
+                    window.location.assign("/admin/login?reason=session-expired");
+                } else {
+                    window.location.assign("/auth/signin?reason=session-expired");
+                }
             } catch {
                 // ignore
             }

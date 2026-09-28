@@ -48,7 +48,32 @@ export class AuthService {
       };
     }
 
-    const tokens = await this.getTokens(user.id, user.email);
+    const tokens = await this.getTokens(user.id, user.email, user.role);
+    await this.updateRefreshToken(user.id, tokens.refreshToken);
+    return { tokens, user };
+  }
+
+  async adminSignin(data: AuthDto) {
+    const user = await this.usersService.findByEmail(data.email);
+    if (!user) throw new BadRequestException('Invalid credentials');
+
+    const passwordMatches = await bcrypt.compare(data.password, user.password);
+    if (!passwordMatches) throw new BadRequestException('Invalid credentials');
+
+    const role = (user.role || '').toLowerCase();
+    if (role !== 'administrator' && role !== 'admin') {
+      throw new ForbiddenException('Access denied. Administrator privileges required.');
+    }
+
+    if (user.isMfaEnabled) {
+      return {
+        mfaRequired: true,
+        userId: user.id,
+        message: 'MFA is enabled. Please provide the 6-digit code.',
+      };
+    }
+
+    const tokens = await this.getTokens(user.id, user.email, user.role);
     await this.updateRefreshToken(user.id, tokens.refreshToken);
     return { tokens, user };
   }
@@ -120,23 +145,23 @@ export class AuthService {
     return bcrypt.hash(data, 10);
   }
 
-  async getTokens(userId: string, email: string) {
+  async getTokens(userId: string, email: string, role?: string) {
+    const payload: Record<string, any> = {
+      sub: userId,
+      email,
+    };
+    if (role) payload.role = role;
+
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(
-        {
-          sub: userId,
-          email,
-        },
+        payload,
         {
           secret: this.configService.get<string>('JWT_ACCESS_SECRET')!,
           expiresIn: this.configService.get<string>('JWT_ACCESS_EXPIRATION')! as any,
         },
       ),
       this.jwtService.signAsync(
-        {
-          sub: userId,
-          email,
-        },
+        payload,
         {
           secret: this.configService.get<string>('JWT_REFRESH_SECRET')!,
           expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRATION')! as any,

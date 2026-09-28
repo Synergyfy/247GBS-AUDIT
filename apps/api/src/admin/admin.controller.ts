@@ -15,14 +15,10 @@ export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
   private getUserId(req: Request): string {
-    // TODO(dev): TEMPORARY DEV-ONLY bypass. Any value is admitted while
-    // NODE_ENV === 'development' (verifyAdmin below is also bypassed), so the
-    // admin dashboard can be used on localhost without signing in. Admin auth
-    // MUST be restored before production (remove this block).
-    if (process.env.NODE_ENV === 'development') return 'dev-bypass';
-
     const user = (req as any).user;
-    if (!user || !user.sub) throw new ForbiddenException();
+    if (!user || !user.sub) {
+      throw new ForbiddenException('Access denied. Administrator authentication required.');
+    }
     return user.sub;
   }
 

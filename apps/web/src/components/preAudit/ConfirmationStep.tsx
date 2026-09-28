@@ -8,6 +8,7 @@ interface ConfirmationStepProps {
   submission: PreAuditSubmission;
   isDuplicate: boolean;
   afterSubmitHref?: string;
+  customMessage?: string | null;
 }
 
 interface DestinationContent {
@@ -129,7 +130,7 @@ function destinationContent(
   }
 }
 
-export function ConfirmationStep({ submission, isDuplicate, afterSubmitHref }: ConfirmationStepProps) {
+export function ConfirmationStep({ submission, isDuplicate, afterSubmitHref, customMessage }: ConfirmationStepProps) {
   const recommendedAuditType = submission.recommendedAudit;
   const content = afterSubmitHref
     ? { ...destinationContent(submission.destinationType, submission.destinationTarget, recommendedAuditType), ctaHref: afterSubmitHref }
@@ -151,8 +152,15 @@ export function ConfirmationStep({ submission, isDuplicate, afterSubmitHref }: C
         <p className="text-slate-400 text-sm sm:text-base max-w-md mx-auto">
           {isDuplicate
             ? "We didn't create a duplicate — your original pre-audit is still saved."
-            : `Your responses are saved on this device, with ${submission.email} recorded as your results email.`}
+            : submission.email
+              ? `Your responses are saved on this device, with ${submission.email} recorded as your results email.`
+              : "Your responses are saved on this device."}
         </p>
+        {customMessage && (
+          <p className="text-orange-200 text-sm sm:text-base max-w-md mx-auto mt-3">
+            {customMessage}
+          </p>
+        )}
       </div>
 
       <div className="px-6 sm:px-10 py-8 sm:py-10">

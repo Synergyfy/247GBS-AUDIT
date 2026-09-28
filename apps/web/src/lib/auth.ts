@@ -19,7 +19,8 @@ export const SESSION_EXPIRED_EVENT = '247gbs:session-expired';
  */
 export function isProtectedRoute(pathname?: string): boolean {
   const p = pathname ?? (typeof window !== 'undefined' ? window.location.pathname : '');
-  return p.startsWith('/dashboard');
+  if (p === '/admin/login') return false;
+  return p.startsWith('/dashboard') || p.startsWith('/admin');
 }
 
 const ACCESS_TOKEN_KEY = '247gbs_token';

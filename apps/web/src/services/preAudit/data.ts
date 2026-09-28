@@ -14,7 +14,19 @@ export function getCachedQuestion(id: string): TriagePublicQuestion | null {
   return questionCache[id] ?? null;
 }
 
-export async function ensureStartQuestion(): Promise<TriagePublicQuestion> {
+/**
+ * Returns the first question of the flow. A published-form override (the form's
+ * own start question) is used when provided; otherwise the canonical start
+ * question endpoint is fetched and cached.
+ */
+export async function ensureStartQuestion(
+  override?: TriagePublicQuestion | null
+): Promise<TriagePublicQuestion> {
+  if (override) {
+    if (override.id) questionCache[override.id] = override;
+    questionCache.__start = override;
+    return override;
+  }
   if (questionCache.__start) return questionCache.__start;
   const question = await fetchTriageStart();
   questionCache[question.id] = question;

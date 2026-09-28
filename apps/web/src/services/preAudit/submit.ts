@@ -21,15 +21,18 @@ export interface PreAuditSubmitResult {
  * start question, validates every answer and computes the recommended
  * destination itself. The client never sends destinations; consent is
  * required and recorded server-authoritatively.
+ *
+ * @param email Address when the form collects one; pass null to submit
+ *              without an email (forms with "collect email" disabled).
  */
 export async function submitPreAudit(
-  email: string,
+  email: string | null,
   visited: PreAuditVisitedEntry[],
   consentGranted = true,
   consentVersion = PRE_AUDIT_CONSENT_VERSION
 ): Promise<PreAuditSubmitResult> {
   const body = {
-    email: email.trim(),
+    email: email && email.trim() ? email.trim() : null,
     steps: stepsOf(visited),
     consentGranted,
     consentVersion,

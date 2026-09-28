@@ -19,7 +19,7 @@ export function useAdminAudits() {
       const headers: Record<string, string> = { Accept: "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      let res = await fetch(`${API_BASE_URL}/admin/audits`, { method: "GET", headers, signal });
+      let res = await fetch(`${API_BASE_URL}/admin/audits`, { method: "GET", headers, signal, credentials: "include" });
 
       if (res.status === 401) {
         const newToken = await refreshAccessToken();
@@ -29,7 +29,7 @@ export function useAdminAudits() {
         }
         if (newToken) {
           headers["Authorization"] = `Bearer ${newToken}`;
-          res = await fetch(`${API_BASE_URL}/admin/audits`, { method: "GET", headers, signal });
+          res = await fetch(`${API_BASE_URL}/admin/audits`, { method: "GET", headers, signal, credentials: "include" });
         }
       }
 
@@ -49,7 +49,7 @@ export function useAdminAudits() {
 
       // Try to fetch metrics if available
       try {
-        const mRes = await fetch(`${API_BASE_URL}/admin/audits/metrics`, { method: "GET", headers });
+        const mRes = await fetch(`${API_BASE_URL}/admin/audits/metrics`, { method: "GET", headers, credentials: "include" });
         if (mRes.ok) {
           const mJson = await mRes.json() as AdminAuditsMetrics;
           setMetrics(mJson);

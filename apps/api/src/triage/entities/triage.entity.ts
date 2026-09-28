@@ -19,12 +19,12 @@ export class AuditTriage {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @OneToOne(() => User)
+  @OneToOne(() => User, { nullable: true })
   @JoinColumn()
-  user: User;
+  user?: User;
 
-  @Column()
-  userId: string;
+  @Column({ nullable: true })
+  userId?: string;
 
   @Column({ nullable: true })
   hasExcessStock: string;

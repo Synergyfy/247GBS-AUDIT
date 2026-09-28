@@ -114,6 +114,15 @@ describe('PreAuditService', () => {
       return null;
     });
 
+    questionRepository.find.mockImplementation((args: any) => {
+      if (args?.where?.isActive === true) {
+        return questions
+          .filter((q) => q.isActive)
+          .sort((a, b) => a.order - b.order || a.createdAt.getTime() - b.createdAt.getTime());
+      }
+      return questions;
+    });
+
     answerRepository.find.mockImplementation((args: any) => {
       if (!args?.where) return [];
       const filtered = answers.filter(
@@ -249,7 +258,7 @@ describe('PreAuditService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('should reject a flow that never concludes with a destination', async () => {
+  it('should conclude with End / Submit when the final question has no explicit destination', async () => {
     build(
       [
         makeQuestion('q1', 'Q1', 'single_choice', 0),
@@ -257,20 +266,23 @@ describe('PreAuditService', () => {
       ],
       [
         makeAnswer({ id: 'a1', questionId: 'q1', text: 'To q2', nextQuestionId: 'q2', sortOrder: 0 }),
-        // q2 has options but none configured with a destination => dead end.
-        makeAnswer({ id: 'b1', questionId: 'q2', text: 'To nowhere', nextQuestionId: null, sortOrder: 0 }),
+        // q2 is the final question; its answer carries no explicit route, so it
+        // follows the linear default and concludes the form ("End / Submit").
+        makeAnswer({ id: 'b1', questionId: 'q2', text: 'Done', nextQuestionId: null, sortOrder: 0 }),
       ],
     );
 
-    await expect(
-      submit({
-        steps: [
-          { questionId: 'q1', optionIds: ['a1'] },
-          { questionId: 'q2', optionIds: ['b1'] },
-        ],
-        consentGranted: true,
-      }),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    const result = await submit({
+      steps: [
+        { questionId: 'q1', optionIds: ['a1'] },
+        { questionId: 'q2', optionIds: ['b1'] },
+      ],
+      consentGranted: true,
+    });
+
+    expect(result.destinationType).toBe('HUMAN_REVIEW');
+    expect(result.recommendedAuditType).toBeNull();
+    expect(result.answeredCount).toBe(2);
   });
 
   // ==================== Multi-branch DFS ====================
