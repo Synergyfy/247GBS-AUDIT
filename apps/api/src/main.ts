@@ -23,8 +23,22 @@ async function bootstrap() {
   const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
     : [frontendUrl, 'http://localhost:3000', 'http://localhost:3001'];
+
+  console.log('[CORS] Allowed origins:', allowedOrigins);
+
   app.enableCors({
-    origin: allowedOrigins,
+    origin: (requestOrigin, callback) => {
+      // Allow server-to-server requests (no Origin header)
+      if (!requestOrigin) return callback(null, true);
+
+      if (allowedOrigins.includes(requestOrigin)) {
+        callback(null, true);
+      } else {
+        console.warn(`[CORS] Blocked origin: "${requestOrigin}"`);
+        console.warn(`[CORS] Allowed: ${JSON.stringify(allowedOrigins)}`);
+        callback(new Error(`CORS policy: origin "${requestOrigin}" not allowed`));
+      }
+    },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
   });
