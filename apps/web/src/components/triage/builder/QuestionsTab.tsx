@@ -100,7 +100,7 @@ export function QuestionsTab({
           `min-h` stops the viewport collapsing to an unusable sliver on short or
           narrow screens; past that floor the page scrolls instead, so the list is
           never squeezed below a comfortable size. */}
-      <div className="flex-1 overflow-y-auto overscroll-contain pb-2 min-h-[18rem]">
+      <div className="flex-1 overflow-y-auto overscroll-contain pb-2 min-h-[25rem]">
         <Reorder.Group
           axis="y"
           values={questions}
