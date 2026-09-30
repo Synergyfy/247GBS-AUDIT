@@ -150,6 +150,8 @@ export class TriageFormService implements OnModuleInit {
       status: form.status,
       settings: { ...DEFAULT_TRIAGE_FORM_SETTINGS, ...(form.settings ?? {}) },
       publishedAt: form.publishedAt ? form.publishedAt.toISOString() : null,
+      createdAt: form.createdAt ? form.createdAt.toISOString() : null,
+      updatedAt: form.updatedAt ? form.updatedAt.toISOString() : null,
     };
   }
 
