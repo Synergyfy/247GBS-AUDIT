@@ -15,7 +15,6 @@ import {
   Settings2,
   Star,
   Upload,
-  Layers,
 } from "lucide-react";
 import { useAdminTriageQuestions, triageApi, formApi } from "@/services/triage/hooks";
 import { CreateTriageModal } from "./CreateTriageModal";
@@ -66,9 +65,23 @@ interface Toast {
   type: "success" | "error";
 }
 
-export function TriageBuilder() {
+export interface TriageBuilderProps {
+  initialFormId?: string;
+  initialTab?: "questions" | "responses" | "settings";
+  onDraftChange?: (draft: AdminTriageQuestion[]) => void;
+  onFormChange?: (form: TriageForm | null) => void;
+  onFocusedQuestionChange?: (id: string | null) => void;
+}
+
+export function TriageBuilder({
+  initialFormId,
+  initialTab,
+  onDraftChange,
+  onFormChange,
+  onFocusedQuestionChange,
+}: TriageBuilderProps = {}) {
   const [forms, setForms] = useState<TriageForm[]>([]);
-  const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
+  const [selectedFormId, setSelectedFormId] = useState<string | null>(initialFormId ?? null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [manageFlowsOpen, setManageFlowsOpen] = useState(false);
   const [shareQrOpen, setShareQrOpen] = useState(false);
@@ -90,13 +103,17 @@ export function TriageBuilder() {
   const baseRef = useRef<AdminTriageQuestion[]>([]);
   const baseFormRef = useRef<TriageForm | null>(null);
 
-  const [tab, setTab] = useState<Tab>("questions");
+  const [tab, setTab] = useState<Tab>(initialTab ?? "questions");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [questionPendingDelete, setQuestionPendingDelete] = useState<AdminTriageQuestion | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (initialTab) setTab(initialTab);
+  }, [initialTab]);
 
   /* ---- Collapsed cards: purely UI state, never touches the draft ---------------
    * Long flows would otherwise render as a wall of open editors. Only the
@@ -114,13 +131,14 @@ export function TriageBuilder() {
       setForms(list);
       if (list.length > 0) {
         setSelectedFormId((prev) => {
-          if (prev && list.some((f) => f.id === prev)) return prev;
+          const candidate = initialFormId || prev;
+          if (candidate && list.some((f) => f.id === candidate)) return candidate;
           const def = list.find((f) => f.isDefault) || list[0];
           return def.id;
         });
       }
     } catch {
-      const single = await formApi.getForm().catch(() => null);
+      const single = await formApi.getForm(initialFormId).catch(() => null);
       if (single) {
         setForms([single]);
         setSelectedFormId(single.id);
@@ -129,11 +147,38 @@ export function TriageBuilder() {
     } finally {
       setFormLoading(false);
     }
-  }, []);
+  }, [initialFormId]);
 
   useEffect(() => {
+    if (initialFormId) {
+      setSelectedFormId(initialFormId);
+      // Fast-path the active form so the phone preview has metadata instantly.
+      formApi
+        .getForm(initialFormId)
+        .then((single) => {
+          if (single) {
+            setForm(single);
+            baseFormRef.current = single;
+            setForms((prev) => (prev.some((f) => f.id === single.id) ? prev : [...prev, single]));
+          }
+        })
+        .catch(() => {
+          /* list load below will surface errors */
+        });
+    }
     void loadForms();
-  }, [loadForms]);
+  }, [loadForms, initialFormId]);
+
+  // Sync when initialFormId changes from outside
+  useEffect(() => {
+    if (initialFormId && initialFormId !== selectedFormId) {
+      setSelectedFormId(initialFormId);
+      setDraft([]);
+      setSeeded(false);
+      setDirty(false);
+      collapseInit.current = false;
+    }
+  }, [initialFormId, selectedFormId]);
 
   // Sync active form when selectedFormId changes
   useEffect(() => {
@@ -236,6 +281,27 @@ export function TriageBuilder() {
     clearTimeout(toastTimer.current ?? undefined);
     toastTimer.current = setTimeout(() => setToast(null), 4000);
   }, []);
+
+  /* ---- Live phone-preview sync ------------------------------------------------
+   * Surface the local-first draft + form metadata to the parent wrapper so the
+   * PhoneSimulator updates in real time as the admin edits. */
+
+  useEffect(() => {
+    onDraftChange?.(draft);
+  }, [draft, onDraftChange]);
+
+  useEffect(() => {
+    onFormChange?.(form);
+  }, [form, onFormChange]);
+
+  const focusedQuestionId = useMemo(() => {
+    const first = draft.find((q) => !collapsedIds.has(q.id));
+    return first?.id ?? draft[0]?.id ?? null;
+  }, [draft, collapsedIds]);
+
+  useEffect(() => {
+    onFocusedQuestionChange?.(focusedQuestionId);
+  }, [focusedQuestionId, onFocusedQuestionChange]);
 
   const refreshForm = useCallback(async () => {
     try {
@@ -957,56 +1023,6 @@ export function TriageBuilder() {
       <div className="shrink-0 rounded-3xl border border-slate-100 bg-white p-4 sm:p-6 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="min-w-0">
-            {/* Triage flow selector & new flow */}
-            {forms.length > 0 && (
-              <div className="mb-2 flex flex-wrap items-center gap-2">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Flow:</span>
-                <select
-                  value={selectedFormId || ""}
-                  onChange={(e) => handleSwitchForm(e.target.value)}
-                  className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-800 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
-                >
-                  {forms.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.title} {f.isDefault ? "★ (Default)" : ""}
-                    </option>
-                  ))}
-                </select>
-
-                {form?.isDefault ? (
-                  <span className="inline-flex items-center gap-1 rounded-xl bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-800 border border-amber-200 shadow-2xs">
-                    <Star size={11} className="fill-amber-500 text-amber-500" /> Default Pre-Audit
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void handleSetDefault(form?.id)}
-                    className="inline-flex items-center gap-1 rounded-xl border border-amber-300 bg-amber-50/80 hover:bg-amber-100 hover:border-amber-400 px-2.5 py-1 text-xs font-bold text-amber-800 transition-colors shadow-2xs disabled:opacity-50"
-                    title="Make this flow the system default pre-audit"
-                  >
-                    <Star size={12} className="text-amber-600" /> Make Default
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => setCreateModalOpen(true)}
-                  className="inline-flex items-center gap-1 rounded-xl border border-dashed border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-600 hover:border-orange-500 hover:text-orange-600 transition-colors"
-                >
-                  <Plus size={13} /> New Flow
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setManageFlowsOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-700 transition-colors shadow-2xs"
-                >
-                  <Layers size={13} className="text-slate-500" /> Manage All Flows
-                </button>
-              </div>
-            )}
-
             <div className="flex flex-wrap items-center gap-3">
               <h2 className="truncate text-xl sm:text-2xl font-bold text-slate-900">
                 {formLoading ? "Business Triage" : form?.title ?? "Business Triage"}

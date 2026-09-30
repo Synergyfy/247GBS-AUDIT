@@ -20,6 +20,9 @@ import {
   ExternalLink,
   Building2,
   Star,
+  Eye,
+  X,
+  Smartphone,
 } from "lucide-react";
 import { auditFormsApi, useAdminAuditForm } from "@/services/admin/audit-forms/hooks";
 import type { AuditForm, AuditFormQuestion, AuditFormAnswer } from "@/services/admin/audit-forms/types";
@@ -33,6 +36,7 @@ import {
 } from "@/services/ecosystem/catalog";
 import { EndActionModal } from "@/components/triage/builder/EndActionModal";
 import type { TriageDestinationType } from "@/services/triage/types";
+import { AuditPhoneSimulator } from "./AuditPhoneSimulator";
 
 interface AuditTemplateEditorProps {
   formId: string;
@@ -56,6 +60,10 @@ export function AuditTemplateEditor({ formId, onBack, onUpdated }: AuditTemplate
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+
+  // Live Phone Simulator State
+  const [focusedQuestionId, setFocusedQuestionId] = useState<string | null>(null);
+  const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
 
   // End Action Modal state for answer routing
   const [endActionModalOpen, setEndActionModalOpen] = useState(false);
@@ -94,7 +102,11 @@ export function AuditTemplateEditor({ formId, onBack, onUpdated }: AuditTemplate
       setSectorId(serverForm.sectorId || "");
       setCategoryId(serverForm.categoryId || "");
       setSubcategoryId(serverForm.subcategoryId || "");
-      setQuestions(serverForm.questions || []);
+      const loadedQuestions = serverForm.questions || [];
+      setQuestions(loadedQuestions);
+      if (loadedQuestions.length > 0 && !focusedQuestionId) {
+        setFocusedQuestionId(loadedQuestions[0].id);
+      }
     }
   }, [serverForm]);
 
@@ -122,8 +134,9 @@ export function AuditTemplateEditor({ formId, onBack, onUpdated }: AuditTemplate
   };
 
   const handleAddQuestion = () => {
+    const newId = `temp_q_${Date.now()}`;
     const newQ: AuditFormQuestion = {
-      id: `temp_q_${Date.now()}`,
+      id: newId,
       formId,
       text: "New Evaluation Question",
       type: "single_choice",
@@ -138,7 +151,7 @@ export function AuditTemplateEditor({ formId, onBack, onUpdated }: AuditTemplate
       answers: [
         {
           id: `temp_a_${Date.now()}_1`,
-          questionId: `temp_q_${Date.now()}`,
+          questionId: newId,
           text: "Optimal / Strongly Compliant",
           scoreImpact: 10,
           sortOrder: 1,
@@ -147,7 +160,7 @@ export function AuditTemplateEditor({ formId, onBack, onUpdated }: AuditTemplate
         },
         {
           id: `temp_a_${Date.now()}_2`,
-          questionId: `temp_q_${Date.now()}`,
+          questionId: newId,
           text: "Adequate / Needs Minor Review",
           scoreImpact: 5,
           sortOrder: 2,
@@ -156,7 +169,7 @@ export function AuditTemplateEditor({ formId, onBack, onUpdated }: AuditTemplate
         },
         {
           id: `temp_a_${Date.now()}_3`,
-          questionId: `temp_q_${Date.now()}`,
+          questionId: newId,
           text: "Critical Vulnerability / High Risk",
           scoreImpact: 0,
           sortOrder: 3,
@@ -166,6 +179,7 @@ export function AuditTemplateEditor({ formId, onBack, onUpdated }: AuditTemplate
       ],
     };
     setQuestions([...questions, newQ]);
+    setFocusedQuestionId(newId);
     setDirty(true);
   };
 
@@ -175,7 +189,13 @@ export function AuditTemplateEditor({ formId, onBack, onUpdated }: AuditTemplate
   };
 
   const handleDeleteQuestion = (id: string) => {
-    setQuestions((prev) => prev.filter((q) => q.id !== id));
+    setQuestions((prev) => {
+      const remaining = prev.filter((q) => q.id !== id);
+      if (focusedQuestionId === id) {
+        setFocusedQuestionId(remaining.length > 0 ? remaining[0].id : null);
+      }
+      return remaining;
+    });
     setDirty(true);
   };
 
@@ -392,6 +412,7 @@ export function AuditTemplateEditor({ formId, onBack, onUpdated }: AuditTemplate
             type="button"
             onClick={onBack}
             className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 transition-colors"
+            title="Back to all templates"
           >
             <ArrowLeft size={18} />
           </button>
@@ -455,311 +476,390 @@ export function AuditTemplateEditor({ formId, onBack, onUpdated }: AuditTemplate
         </div>
       </div>
 
-      {/* Template Metadata Box */}
-      <div className="rounded-3xl border border-slate-100 bg-white p-5 sm:p-6 shadow-sm space-y-4">
-        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Template Configuration</h3>
+      {/* Two Column Layout: Left Column = Form Settings & Questions, Right Column = Live Phone Simulator */}
+      <div className="flex flex-col lg:flex-row items-start gap-6">
+        {/* Left Column (Builder Editor) */}
+        <div className="flex-1 min-w-0 space-y-6 w-full">
+          {/* Template Metadata Box */}
+          <div className="rounded-3xl border border-slate-100 bg-white p-5 sm:p-6 shadow-sm space-y-4">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Template Configuration</h3>
 
-        {/* Default Audit Status Box */}
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200/80 bg-amber-50/40 p-3.5">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
-              <Star size={16} className={serverForm?.isDefault ? "fill-amber-500 text-amber-500" : ""} />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                Default {serverForm?.auditType === "SHORT_FORM" ? "Short" : "Long"} Audit Status:{" "}
-                <span className={serverForm?.isDefault ? "text-amber-700" : "text-slate-500"}>
-                  {serverForm?.isDefault ? "Active System Default" : "Secondary Template"}
+            {/* Default Audit Status Box */}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200/80 bg-amber-50/40 p-3.5">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+                  <Star size={16} className={serverForm?.isDefault ? "fill-amber-500 text-amber-500" : ""} />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    Default {serverForm?.auditType === "SHORT_FORM" ? "Short" : "Long"} Audit Status:{" "}
+                    <span className={serverForm?.isDefault ? "text-amber-700" : "text-slate-500"}>
+                      {serverForm?.isDefault ? "Active System Default" : "Secondary Template"}
+                    </span>
+                  </p>
+                  <p className="text-[11px] text-slate-400 font-medium">
+                    {serverForm?.isDefault
+                      ? "This template is automatically loaded when businesses start this audit type."
+                      : "Only one template per audit type can be default. Setting this will replace the current default."}
+                  </p>
+                </div>
+              </div>
+
+              {!serverForm?.isDefault ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={handleSetDefault}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-amber-600 transition-colors shadow-2xs disabled:opacity-50"
+                >
+                  <Star size={13} />
+                  Set as Default {serverForm?.auditType === "SHORT_FORM" ? "Short" : "Long"}
+                </button>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-xl bg-amber-100/80 px-3 py-1 text-xs font-bold text-amber-800">
+                  <CheckCircle2 size={13} className="text-amber-600" /> Current Default
                 </span>
-              </p>
-              <p className="text-[11px] text-slate-400 font-medium">
-                {serverForm?.isDefault
-                  ? "This template is automatically loaded when businesses start this audit type."
-                  : "Only one template per audit type can be default. Setting this will replace the current default."}
-              </p>
+              )}
             </div>
-          </div>
-
-          {!serverForm?.isDefault ? (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={handleSetDefault}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-amber-600 transition-colors shadow-2xs disabled:opacity-50"
-            >
-              <Star size={13} />
-              Set as Default {serverForm?.auditType === "SHORT_FORM" ? "Short" : "Long"}
-            </button>
-          ) : (
-            <span className="inline-flex items-center gap-1 rounded-xl bg-amber-100/80 px-3 py-1 text-xs font-bold text-amber-800">
-              <CheckCircle2 size={13} className="text-amber-600" /> Current Default
-            </span>
-          )}
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="text-xs font-bold text-slate-700">Audit Title</label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => {
-                setTitle(e.target.value);
-                setDirty(true);
-              }}
-              className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-medium text-slate-800 outline-none focus:border-orange-500"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-bold text-slate-700">Description</label>
-            <input
-              type="text"
-              value={description}
-              onChange={(e) => {
-                setDescription(e.target.value);
-                setDirty(true);
-              }}
-              className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-medium text-slate-800 outline-none focus:border-orange-500"
-            />
-          </div>
-        </div>
-
-        {/* Sector, Category, Subcategory */}
-        <div className="pt-3 border-t border-slate-100">
-          <div className="flex items-center gap-2 mb-2">
-            <Building2 size={14} className="text-orange-500" />
-            <span className="text-xs font-bold text-slate-800">Target Industry Sector & Category (Central Hub Solution)</span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="text-[11px] font-bold text-slate-500 block mb-1">Sector</label>
-              <select
-                value={sectorId}
-                onChange={(e) => {
-                  setSectorId(e.target.value);
-                  setCategoryId("");
-                  setSubcategoryId("");
-                  setDirty(true);
-                }}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-orange-500"
-              >
-                <option value="">General / All Sectors</option>
-                {sectors.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-bold text-slate-700">Audit Title</label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => {
+                    setTitle(e.target.value);
+                    setDirty(true);
+                  }}
+                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-medium text-slate-800 outline-none focus:border-orange-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-700">Description</label>
+                <input
+                  type="text"
+                  value={description}
+                  onChange={(e) => {
+                    setDescription(e.target.value);
+                    setDirty(true);
+                  }}
+                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-medium text-slate-800 outline-none focus:border-orange-500"
+                />
+              </div>
             </div>
 
-            <div>
-              <label className="text-[11px] font-bold text-slate-500 block mb-1">Category</label>
-              <select
-                value={categoryId}
-                onChange={(e) => {
-                  setCategoryId(e.target.value);
-                  setSubcategoryId("");
-                  setDirty(true);
-                }}
-                disabled={!sectorId}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-orange-500 disabled:opacity-50"
-              >
-                <option value="">All Categories</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Sector, Category, Subcategory */}
+            <div className="pt-3 border-t border-slate-100">
+              <div className="flex items-center gap-2 mb-2">
+                <Building2 size={14} className="text-orange-500" />
+                <span className="text-xs font-bold text-slate-800">Target Industry Sector & Category</span>
+              </div>
 
-            <div>
-              <label className="text-[11px] font-bold text-slate-500 block mb-1">Subcategory</label>
-              <select
-                value={subcategoryId}
-                onChange={(e) => {
-                  setSubcategoryId(e.target.value);
-                  setDirty(true);
-                }}
-                disabled={!categoryId}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-orange-500 disabled:opacity-50"
-              >
-                <option value="">All Subcategories</option>
-                {subcategories.map((sc) => (
-                  <option key={sc.id} value={sc.id}>
-                    {sc.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Questions List */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-900">
-            Audit Questions ({questions.length})
-          </h3>
-          <button
-            type="button"
-            onClick={handleAddQuestion}
-            className="inline-flex items-center gap-1.5 rounded-2xl bg-orange-500 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-orange-600 transition-all"
-          >
-            <Plus size={14} /> Add Question
-          </button>
-        </div>
-
-        {questions.length === 0 ? (
-          <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-12 text-center">
-            <Layers size={32} className="mx-auto text-slate-300 mb-3" />
-            <p className="text-sm font-bold text-slate-700">No questions in this audit template</p>
-            <p className="text-xs text-slate-400 mt-1 font-medium">
-              Start building by adding your first evaluation question.
-            </p>
-            <button
-              type="button"
-              onClick={handleAddQuestion}
-              className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white hover:bg-black transition-colors"
-            >
-              <Plus size={14} /> Add Question
-            </button>
-          </div>
-        ) : (
-          questions.map((q, idx) => (
-            <div
-              key={q.id}
-              className="rounded-3xl border border-slate-100 bg-white p-5 sm:p-6 shadow-sm space-y-4"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-orange-50 text-xs font-bold text-orange-600">
-                    Q{idx + 1}
-                  </span>
-                  <input
-                    type="text"
-                    value={q.category || ""}
-                    placeholder="Category / Domain (e.g. Finance)"
-                    onChange={(e) => handleUpdateQuestion(q.id, { category: e.target.value })}
-                    className="w-44 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-700 outline-none focus:border-orange-500"
-                  />
-                </div>
-
-                <div className="flex items-center gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-500 block mb-1">Sector</label>
                   <select
-                    value={q.type}
-                    onChange={(e) => handleUpdateQuestion(q.id, { type: e.target.value })}
-                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-700 outline-none"
+                    value={sectorId}
+                    onChange={(e) => {
+                      setSectorId(e.target.value);
+                      setCategoryId("");
+                      setSubcategoryId("");
+                      setDirty(true);
+                    }}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-orange-500"
                   >
-                    <option value="single_choice">Single Choice</option>
-                    <option value="multi_choice">Multiple Choice</option>
-                    <option value="yes_no">Yes / No</option>
-                    <option value="rating">Rating Scale</option>
-                    <option value="text">Free Text Input</option>
+                    <option value="">General / All Sectors</option>
+                    {sectors.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
                   </select>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteQuestion(q.id)}
-                    className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors"
-                    title="Delete Question"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
-
-              {/* Question Text & Description */}
-              <div className="space-y-2">
-                <input
-                  type="text"
-                  value={q.text}
-                  onChange={(e) => handleUpdateQuestion(q.id, { text: e.target.value })}
-                  placeholder="Enter the question text..."
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-bold text-slate-900 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/10"
-                />
-                <input
-                  type="text"
-                  value={q.description || ""}
-                  onChange={(e) => handleUpdateQuestion(q.id, { description: e.target.value })}
-                  placeholder="Optional explanatory subtext or respondent instructions..."
-                  className="w-full rounded-xl border border-slate-100 bg-slate-50/50 px-3.5 py-1.5 text-xs font-medium text-slate-600 outline-none focus:border-orange-500"
-                />
-              </div>
-
-              {/* Answers & Routing */}
-              <div className="pt-2 border-t border-slate-100">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Answer Options & Scoring
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleAddAnswer(q.id)}
-                    className="inline-flex items-center gap-1 text-xs font-bold text-orange-600 hover:text-orange-700"
-                  >
-                    <Plus size={13} /> Add Option
-                  </button>
                 </div>
 
-                <div className="space-y-2.5">
-                  {q.answers.map((ans, aIdx) => (
-                    <div
-                      key={ans.id}
-                      className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-100 bg-slate-50/70 p-3 sm:flex-nowrap"
-                    >
-                      <span className="text-[11px] font-bold text-slate-400 w-5">
-                        {String.fromCharCode(65 + aIdx)}.
-                      </span>
-                      <input
-                        type="text"
-                        value={ans.text}
-                        onChange={(e) => handleUpdateAnswer(q.id, ans.id, { text: e.target.value })}
-                        className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 outline-none focus:border-orange-500"
-                        placeholder="Option label..."
-                      />
+                <div>
+                  <label className="text-[11px] font-bold text-slate-500 block mb-1">Category</label>
+                  <select
+                    value={categoryId}
+                    onChange={(e) => {
+                      setCategoryId(e.target.value);
+                      setSubcategoryId("");
+                      setDirty(true);
+                    }}
+                    disabled={!sectorId}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-orange-500 disabled:opacity-50"
+                  >
+                    <option value="">All Categories</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-                      {/* Score Impact */}
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[11px] font-medium text-slate-400">Score:</span>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-500 block mb-1">Subcategory</label>
+                  <select
+                    value={subcategoryId}
+                    onChange={(e) => {
+                      setSubcategoryId(e.target.value);
+                      setDirty(true);
+                    }}
+                    disabled={!categoryId}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-orange-500 disabled:opacity-50"
+                  >
+                    <option value="">All Subcategories</option>
+                    {subcategories.map((sc) => (
+                      <option key={sc.id} value={sc.id}>
+                        {sc.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Questions List */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-900">
+                Audit Questions ({questions.length})
+              </h3>
+              <button
+                type="button"
+                onClick={handleAddQuestion}
+                className="inline-flex items-center gap-1.5 rounded-2xl bg-orange-500 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-orange-600 transition-all active:scale-95"
+              >
+                <Plus size={14} /> Add Question
+              </button>
+            </div>
+
+            {questions.length === 0 ? (
+              <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-12 text-center">
+                <Layers size={32} className="mx-auto text-slate-300 mb-3" />
+                <p className="text-sm font-bold text-slate-700">No questions in this audit template</p>
+                <p className="text-xs text-slate-400 mt-1 font-medium">
+                  Start building by adding your first evaluation question.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleAddQuestion}
+                  className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-orange-500 px-4 py-2 text-xs font-bold text-white hover:bg-orange-600 transition-colors"
+                >
+                  <Plus size={14} /> Add Question
+                </button>
+              </div>
+            ) : (
+              questions.map((q, idx) => {
+                const isFocused = focusedQuestionId === q.id;
+
+                return (
+                  <div
+                    key={q.id}
+                    onClick={() => setFocusedQuestionId(q.id)}
+                    className={`cursor-pointer rounded-3xl border bg-white p-5 sm:p-6 shadow-sm space-y-4 transition-all ${
+                      isFocused
+                        ? "border-orange-400 ring-2 ring-orange-400/20"
+                        : "border-slate-100 hover:border-slate-200"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`flex h-7 w-7 items-center justify-center rounded-xl text-xs font-bold transition-colors ${
+                            isFocused
+                              ? "bg-orange-500 text-white"
+                              : "bg-orange-50 text-orange-600"
+                          }`}
+                        >
+                          Q{idx + 1}
+                        </span>
                         <input
-                          type="number"
-                          value={ans.scoreImpact ?? 0}
-                          onChange={(e) =>
-                            handleUpdateAnswer(q.id, ans.id, {
-                              scoreImpact: parseInt(e.target.value, 10) || 0,
-                            })
-                          }
-                          className="w-16 rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 outline-none"
+                          type="text"
+                          value={q.category || ""}
+                          placeholder="Category / Domain (e.g. Finance)"
+                          onChange={(e) => handleUpdateQuestion(q.id, { category: e.target.value })}
+                          className="w-44 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-700 outline-none focus:border-orange-500"
                         />
+                        {isFocused && (
+                          <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-md border border-orange-100">
+                            Active in Phone Simulator
+                          </span>
+                        )}
                       </div>
 
-                      {/* Routing Destination */}
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEndActionModal(q.id, ans.id)}
-                        className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-600 hover:border-orange-500 hover:text-orange-600 transition-colors"
-                        title="Configure End / Submit Action"
-                      >
-                        <Settings2 size={12} />
-                        Route / Action
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteAnswer(q.id, ans.id)}
-                        className="rounded-lg p-1 text-slate-400 hover:text-red-500 transition-colors"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        <select
+                          value={q.type}
+                          onChange={(e) => handleUpdateQuestion(q.id, { type: e.target.value })}
+                          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-700 outline-none focus:border-orange-500"
+                        >
+                          <option value="single_choice">Single Choice</option>
+                          <option value="multi_choice">Multiple Choice</option>
+                          <option value="yes_no">Yes / No</option>
+                          <option value="rating">Rating Scale</option>
+                          <option value="text">Free Text Input</option>
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteQuestion(q.id)}
+                          className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                          title="Delete Question"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ))
-        )}
+
+                    {/* Question Text & Description */}
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={q.text}
+                        onChange={(e) => handleUpdateQuestion(q.id, { text: e.target.value })}
+                        placeholder="Enter the question text..."
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-bold text-slate-900 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/10"
+                      />
+                      <input
+                        type="text"
+                        value={q.description || ""}
+                        onChange={(e) => handleUpdateQuestion(q.id, { description: e.target.value })}
+                        placeholder="Optional explanatory subtext or respondent instructions..."
+                        className="w-full rounded-xl border border-slate-100 bg-slate-50/50 px-3.5 py-1.5 text-xs font-medium text-slate-600 outline-none focus:border-orange-500"
+                      />
+                    </div>
+
+                    {/* Answers & Routing */}
+                    <div className="pt-2 border-t border-slate-100" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                          Answer Options & Scoring
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleAddAnswer(q.id)}
+                          className="inline-flex items-center gap-1 text-xs font-bold text-orange-600 hover:text-orange-700"
+                        >
+                          <Plus size={13} /> Add Option
+                        </button>
+                      </div>
+
+                      <div className="space-y-2.5">
+                        {q.answers.map((ans, aIdx) => (
+                          <div
+                            key={ans.id}
+                            className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-100 bg-slate-50/70 p-3 sm:flex-nowrap"
+                          >
+                            <span className="text-[11px] font-bold text-slate-400 w-5">
+                              {String.fromCharCode(65 + aIdx)}.
+                            </span>
+                            <input
+                              type="text"
+                              value={ans.text}
+                              onChange={(e) => handleUpdateAnswer(q.id, ans.id, { text: e.target.value })}
+                              className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 outline-none focus:border-orange-500"
+                              placeholder="Option label..."
+                            />
+
+                            {/* Score Impact */}
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[11px] font-medium text-slate-400">Score:</span>
+                              <input
+                                type="number"
+                                value={ans.scoreImpact ?? 0}
+                                onChange={(e) =>
+                                  handleUpdateAnswer(q.id, ans.id, {
+                                    scoreImpact: parseInt(e.target.value, 10) || 0,
+                                  })
+                                }
+                                className="w-16 rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 outline-none"
+                              />
+                            </div>
+
+                            {/* Routing Destination */}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEndActionModal(q.id, ans.id)}
+                              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-600 hover:border-orange-500 hover:text-orange-600 transition-colors"
+                              title="Configure End / Submit Action"
+                            >
+                              <Settings2 size={12} />
+                              Route / Action
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteAnswer(q.id, ans.id)}
+                              className="rounded-lg p-1 text-slate-400 hover:text-red-500 transition-colors"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Right Column: Sticky Live Phone Simulator on Desktop */}
+        <div className="hidden lg:block w-[320px] shrink-0 sticky top-6">
+          <AuditPhoneSimulator
+            title={title}
+            description={description}
+            auditType={serverForm?.auditType || "SHORT_FORM"}
+            questions={questions}
+            focusedQuestionId={focusedQuestionId}
+            sectorName={sectors.find((s) => s.id === sectorId)?.name}
+          />
+        </div>
       </div>
+
+      {/* Mobile Floating Preview Button */}
+      <div className="lg:hidden fixed bottom-6 right-6 z-40">
+        <button
+          type="button"
+          onClick={() => setMobilePreviewOpen(true)}
+          className="flex items-center gap-2 rounded-2xl bg-orange-500 px-4 py-3 text-xs font-bold text-white shadow-xl shadow-orange-500/30 hover:bg-orange-600 transition-all active:scale-95"
+        >
+          <Smartphone size={16} /> Live Mobile Preview
+        </button>
+      </div>
+
+      {/* Mobile Preview Modal */}
+      <AnimatePresence>
+        {mobilePreviewOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative max-h-[95vh] overflow-y-auto bg-transparent p-2"
+            >
+              <button
+                type="button"
+                onClick={() => setMobilePreviewOpen(false)}
+                className="absolute right-4 top-4 z-50 rounded-full bg-slate-900 p-2 text-white shadow-lg hover:bg-black"
+              >
+                <X size={16} />
+              </button>
+              <AuditPhoneSimulator
+                title={title}
+                description={description}
+                auditType={serverForm?.auditType || "SHORT_FORM"}
+                questions={questions}
+                focusedQuestionId={focusedQuestionId}
+                sectorName={sectors.find((s) => s.id === sectorId)?.name}
+              />
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* End Action Routing Popup Modal */}
       {endActionModalOpen && (
@@ -785,3 +885,4 @@ export function AuditTemplateEditor({ formId, onBack, onUpdated }: AuditTemplate
     </div>
   );
 }
+
