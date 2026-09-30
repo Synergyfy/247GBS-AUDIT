@@ -158,6 +158,90 @@ export function AuditTemplateManager() {
         </div>
       </div>
 
+      {/* Active System Defaults Status Banner */}
+      {forms && forms.length > 0 && (
+        <div className="rounded-3xl border border-amber-200/80 bg-gradient-to-r from-amber-50/70 via-orange-50/40 to-white p-4 sm:p-5 shadow-xs">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <div className="flex items-center gap-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-amber-500 text-white shadow-xs">
+                <Star size={14} className="fill-white" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                  Active System Defaults
+                </h4>
+                <p className="text-[11px] text-slate-500 font-medium">
+                  Exactly one Short Audit and one Long Audit serve as the primary entry point for respondents.
+                </p>
+              </div>
+            </div>
+            <span className="text-[10px] font-bold text-amber-800 bg-amber-100/70 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+              1 Default Per Type Rule
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Default Short Audit Box */}
+            {(() => {
+              const def = forms.find((f) => f.auditType === "SHORT_FORM" && f.isDefault);
+              return (
+                <div className="flex items-center justify-between gap-3 rounded-2xl bg-white p-3.5 border border-amber-100 shadow-2xs">
+                  <div className="min-w-0">
+                    <span className="inline-block rounded-md bg-blue-50 px-2 py-0.5 text-[9px] font-bold text-blue-700 uppercase tracking-wider mb-1">
+                      Default Short Audit
+                    </span>
+                    <h5 className="truncate text-xs font-bold text-slate-900">
+                      {def?.title || "No Default Short Audit Selected"}
+                    </h5>
+                    <p className="text-[10px] text-slate-400 font-medium truncate">
+                      {def?.sectorName ? `Sector: ${def.sectorName}` : "Applicable to All Sectors"} • {def?.questionCount ?? 0} questions
+                    </p>
+                  </div>
+                  {def && (
+                    <button
+                      type="button"
+                      onClick={() => setEditingFormId(def.id)}
+                      className="shrink-0 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700 transition-colors"
+                    >
+                      Edit Flow
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Default Long Audit Box */}
+            {(() => {
+              const def = forms.find((f) => f.auditType === "LONG_FORM" && f.isDefault);
+              return (
+                <div className="flex items-center justify-between gap-3 rounded-2xl bg-white p-3.5 border border-amber-100 shadow-2xs">
+                  <div className="min-w-0">
+                    <span className="inline-block rounded-md bg-orange-50 px-2 py-0.5 text-[9px] font-bold text-orange-700 uppercase tracking-wider mb-1">
+                      Default Long Audit
+                    </span>
+                    <h5 className="truncate text-xs font-bold text-slate-900">
+                      {def?.title || "No Default Long Audit Selected"}
+                    </h5>
+                    <p className="text-[10px] text-slate-400 font-medium truncate">
+                      {def?.sectorName ? `Sector: ${def.sectorName}` : "Applicable to All Sectors"} • {def?.questionCount ?? 0} questions
+                    </p>
+                  </div>
+                  {def && (
+                    <button
+                      type="button"
+                      onClick={() => setEditingFormId(def.id)}
+                      className="shrink-0 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700 transition-colors"
+                    >
+                      Edit Flow
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
       {/* Templates Grid */}
       {loading && !forms ? (
         <div className="flex h-64 items-center justify-center">
@@ -191,20 +275,30 @@ export function AuditTemplateManager() {
               <motion.div
                 key={form.id}
                 layout
-                className="group relative flex flex-col justify-between rounded-3xl border border-slate-100 bg-white p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow"
+                className={`group relative flex flex-col justify-between rounded-3xl border bg-white p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow ${
+                  form.isDefault ? "border-amber-300/80 ring-1 ring-amber-300/40" : "border-slate-100"
+                }`}
               >
                 <div>
                   {/* Top Badges */}
                   <div className="flex items-center justify-between gap-2 mb-3">
-                    <span
-                      className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest ${
-                        isShort
-                          ? "bg-blue-50 text-blue-700 border border-blue-200/60"
-                          : "bg-orange-50 text-orange-700 border border-orange-200/60"
-                      }`}
-                    >
-                      {isShort ? "Short Audit" : "Long Audit"}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest ${
+                          isShort
+                            ? "bg-blue-50 text-blue-700 border border-blue-200/60"
+                            : "bg-orange-50 text-orange-700 border border-orange-200/60"
+                        }`}
+                      >
+                        {isShort ? "Short Audit" : "Long Audit"}
+                      </span>
+
+                      {form.isDefault && (
+                        <span className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800 border border-amber-200">
+                          <Star size={10} className="fill-amber-500 text-amber-500" /> Default
+                        </span>
+                      )}
+                    </div>
 
                     <span
                       className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
@@ -265,18 +359,19 @@ export function AuditTemplateManager() {
                 {/* Bottom Actions */}
                 <div className="mt-5 space-y-2.5 pt-2">
                   {/* Default Status Row */}
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     {form.isDefault ? (
-                      <span className="inline-flex items-center gap-1 rounded-xl bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-700">
-                        <Star size={12} className="fill-amber-500 text-amber-500" /> Default {isShort ? "Short" : "Long"}
+                      <span className="inline-flex items-center gap-1.5 rounded-xl bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 border border-amber-200/80">
+                        <Star size={13} className="fill-amber-500 text-amber-500" /> Default {isShort ? "Short" : "Long"}
                       </span>
                     ) : (
                       <button
                         type="button"
                         onClick={() => handleSetDefault(form)}
-                        className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-amber-600 transition-colors"
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50/70 hover:bg-amber-100 hover:border-amber-400 px-3 py-1.5 text-xs font-bold text-amber-800 transition-colors shadow-2xs"
+                        title={`Make this the default ${isShort ? "Short" : "Long"} Audit for all users`}
                       >
-                        <Star size={12} /> Set as Default
+                        <Star size={13} className="text-amber-600" /> Set as Default {isShort ? "Short" : "Long"}
                       </button>
                     )}
 

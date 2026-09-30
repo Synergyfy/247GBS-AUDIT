@@ -19,6 +19,7 @@ import {
   SlidersHorizontal,
   ExternalLink,
   Building2,
+  Star,
 } from "lucide-react";
 import { auditFormsApi, useAdminAuditForm } from "@/services/admin/audit-forms/hooks";
 import type { AuditForm, AuditFormQuestion, AuditFormAnswer } from "@/services/admin/audit-forms/types";
@@ -100,6 +101,24 @@ export function AuditTemplateEditor({ formId, onBack, onUpdated }: AuditTemplate
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleSetDefault = async () => {
+    setBusy(true);
+    try {
+      await auditFormsApi.setDefault(formId);
+      await refresh();
+      onUpdated();
+      showToast(
+        `"${title || "Template"}" is now the active default ${
+          serverForm?.auditType === "SHORT_FORM" ? "Short" : "Long"
+        } Audit.`
+      );
+    } catch (err: any) {
+      showToast(err?.message || "Failed to set default template");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handleAddQuestion = () => {
@@ -390,12 +409,31 @@ export function AuditTemplateEditor({ formId, onBack, onUpdated }: AuditTemplate
               >
                 {serverForm?.status === "published" ? "Published" : "Draft"}
               </span>
+
+              {serverForm?.isDefault && (
+                <span className="inline-flex items-center gap-1 rounded-xl bg-amber-50 px-2.5 py-0.5 text-[10px] font-bold text-amber-800 border border-amber-200 uppercase tracking-wider">
+                  <Star size={10} className="fill-amber-500 text-amber-500" /> Default
+                </span>
+              )}
             </div>
             <h2 className="mt-1 text-xl font-bold text-slate-900">{title || "Audit Template Editor"}</h2>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {!serverForm?.isDefault && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={handleSetDefault}
+              className="inline-flex items-center gap-1.5 rounded-2xl border border-amber-300 bg-amber-50/80 hover:bg-amber-100 hover:border-amber-400 px-3 py-2 text-xs font-bold text-amber-800 transition-colors shadow-2xs disabled:opacity-50"
+              title={`Make this the default ${serverForm?.auditType === "SHORT_FORM" ? "Short" : "Long"} Audit for all users`}
+            >
+              <Star size={13} className="text-amber-600" />
+              Set as Default {serverForm?.auditType === "SHORT_FORM" ? "Short" : "Long"}
+            </button>
+          )}
+
           <button
             type="button"
             disabled={!dirty || busy}
@@ -420,6 +458,44 @@ export function AuditTemplateEditor({ formId, onBack, onUpdated }: AuditTemplate
       {/* Template Metadata Box */}
       <div className="rounded-3xl border border-slate-100 bg-white p-5 sm:p-6 shadow-sm space-y-4">
         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Template Configuration</h3>
+
+        {/* Default Audit Status Box */}
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200/80 bg-amber-50/40 p-3.5">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+              <Star size={16} className={serverForm?.isDefault ? "fill-amber-500 text-amber-500" : ""} />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                Default {serverForm?.auditType === "SHORT_FORM" ? "Short" : "Long"} Audit Status:{" "}
+                <span className={serverForm?.isDefault ? "text-amber-700" : "text-slate-500"}>
+                  {serverForm?.isDefault ? "Active System Default" : "Secondary Template"}
+                </span>
+              </p>
+              <p className="text-[11px] text-slate-400 font-medium">
+                {serverForm?.isDefault
+                  ? "This template is automatically loaded when businesses start this audit type."
+                  : "Only one template per audit type can be default. Setting this will replace the current default."}
+              </p>
+            </div>
+          </div>
+
+          {!serverForm?.isDefault ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={handleSetDefault}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-amber-600 transition-colors shadow-2xs disabled:opacity-50"
+            >
+              <Star size={13} />
+              Set as Default {serverForm?.auditType === "SHORT_FORM" ? "Short" : "Long"}
+            </button>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-xl bg-amber-100/80 px-3 py-1 text-xs font-bold text-amber-800">
+              <CheckCircle2 size={13} className="text-amber-600" /> Current Default
+            </span>
+          )}
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="text-xs font-bold text-slate-700">Audit Title</label>

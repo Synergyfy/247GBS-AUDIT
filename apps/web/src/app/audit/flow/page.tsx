@@ -243,8 +243,11 @@ export default function AuditFlowPage() {
     }
 
     useEffect(() => {
-        if (!auditFormId) return;
-        fetch(`${API_BASE_URL}/audit/public/form/${encodeURIComponent(auditFormId)}`)
+        const url = auditFormId
+            ? `${API_BASE_URL}/audit/public/form/${encodeURIComponent(auditFormId)}`
+            : `${API_BASE_URL}/audit/public/form/default?type=${encodeURIComponent(auditType)}`;
+
+        fetch(url)
             .then((res) => (res.ok ? res.json() : null))
             .then((form) => {
                 if (form?.questions && Array.isArray(form.questions) && form.questions.length > 0) {
@@ -278,7 +281,7 @@ export default function AuditFlowPage() {
                 }
             })
             .catch(() => {});
-    }, [auditFormId]);
+    }, [auditFormId, auditType]);
 
     // Filter questions for this audit
     const filteredQuestions = useMemo(() => {

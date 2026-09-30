@@ -15,9 +15,11 @@ import {
   Settings2,
   Star,
   Upload,
+  Layers,
 } from "lucide-react";
 import { useAdminTriageQuestions, triageApi, formApi } from "@/services/triage/hooks";
 import { CreateTriageModal } from "./CreateTriageModal";
+import { ManageFlowsModal } from "./ManageFlowsModal";
 import { ShareQrModal } from "@/components/common/ShareQrModal";
 import type { AnswerPayload, FormApiError, QuestionPayload, UpdateFormPayload } from "@/services/triage/hooks";
 import type {
@@ -68,6 +70,7 @@ export function TriageBuilder() {
   const [forms, setForms] = useState<TriageForm[]>([]);
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [manageFlowsOpen, setManageFlowsOpen] = useState(false);
   const [shareQrOpen, setShareQrOpen] = useState(false);
 
   const { data: serverQuestions, loading, error, refresh } = useAdminTriageQuestions(
@@ -250,19 +253,64 @@ export function TriageBuilder() {
     }
   }, [selectedFormId]);
 
-  const handleSetDefault = useCallback(async () => {
-    if (!form) return;
-    try {
-      await formApi.setDefault(form.id);
-      setForms((prev) =>
-        prev.map((f) => ({ ...f, isDefault: f.id === form.id }))
-      );
-      setForm((prev) => (prev ? { ...prev, isDefault: true } : prev));
-      showToast(`"${form.title}" is now the default public pre-audit triage.`);
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : "Failed to set default triage", "error");
-    }
-  }, [form, showToast]);
+  const handleSetDefault = useCallback(
+    async (formIdToSet?: string) => {
+      const targetId = formIdToSet || form?.id;
+      if (!targetId) return;
+      const target = forms.find((f) => f.id === targetId);
+      try {
+        setBusy(true);
+        await formApi.setDefault(targetId);
+        setForms((prev) =>
+          prev.map((f) => ({ ...f, isDefault: f.id === targetId }))
+        );
+        setForm((prev) =>
+          prev
+            ? { ...prev, isDefault: prev.id === targetId }
+            : prev
+        );
+        showToast(
+          `"${target?.title || "Flow"}" is now the system default public pre-audit triage.`
+        );
+      } catch (err) {
+        showToast(
+          err instanceof Error ? err.message : "Failed to set default triage",
+          "error"
+        );
+      } finally {
+        setBusy(false);
+      }
+    },
+    [form?.id, forms, showToast]
+  );
+
+  const handleDeleteFlow = useCallback(
+    async (id: string) => {
+      const target = forms.find((f) => f.id === id);
+      if (!target) return;
+      if (target.isDefault) {
+        showToast("Cannot delete the system default flow. Please set another flow as default first.", "error");
+        return;
+      }
+      if (!confirm(`Are you sure you want to delete the flow "${target.title}"?`)) return;
+      try {
+        setBusy(true);
+        await formApi.deleteForm(id);
+        const list = await formApi.listForms();
+        setForms(list);
+        if (selectedFormId === id) {
+          const next = list.find((f) => f.isDefault) || list[0];
+          if (next) handleSwitchForm(next.id);
+        }
+        showToast("Triage flow deleted successfully.");
+      } catch (err) {
+        showToast(err instanceof Error ? err.message : "Failed to delete flow", "error");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [forms, selectedFormId, handleSwitchForm, showToast]
+  );
 
   const normalizeOrder = useCallback(
     (list: AdminTriageQuestion[]) => list.map((q, index) => ({ ...q, order: index + 1 })),
@@ -924,12 +972,37 @@ export function TriageBuilder() {
                     </option>
                   ))}
                 </select>
+
+                {form?.isDefault ? (
+                  <span className="inline-flex items-center gap-1 rounded-xl bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-800 border border-amber-200 shadow-2xs">
+                    <Star size={11} className="fill-amber-500 text-amber-500" /> Default Pre-Audit
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void handleSetDefault(form?.id)}
+                    className="inline-flex items-center gap-1 rounded-xl border border-amber-300 bg-amber-50/80 hover:bg-amber-100 hover:border-amber-400 px-2.5 py-1 text-xs font-bold text-amber-800 transition-colors shadow-2xs disabled:opacity-50"
+                    title="Make this flow the system default pre-audit"
+                  >
+                    <Star size={12} className="text-amber-600" /> Make Default
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={() => setCreateModalOpen(true)}
                   className="inline-flex items-center gap-1 rounded-xl border border-dashed border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-600 hover:border-orange-500 hover:text-orange-600 transition-colors"
                 >
                   <Plus size={13} /> New Flow
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setManageFlowsOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-700 transition-colors shadow-2xs"
+                >
+                  <Layers size={13} className="text-slate-500" /> Manage All Flows
                 </button>
               </div>
             )}
@@ -1092,6 +1165,7 @@ export function TriageBuilder() {
               onUpdateDescription={updateDescription}
               onUpdateSettings={updateSettings}
               onCopy={copyLink}
+              onSetDefault={() => void handleSetDefault()}
               busy={busy}
             />
           </div>
@@ -1171,6 +1245,18 @@ export function TriageBuilder() {
           setSeeded(false);
           showToast(`Created triage "${newForm.title}".`);
         }}
+      />
+
+      <ManageFlowsModal
+        isOpen={manageFlowsOpen}
+        onClose={() => setManageFlowsOpen(false)}
+        forms={forms}
+        currentFormId={selectedFormId}
+        onSelectForm={(id) => handleSwitchForm(id)}
+        onSetDefault={(id) => void handleSetDefault(id)}
+        onDeleteForm={(id) => void handleDeleteFlow(id)}
+        onCreateNew={() => setCreateModalOpen(true)}
+        busy={busy}
       />
     </div>
   );
