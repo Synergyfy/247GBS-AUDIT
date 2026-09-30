@@ -279,7 +279,7 @@ export class AuditFormService implements OnModuleInit {
     }
 
     if (dto.isDefault) {
-      await this.formRepository.update({ auditType: dto.auditType }, { isDefault: false });
+      await this.formRepository.update({ auditType: dto.auditType, isDefault: true }, { isDefault: false });
     }
 
     const created = this.formRepository.create({
@@ -320,7 +320,7 @@ export class AuditFormService implements OnModuleInit {
 
     if (dto.isDefault !== undefined) {
       if (dto.isDefault) {
-        await this.formRepository.update({ auditType: form.auditType }, { isDefault: false });
+        await this.formRepository.update({ auditType: form.auditType, isDefault: true }, { isDefault: false });
         form.isDefault = true;
       } else if (form.isDefault) {
         const count = await this.formRepository.count({
@@ -342,7 +342,7 @@ export class AuditFormService implements OnModuleInit {
     const form = await this.formRepository.findOne({ where: { id } });
     if (!form) throw new NotFoundException(`Audit form with ID "${id}" not found.`);
 
-    await this.formRepository.update({ auditType: form.auditType }, { isDefault: false });
+    await this.formRepository.update({ auditType: form.auditType, isDefault: true }, { isDefault: false });
     form.isDefault = true;
     await this.formRepository.save(form);
     return this.getForm(form.id);
