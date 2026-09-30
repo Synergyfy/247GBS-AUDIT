@@ -109,6 +109,8 @@ export class TriageFormDto {
   @ApiProperty({ default: 'draft', enum: ['draft', 'published'] }) status: string;
   @ApiProperty({ type: Object }) settings: Record<string, any>;
   @ApiProperty({ nullable: true }) publishedAt: string | null;
+  @ApiPropertyOptional({ nullable: true }) createdAt?: string | null;
+  @ApiPropertyOptional({ nullable: true }) updatedAt?: string | null;
 }
 
 export class PublishTriageFormResultDto {

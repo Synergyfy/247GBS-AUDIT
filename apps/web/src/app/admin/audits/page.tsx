@@ -324,7 +324,7 @@ export default function AuditsPage() {
                                         audit.status === 'Completed' ? 'bg-green-100 text-green-700' :
                                         audit.status === 'Action Required' ? 'bg-red-100 text-red-700' :
                                         audit.status === 'Review' ? 'bg-orange-100 text-orange-700' :
-                                        'bg-blue-100 text-blue-700'
+                                        'bg-slate-100 text-slate-700'
                                     }`}>
                                         {audit.status}
                                     </div>
@@ -408,7 +408,7 @@ export default function AuditsPage() {
                                                 <div
                                                     className={`h-full rounded-full ${audit.status === 'Completed' ? 'bg-green-500' :
                                                         audit.status === 'Action Required' ? 'bg-red-500' :
-                                                            'bg-blue-500'
+                                                            'bg-orange-500'
                                                         }`}
                                                     style={{ width: `${audit.progress}%` }}
                                                 />
@@ -419,7 +419,7 @@ export default function AuditsPage() {
                                         <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${audit.status === 'Completed' ? 'bg-green-100 text-green-700' :
                                             audit.status === 'Action Required' ? 'bg-red-100 text-red-700' :
                                                 audit.status === 'Review' ? 'bg-orange-100 text-orange-700' :
-                                                    'bg-blue-100 text-blue-700'
+                                                    'bg-slate-100 text-slate-700'
                                             }`}>
                                             {audit.status === 'Completed' && <CheckCircle2 size={12} />}
                                             {audit.status === 'Action Required' && <AlertCircle size={12} />}

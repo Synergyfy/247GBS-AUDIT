@@ -211,6 +211,8 @@ export interface TriageForm {
   status: TriageFormStatus;
   settings: TriageFormSettings;
   publishedAt: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 }
 
 export interface CreateTriageFormPayload {

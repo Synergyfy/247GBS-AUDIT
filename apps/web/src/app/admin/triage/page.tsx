@@ -1,11 +1,75 @@
 "use client";
 
-import React from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { AppWindow } from "lucide-react";
-import { TriageBuilder } from "@/components/triage/builder/TriageBuilder";
+import { TriageGallery } from "@/components/triage/builder/TriageGallery";
+import { TriageBuilderWithPreview } from "@/components/triage/builder/TriageBuilderWithPreview";
 
 export default function AdminTriagePage() {
+  const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
+  const [selectedTab, setSelectedTab] = useState<"questions" | "responses" | "settings">("questions");
+
+  // Support ?form=<id>&tab=<tab> deep links + browser back/forward.
+  useEffect(() => {
+    const read = () => {
+      const params = new URLSearchParams(window.location.search);
+      setSelectedFormId(params.get("form"));
+      const tabParam = params.get("tab");
+      if (tabParam === "responses" || tabParam === "settings" || tabParam === "questions") {
+        setSelectedTab(tabParam);
+      }
+    };
+    read();
+    window.addEventListener("popstate", read);
+    return () => window.removeEventListener("popstate", read);
+  }, []);
+
+  const handleSelectForm = useCallback(
+    (formId: string, initialTab: "questions" | "responses" | "settings" = "questions") => {
+      setSelectedFormId(formId);
+      setSelectedTab(initialTab);
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set("form", formId);
+        if (initialTab !== "questions") {
+          url.searchParams.set("tab", initialTab);
+        } else {
+          url.searchParams.delete("tab");
+        }
+        window.history.pushState({}, "", url.toString());
+      } catch {
+        /* ignore */
+      }
+    },
+    []
+  );
+
+  const handleBack = useCallback(() => {
+    setSelectedFormId(null);
+    setSelectedTab("questions");
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("form");
+      url.searchParams.delete("tab");
+      window.history.pushState({}, "", url.toString());
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  if (selectedFormId) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25 }}
+        className="flex h-full min-h-0 w-full flex-col gap-5"
+      >
+        <TriageBuilderWithPreview formId={selectedFormId} initialTab={selectedTab} onBack={handleBack} />
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -13,18 +77,7 @@ export default function AdminTriagePage() {
       transition={{ duration: 0.25 }}
       className="flex h-full min-h-0 w-full flex-col gap-5"
     >
-      <div className="flex shrink-0 items-center gap-2.5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-100 text-orange-500">
-          <AppWindow size={18} />
-        </div>
-        <div>
-          <h1 className="text-lg font-bold text-slate-900">Business Triage Builder</h1>
-          <p className="hidden text-xs text-slate-400 font-medium sm:block">
-            Build the flow, review responses and publish the public form.
-          </p>
-        </div>
-      </div>
-      <TriageBuilder />
+      <TriageGallery onSelectForm={handleSelectForm} />
     </motion.div>
   );
 }
