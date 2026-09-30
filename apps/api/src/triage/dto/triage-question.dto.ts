@@ -10,6 +10,11 @@ import type { QuestionType } from '../question-types';
 // ============================================================
 
 export class CreateTriageQuestionDto {
+  @ApiPropertyOptional({ description: 'ID of the triage form this question belongs to.', nullable: true })
+  @IsOptional()
+  @IsUUID(undefined, { message: 'formId must be a valid UUID.' })
+  formId?: string | null;
+
   @ApiProperty({ description: 'Question text shown to the user.' })
   @IsNotEmpty({ message: 'Question text cannot be empty.' })
   text: string;
@@ -218,6 +223,7 @@ export class AdminTriageAnswerDto {
 
 export class AdminTriageQuestionDto {
   @ApiProperty() id: string;
+  @ApiPropertyOptional({ nullable: true }) formId?: string | null;
   @ApiProperty() text: string;
   @ApiProperty({ enum: QUESTION_TYPES, default: 'single_choice' }) type: QuestionType;
   @ApiProperty({ nullable: true }) description: string | null;

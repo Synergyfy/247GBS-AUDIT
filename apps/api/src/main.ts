@@ -19,11 +19,16 @@ async function bootstrap() {
   app.useGlobalGuards(new JwtAuthGuard(app.get('Reflector')));
   app.setGlobalPrefix('api/v1');
 
+  // Ports/origins are env-driven: FRONTEND_URL + ALLOWED_ORIGINS decide
+  // which frontend origin is allowed. Defaults match apps/web/.env (9009).
+  const frontendFallback = 'http://localhost:9009';
+  const configuredFrontend = (process.env.FRONTEND_URL || frontendFallback)
+    .trim()
+    .replace(/\/+$/, '');
+
   const defaultOrigins = [
     'https://247gbsaudit.centralhubsolution.com',
-    'http://localhost:3000',
-    'http://localhost:3001',
-    process.env.FRONTEND_URL,
+    configuredFrontend,
   ]
     .filter(Boolean)
     .map((o) => (o as string).trim().replace(/\/+$/, ''));
@@ -75,7 +80,8 @@ async function bootstrap() {
     ],
   });
 
-  const port = process.env.PORT ?? 3000;
+  // Single source of truth: process.env.PORT (see apps/api/.env). Defaults to 9008.
+  const port = parseInt(process.env.PORT ?? '9008', 10);
   await app.listen(port);
   console.log(`Application is running on port: ${port}`);
 }

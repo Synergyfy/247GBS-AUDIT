@@ -43,8 +43,17 @@ import { PublicModule } from './public/public.module';
         password: configService.get<string>('POSTGRES_PASSWORD'),
         database: configService.get<string>('POSTGRES_NAME'),
         autoLoadEntities: true,
-        synchronize: process.env.NODE_ENV !== 'production',
-        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+        synchronize:
+          configService.get<string>('TYPEORM_SYNC') === 'true'
+            ? true
+            : process.env.NODE_ENV !== 'production' &&
+              !configService.get<string>('POSTGRES_HOST')?.includes('supabase'),
+        ssl:
+          process.env.NODE_ENV === 'production' ||
+          configService.get<string>('POSTGRES_SSL') === 'true' ||
+          Boolean(configService.get<string>('POSTGRES_HOST')?.includes('supabase'))
+            ? { rejectUnauthorized: false }
+            : false,
       }),
       inject: [ConfigService],
     }),

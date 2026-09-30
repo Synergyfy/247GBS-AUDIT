@@ -92,7 +92,7 @@ export class SsoController {
 
     const authorizeUrl = this.mcomService.buildAuthorizeUrl(
       this.configService.get<string>('MCOM_REDIRECT_URI') ||
-        'http://localhost:3000/auth/callback',
+        'http://localhost:9009/auth/callback',
       state,
     );
 
@@ -112,7 +112,7 @@ export class SsoController {
     @Res() res: Response,
   ) {
     const frontendUrl =
-      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:9009';
 
     try {
       if (!code) {

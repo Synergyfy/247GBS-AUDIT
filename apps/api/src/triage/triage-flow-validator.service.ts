@@ -131,8 +131,17 @@ export class TriageFlowValidatorService {
    * - all explicit question destinations point to active questions
    * - be able to eventually reach an audit destination (no dead-ends/loops).
    */
-  async validateFlowForPublish(): Promise<FlowValidationResult> {
-    const questions = await this.questionRepository.find({ order: { order: 'ASC', createdAt: 'ASC' } });
+  async validateFlowForPublish(formId?: string): Promise<FlowValidationResult> {
+    const qb = this.questionRepository.createQueryBuilder('q');
+    if (formId) {
+      qb.where('q.formId = :formId', { formId });
+    }
+    qb.orderBy('q.order', 'ASC').addOrderBy('q.createdAt', 'ASC');
+    let questions = await qb.getMany();
+    // If no questions found and formId was specified, fallback check without formId for default form
+    if (questions.length === 0 && formId) {
+      questions = await this.questionRepository.find({ order: { order: 'ASC', createdAt: 'ASC' } });
+    }
     const answers = await this.answerRepository.find({ order: { sortOrder: 'ASC', createdAt: 'ASC' } });
     const byId = new Map(questions.map((q) => [q.id, q]));
     const answersByQuestion = new Map<string, TriageAnswer[]>();

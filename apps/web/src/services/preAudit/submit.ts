@@ -14,6 +14,7 @@ export interface PreAuditSubmitResult {
   consentGrantedAt: string | null;
   answeredCount: number;
   isDuplicate: boolean;
+  diagnosticSummary?: any;
 }
 
 /**
@@ -54,3 +55,39 @@ export async function submitPreAudit(
 
   return res.json() as Promise<PreAuditSubmitResult>;
 }
+
+export interface RawPreAuditStep {
+  questionId: string;
+  optionIds?: string[];
+  value?: any;
+}
+
+export async function submitPreAuditSteps(
+  email: string | null,
+  steps: RawPreAuditStep[],
+  consentGranted = true,
+  consentVersion = PRE_AUDIT_CONSENT_VERSION
+): Promise<PreAuditSubmitResult> {
+  const body = {
+    email: email && email.trim() ? email.trim() : null,
+    steps,
+    consentGranted,
+    consentVersion,
+  };
+  const res = await fetch(`${API_BASE_URL}/pre-audit/submit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  const errJson = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const error = new Error(
+      errJson.message || `The pre-audit could not be submitted (${res.status}).`
+    ) as Error & { status?: number };
+    error.status = res.status;
+    throw error;
+  }
+
+  return res.json() as Promise<PreAuditSubmitResult>;
+}

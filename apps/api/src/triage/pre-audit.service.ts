@@ -9,6 +9,7 @@ import { SubmitPreAuditDto, PreAuditStepDto, PreAuditSubmissionResultDto } from 
 import { normalizeQuestionType, isChoiceType } from './question-types';
 import { destinationAuditType, resolveDestination } from './destination-types';
 import { PreAuditMailer } from '../mail/pre-audit-mailer';
+import { calculatePreAuditDiagnosis, PreAuditDiagnosticSummary } from './pre-audit-calculator';
 
 type Destination = {
   nextQuestionId: string | null;
@@ -88,19 +89,20 @@ export class PreAuditService {
     // All active questions in linear order. Used both for the start question
     // and to resolve the dynamic "next question" default for edges that carry
     // no explicit destination (mirror of the public payload resolution).
-    const activeQuestions = await this.questionRepository.find({
+    const allActiveQuestions = await this.questionRepository.find({
       where: { isActive: true },
       order: { order: 'ASC', createdAt: 'ASC' },
     });
-    const activeById = new Map(activeQuestions.map((q) => [q.id, q]));
-    const startQuestion = activeQuestions[0];
+    const activeById = new Map(allActiveQuestions.map((q) => [q.id, q]));
+    
+    const startQuestion = activeById.get(steps[0].questionId);
     if (!startQuestion) {
-      throw new BadRequestException('No active questions are configured yet.');
+      throw new BadRequestException('The first step references an inactive or missing start question.');
     }
 
-    if (steps[0].questionId !== startQuestion.id) {
-      throw new BadRequestException('The first step must start with the current start question.');
-    }
+    const activeQuestions = startQuestion.formId
+      ? allActiveQuestions.filter((q) => q.formId === startQuestion.formId)
+      : allActiveQuestions;
 
     const evaluated: EvaluatedStep[] = [];
     const visitedQuestionIds = new Set<string>([startQuestion.id]);
@@ -192,12 +194,23 @@ export class PreAuditService {
       throw new BadRequestException('The submitted flow did not conclude with a destination. Please refresh and try again.');
     }
 
+    const diagnosticSummary = calculatePreAuditDiagnosis(evaluated);
+
+    // Multi-factor triage logic: If routing to an audit, ensure complex/unmet need
+    // promotes to LONG_FORM rather than assuming budget == correct solution.
+    if (recommendedAuditType && diagnosticSummary.recommendation.auditType === 'LONG_FORM') {
+      recommendedAuditType = 'LONG_FORM';
+      if (destinationType === 'SHORT_FORM') {
+        destinationType = 'LONG_FORM';
+      }
+    }
+
     const fingerprint = this.makeFingerprint(dto);
 
     // Idempotent: a repeat of an identical submission returns the earlier result.
     const existing = await this.sessionRepository.findOne({ where: { fingerprint } });
     if (existing) {
-      return this.toResult(existing, true);
+      return this.toResult(existing, true, diagnosticSummary);
     }
 
     const session = this.sessionRepository.create({
@@ -214,13 +227,13 @@ export class PreAuditService {
 
     try {
       const saved = await this.sessionRepository.save(session);
-      this.mailer.sendPostSubmission(saved, false);
-      return this.toResult(saved, false);
+      this.mailer.sendPostSubmission(saved, false, diagnosticSummary);
+      return this.toResult(saved, false, diagnosticSummary);
     } catch (error: any) {
       // Unique constraint race on fingerprint → treat as duplicate.
       if (error?.code === '23505') {
         const dup = await this.sessionRepository.findOne({ where: { fingerprint } });
-        if (dup) return this.toResult(dup, true);
+        if (dup) return this.toResult(dup, true, diagnosticSummary);
       }
       throw error;
     }
@@ -598,7 +611,12 @@ export class PreAuditService {
     return createHash('sha256').update(`${email}|${body}`).digest('hex');
   }
 
-  private toResult(session: PreAuditSession, isDuplicate: boolean): PreAuditSubmissionResultDto {
+  private toResult(
+    session: PreAuditSession,
+    isDuplicate: boolean,
+    diagnosticSummary?: PreAuditDiagnosticSummary,
+  ): PreAuditSubmissionResultDto {
+    const summary = diagnosticSummary || calculatePreAuditDiagnosis(session.answers || []);
     return {
       id: session.id,
       email: session.email,
@@ -610,6 +628,52 @@ export class PreAuditService {
         : null,
       answeredCount: Array.isArray(session.answers) ? session.answers.length : 0,
       isDuplicate,
+      diagnosticSummary: summary,
+    };
+  }
+
+  /**
+   * Retrieves the pre-audit completion status for a given email address.
+   */
+  async getUserStatus(email?: string): Promise<{
+    hasCompletedPreAudit: boolean;
+    latestSession?: {
+      id: string;
+      email: string | null;
+      recommendedAuditType: string | null;
+      destinationType: string | null;
+      completedAt: string | null;
+      diagnosticSummary?: PreAuditDiagnosticSummary;
+    };
+  }> {
+    if (!email || !email.trim()) {
+      return { hasCompletedPreAudit: false };
+    }
+    const cleanEmail = email.trim().toLowerCase();
+    const session = await this.sessionRepository
+      .createQueryBuilder('s')
+      .where('LOWER(s.email) = :email', { email: cleanEmail })
+      .andWhere('s.completedAt IS NOT NULL')
+      .orderBy('s.completedAt', 'DESC')
+      .addOrderBy('s.createdAt', 'DESC')
+      .getOne();
+
+    if (!session) {
+      return { hasCompletedPreAudit: false };
+    }
+
+    const diagnosticSummary = calculatePreAuditDiagnosis(session.answers || []);
+
+    return {
+      hasCompletedPreAudit: true,
+      latestSession: {
+        id: session.id,
+        email: session.email,
+        recommendedAuditType: session.recommendedAuditType,
+        destinationType: session.destinationType ?? null,
+        completedAt: session.completedAt ? session.completedAt.toISOString() : null,
+        diagnosticSummary,
+      },
     };
   }
 }

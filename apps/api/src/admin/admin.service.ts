@@ -158,6 +158,9 @@ export class AdminService {
       status: AuditStatus.TRIAGE_COMPLETED,
       assignee: dto.assignee,
       dueDate: dto.dueDate,
+      sectorId: dto.sectorId,
+      groupId: dto.groupId || dto.categoryId,
+      businessTypeId: dto.businessTypeId || dto.subcategoryId,
     });
 
     return this.auditRepository.save(audit);
@@ -197,12 +200,10 @@ export class AdminService {
 
     const row = await this.auditRepository
       .createQueryBuilder('audit')
-      .select(`
-        COUNT(CASE WHEN audit.status IN (:...activeStatuses) THEN 1 END), "totalActive"),
-        COUNT(CASE WHEN audit.status = :completed THEN 1 END), "inReview"),
-        COUNT(CASE WHEN audit.status = :completed AND audit.updatedAt >= :startOfMonth THEN 1 END), "completedThisMonth"),
-        COUNT(CASE WHEN audit.status IN (:...activeStatuses) AND audit.dueDate < :now THEN 1 END), "overdue")
-      `)
+      .select('COUNT(CASE WHEN audit.status IN (:...activeStatuses) THEN 1 END)', 'totalActive')
+      .addSelect('COUNT(CASE WHEN audit.status = :completed THEN 1 END)', 'inReview')
+      .addSelect('COUNT(CASE WHEN audit.status = :completed AND audit.updatedAt >= :startOfMonth THEN 1 END)', 'completedThisMonth')
+      .addSelect('COUNT(CASE WHEN audit.status IN (:...activeStatuses) AND audit.dueDate < :now THEN 1 END)', 'overdue')
       .setParameters({
         activeStatuses,
         completed: AuditStatus.COMPLETED,
@@ -286,7 +287,7 @@ export class AdminService {
       }),
       this.invoiceRepository
         .createQueryBuilder('invoice')
-        .select('COALESCE(SUM(CAST(invoice.amount AS DECIMAL)), 0)', 'total')
+        .select("COALESCE(SUM(CAST(NULLIF(REGEXP_REPLACE(invoice.amount, '[^0-9.]', '', 'g'), '') AS DECIMAL)), 0)", 'total')
         .getRawOne(),
       this.userRepository.count({ where: { createdAt: Between(thirtyDaysAgo, now) } }),
       this.userRepository.count({ where: { createdAt: Between(sixtyDaysAgo, thirtyDaysAgo) } }),
@@ -294,12 +295,12 @@ export class AdminService {
       this.auditRepository.count({ where: { createdAt: Between(sixtyDaysAgo, thirtyDaysAgo) } }),
       this.invoiceRepository
         .createQueryBuilder('invoice')
-        .select('COALESCE(SUM(CAST(invoice.amount AS DECIMAL)), 0)', 'total')
+        .select("COALESCE(SUM(CAST(NULLIF(REGEXP_REPLACE(invoice.amount, '[^0-9.]', '', 'g'), '') AS DECIMAL)), 0)", 'total')
         .where('invoice.date >= :start AND invoice.date <= :end', { start: thirtyDaysAgo, end: now })
         .getRawOne(),
       this.invoiceRepository
         .createQueryBuilder('invoice')
-        .select('COALESCE(SUM(CAST(invoice.amount AS DECIMAL)), 0)', 'total')
+        .select("COALESCE(SUM(CAST(NULLIF(REGEXP_REPLACE(invoice.amount, '[^0-9.]', '', 'g'), '') AS DECIMAL)), 0)", 'total')
         .where('invoice.date >= :start AND invoice.date < :end', { start: sixtyDaysAgo, end: thirtyDaysAgo })
         .getRawOne(),
     ]);

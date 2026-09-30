@@ -24,11 +24,13 @@ import {
   Minus,
   Plus,
   Settings2,
+  SlidersHorizontal,
   Star,
   Trash2,
   Upload,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { EndActionModal } from "./EndActionModal";
 import type {
   AdminTriageAnswer,
   AdminTriageQuestion,
@@ -460,8 +462,12 @@ function AnswerOptionRow({
   const [internalDraft, setInternalDraft] = useSyncedString(answer.internalValue ?? "");
   const [tagDraft, setTagDraft] = useSyncedString(answer.tag ?? "");
   const [targetDraft, setTargetDraft] = useSyncedString(answer.destinationTarget ?? "");
-  const [goToValue, setGoToValue] = useSyncedState<string>(goToValueOf(answer));
+  
+  const isEndDestination = Boolean(answer.destinationType || answer.auditType);
+  const currentGoTo = answer.nextQuestionId ? answer.nextQuestionId : isEndDestination ? "END_SUBMIT" : GO_TO_NEXT;
+  const [goToValue, setGoToValue] = useSyncedState<string>(currentGoTo);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [isEndModalOpen, setIsEndModalOpen] = useState(false);
 
   const questionOptions = useMemo(
     () =>
@@ -472,22 +478,12 @@ function AnswerOptionRow({
   );
 
   const goToOptions = useMemo(() => {
-    const ends = DESTINATION_OPTIONS.map((o) => ({
-      value: endTokenOf(o.value),
-      label: `End / Submit — ${o.label}`,
-    }));
     return [
       { value: GO_TO_NEXT, label: "Next question" },
       ...questionOptions,
-      ...ends,
+      { value: "END_SUBMIT", label: "End / Submit" },
     ];
   }, [questionOptions]);
-
-  const selectedEnd = destinationOfEndToken(goToValue);
-  const targetKind =
-    selectedEnd && DEST_TARGET_KINDS.has(selectedEnd as TriageDestinationType)
-      ? (selectedEnd as TriageDestinationType)
-      : null;
 
   const destinationProblem = (() => {
     if (!answer.nextQuestionId) return null;
@@ -505,16 +501,16 @@ function AnswerOptionRow({
 
   const commitGoTo = (option: string) => {
     setGoToValue(option);
-    const end = destinationOfEndToken(option);
-    if (end) {
-      onPatch({
-        nextQuestionId: null,
-        auditType: null,
-        destinationType: end as TriageDestinationType,
-        destinationTarget: DEST_TARGET_KINDS.has(end as TriageDestinationType)
-          ? targetDraft.trim() || null
-          : null,
-      });
+    if (option === "END_SUBMIT") {
+      if (!isEndDestination) {
+        onPatch({
+          nextQuestionId: null,
+          destinationType: "SHORT_FORM",
+          auditType: "SHORT_FORM",
+          destinationTarget: null,
+        });
+      }
+      setIsEndModalOpen(true);
       return;
     }
     if (option === GO_TO_NEXT) {
@@ -584,19 +580,47 @@ function AnswerOptionRow({
                 options={goToOptions}
                 onChange={commitGoTo}
               />
-              {targetKind && (
-                <TextInput
-                  value={targetDraft}
-                  placeholder="Target (e.g. sector)"
-                  onChange={setTargetDraft}
-                  onBlur={() => {
-                    const trimmed = targetDraft.trim();
-                    if (trimmed !== (answer.destinationTarget ?? "")) {
-                      onPatch({ destinationTarget: trimmed || null });
-                    }
-                  }}
-                />
+              {goToValue === "END_SUBMIT" && (
+                <div className="flex items-center justify-between gap-2 rounded-xl bg-white border border-orange-200/90 p-2.5 shadow-xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-orange-100 text-orange-600">
+                      <Flag size={14} />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-slate-800 truncate">
+                        Action: {destLabel(answer.destinationType ?? answer.auditType ?? "SHORT_FORM")}
+                      </p>
+                      {answer.destinationTarget && (
+                        <p className="text-[11px] text-slate-500 font-medium truncate">
+                          Target: {answer.destinationTarget}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsEndModalOpen(true)}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-orange-50 px-2.5 py-1.5 text-xs font-bold text-orange-600 hover:bg-orange-100 active:scale-95 transition-all"
+                  >
+                    <SlidersHorizontal size={12} />
+                    <span>Configure</span>
+                  </button>
+                </div>
               )}
+              <EndActionModal
+                isOpen={isEndModalOpen}
+                onClose={() => setIsEndModalOpen(false)}
+                destinationType={answer.destinationType ?? (answer.auditType as any)}
+                destinationTarget={answer.destinationTarget}
+                onConfirm={(type, target) => {
+                  onPatch({
+                    nextQuestionId: null,
+                    auditType: type === "SHORT_FORM" || type === "LONG_FORM" ? type : null,
+                    destinationType: type,
+                    destinationTarget: target,
+                  });
+                }}
+              />
               {destinationProblem && (
                 <p role="alert" className="flex items-center gap-1.5 text-xs font-bold text-amber-700">
                   <AlertTriangle size={12} className="shrink-0" />

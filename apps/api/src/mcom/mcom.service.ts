@@ -54,7 +54,7 @@ export class McomService {
   private get mcomRedirectUri(): string {
     return (
       this.configService.get<string>('MCOM_REDIRECT_URI') ||
-      'http://localhost:3000/auth/callback'
+      'http://localhost:9009/auth/callback'
     );
   }
 
@@ -309,4 +309,85 @@ export class McomService {
   hashBody(body: string): string {
     return crypto.createHash('sha256').update(body).digest('hex');
   }
+
+  /**
+   * Fetches public sectors from Central Hub Solution
+   */
+  async getSectors(): Promise<any[]> {
+    const urls = [
+      this.mcomSolutionsUrl.replace(/\/+$/, ''),
+      'https://api.centralhubsolution.com',
+      'http://localhost:3010',
+    ];
+    const uniqueUrls = Array.from(new Set(urls));
+
+    for (const base of uniqueUrls) {
+      try {
+        const response = await firstValueFrom(
+          this.httpService.get(`${base}/api/v1/sectors`, { timeout: 6000 }),
+        );
+        if (response?.data && Array.isArray(response.data) && response.data.length > 0) {
+          return response.data;
+        }
+      } catch (err: any) {
+        this.logger.debug(`Could not reach ${base}/api/v1/sectors: ${err?.message}`);
+      }
+    }
+    return [];
+  }
+
+  /**
+   * Fetches public categories from Central Hub Solution (optionally filtered by sectorId)
+   */
+  async getCategories(sectorId?: string): Promise<any[]> {
+    const query = sectorId ? `?sectorId=${encodeURIComponent(sectorId)}` : '';
+    const urls = [
+      this.mcomSolutionsUrl.replace(/\/+$/, ''),
+      'https://api.centralhubsolution.com',
+      'http://localhost:3010',
+    ];
+    const uniqueUrls = Array.from(new Set(urls));
+
+    for (const base of uniqueUrls) {
+      try {
+        const response = await firstValueFrom(
+          this.httpService.get(`${base}/api/v1/categories${query}`, { timeout: 6000 }),
+        );
+        if (response?.data && Array.isArray(response.data)) {
+          return response.data;
+        }
+      } catch (err: any) {
+        this.logger.debug(`Could not reach ${base}/api/v1/categories: ${err?.message}`);
+      }
+    }
+    return [];
+  }
+
+  /**
+   * Fetches public subcategories from Central Hub Solution (optionally filtered by categoryId)
+   */
+  async getSubcategories(categoryId?: string): Promise<any[]> {
+    const query = categoryId ? `?categoryId=${encodeURIComponent(categoryId)}` : '';
+    const urls = [
+      this.mcomSolutionsUrl.replace(/\/+$/, ''),
+      'https://api.centralhubsolution.com',
+      'http://localhost:3010',
+    ];
+    const uniqueUrls = Array.from(new Set(urls));
+
+    for (const base of uniqueUrls) {
+      try {
+        const response = await firstValueFrom(
+          this.httpService.get(`${base}/api/v1/subcategories${query}`, { timeout: 6000 }),
+        );
+        if (response?.data && Array.isArray(response.data)) {
+          return response.data;
+        }
+      } catch (err: any) {
+        this.logger.debug(`Could not reach ${base}/api/v1/subcategories: ${err?.message}`);
+      }
+    }
+    return [];
+  }
 }
+

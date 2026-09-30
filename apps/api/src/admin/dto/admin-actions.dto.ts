@@ -61,6 +61,26 @@ export class AdminCreateAuditDto {
   @ApiProperty({ required: false })
   @IsOptional()
   dueDate?: Date;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  sectorId?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  categoryId?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  subcategoryId?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  groupId?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  businessTypeId?: string;
 }
 
 export class AdminUpdateAuditDto extends PartialType(AdminCreateAuditDto) {

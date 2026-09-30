@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TriageForm } from './entities/triage-form.entity';
+import { TriageQuestion } from './entities/triage-question.entity';
 import { TriageFlowValidatorService } from './triage-flow-validator.service';
 import { TriageQuestionService } from './triage-question.service';
 import {
@@ -53,6 +54,8 @@ export class TriageFormService implements OnModuleInit {
   constructor(
     @InjectRepository(TriageForm)
     private readonly formRepository: Repository<TriageForm>,
+    @InjectRepository(TriageQuestion)
+    private readonly questionRepository: Repository<TriageQuestion>,
     private readonly validatorService: TriageFlowValidatorService,
     private readonly questionService: TriageQuestionService,
   ) {}
@@ -62,18 +65,30 @@ export class TriageFormService implements OnModuleInit {
   }
 
   /**
-   * Deterministically ensures the single form row exists on startup,
+   * Deterministically ensures at least one default form row exists on startup,
    * migrating existing legacy rows if present without generating duplicates.
    */
   private async ensureInitialized(): Promise<TriageForm> {
-    const existing = await this.formRepository.findOne({ where: { id: this.activeFormId } });
-    if (existing) return existing;
+    const defaultForm = await this.formRepository.findOne({ where: { isDefault: true } });
+    if (defaultForm) {
+      this.activeFormId = defaultForm.id;
+      return defaultForm;
+    }
+
+    const existingById = await this.formRepository.findOne({ where: { id: this.activeFormId } });
+    if (existingById) {
+      existingById.isDefault = true;
+      await this.formRepository.save(existingById);
+      return existingById;
+    }
 
     const [legacy] = await this.formRepository.find({
       order: { createdAt: 'ASC' },
       take: 1,
     });
     if (legacy) {
+      legacy.isDefault = true;
+      await this.formRepository.save(legacy);
       this.activeFormId = legacy.id;
       return legacy;
     }
@@ -81,8 +96,9 @@ export class TriageFormService implements OnModuleInit {
     const created = this.formRepository.create({
       id: DEFAULT_TRIAGE_FORM_ID,
       title: 'Business Triage',
-      description: null,
-      slug: null,
+      description: 'Default pre-audit business triage flow.',
+      slug: 'default-business-triage',
+      isDefault: true,
       status: 'draft',
       settings: DEFAULT_TRIAGE_FORM_SETTINGS,
       publishedAt: null,
@@ -92,10 +108,12 @@ export class TriageFormService implements OnModuleInit {
     return saved;
   }
 
-  private async getActiveForm(): Promise<TriageForm> {
-    const form = await this.formRepository.findOne({ where: { id: this.activeFormId } });
-    if (form) return form;
-    return this.ensureInitialized();
+  private async getDefaultForm(): Promise<TriageForm> {
+    let form = await this.formRepository.findOne({ where: { isDefault: true } });
+    if (!form) {
+      form = await this.ensureInitialized();
+    }
+    return form;
   }
 
   private normalizeSettings(input: TriageFormSettingsDto): Record<string, any> {
@@ -121,12 +139,14 @@ export class TriageFormService implements OnModuleInit {
     return out;
   }
 
-  private toFormDto(form: TriageForm): TriageFormDto {
+  private toFormDto(form: TriageForm, questionCount?: number): TriageFormDto {
     return {
       id: form.id,
       title: form.title,
       description: form.description,
       slug: form.slug,
+      isDefault: Boolean(form.isDefault),
+      questionCount: questionCount ?? 0,
       status: form.status,
       settings: { ...DEFAULT_TRIAGE_FORM_SETTINGS, ...(form.settings ?? {}) },
       publishedAt: form.publishedAt ? form.publishedAt.toISOString() : null,
@@ -160,15 +180,78 @@ export class TriageFormService implements OnModuleInit {
   }
 
   // ============================================================
-  // Admin
+  // Admin: Multi-Form management
   // ============================================================
 
-  async getForm(): Promise<TriageFormDto> {
-    return this.toFormDto(await this.getActiveForm());
+  async listForms(): Promise<TriageFormDto[]> {
+    await this.ensureInitialized();
+    const forms = await this.formRepository.find({
+      order: { isDefault: 'DESC', createdAt: 'ASC' },
+    });
+
+    const defaultForm = forms.find((f) => f.isDefault);
+
+    // Compute question count per form
+    const results: TriageFormDto[] = [];
+    for (const form of forms) {
+      const qb = this.questionRepository.createQueryBuilder('q').where('q.formId = :formId', { formId: form.id });
+      if (defaultForm && form.id === defaultForm.id) {
+        qb.orWhere('q.formId IS NULL');
+      }
+      const count = await qb.getCount();
+      results.push(this.toFormDto(form, count));
+    }
+    return results;
   }
 
-  async updateForm(dto: UpdateTriageFormDto): Promise<TriageFormDto> {
-    const form = await this.getActiveForm();
+  async getForm(id?: string): Promise<TriageFormDto> {
+    if (!id) {
+      const defaultForm = await this.getDefaultForm();
+      const count = await this.questionRepository.count();
+      return this.toFormDto(defaultForm, count);
+    }
+    const form = await this.formRepository.findOne({ where: { id } });
+    if (!form) throw new NotFoundException(`Triage form with ID "${id}" not found.`);
+    const count = await this.questionRepository.count({ where: { formId: id } });
+    return this.toFormDto(form, count);
+  }
+
+  async createForm(dto: {
+    title: string;
+    description?: string | null;
+    isDefault?: boolean;
+    settings?: TriageFormSettingsDto;
+  }): Promise<TriageFormDto> {
+    const title = dto.title?.trim() || 'New Pre-Audit Triage';
+    let slug = this.makeSlug(title);
+    const existingSlug = await this.formRepository.findOne({ where: { slug } });
+    if (existingSlug) {
+      slug = `${slug}-${Math.random().toString(36).slice(2, 6)}`;
+    }
+
+    const isDefault = Boolean(dto.isDefault);
+    if (isDefault) {
+      await this.formRepository.update({}, { isDefault: false });
+    }
+
+    const created = this.formRepository.create({
+      title,
+      description: dto.description?.trim() ? dto.description.trim() : null,
+      slug,
+      isDefault,
+      status: 'draft',
+      settings: dto.settings ? this.normalizeSettings(dto.settings) : DEFAULT_TRIAGE_FORM_SETTINGS,
+      publishedAt: null,
+    });
+
+    const saved = await this.formRepository.save(created);
+    return this.toFormDto(saved, 0);
+  }
+
+  async updateForm(id: string, dto: UpdateTriageFormDto): Promise<TriageFormDto> {
+    const form = await this.formRepository.findOne({ where: { id } });
+    if (!form) throw new NotFoundException(`Triage form with ID "${id}" not found.`);
+
     if (dto.title !== undefined) {
       form.title = dto.title.trim() || 'Business Triage';
     }
@@ -178,15 +261,65 @@ export class TriageFormService implements OnModuleInit {
     if (dto.settings !== undefined) {
       form.settings = this.normalizeSettings(dto.settings);
     }
-    return this.toFormDto(await this.formRepository.save(form));
+    if (dto.isDefault !== undefined) {
+      if (dto.isDefault) {
+        await this.formRepository.update({}, { isDefault: false });
+        form.isDefault = true;
+      } else if (form.isDefault) {
+        // Form was default, verify there is another default
+        const count = await this.formRepository.count({ where: { isDefault: true } });
+        if (count <= 1) {
+          // Keep as default since at least one must be default
+          form.isDefault = true;
+        } else {
+          form.isDefault = false;
+        }
+      }
+    }
+
+    const saved = await this.formRepository.save(form);
+    const count = await this.questionRepository.count({ where: { formId: form.id } });
+    return this.toFormDto(saved, count);
+  }
+
+  async setDefault(id: string): Promise<TriageFormDto> {
+    const form = await this.formRepository.findOne({ where: { id } });
+    if (!form) throw new NotFoundException(`Triage form with ID "${id}" not found.`);
+
+    await this.formRepository.update({}, { isDefault: false });
+    form.isDefault = true;
+    const saved = await this.formRepository.save(form);
+    const count = await this.questionRepository.count({ where: { formId: form.id } });
+    return this.toFormDto(saved, count);
+  }
+
+  async deleteForm(id: string): Promise<{ message: string }> {
+    const form = await this.formRepository.findOne({ where: { id } });
+    if (!form) throw new NotFoundException(`Triage form with ID "${id}" not found.`);
+    if (form.isDefault) {
+      throw new BadRequestException('Cannot delete the default triage form. Please set another triage form as default first.');
+    }
+    const totalCount = await this.formRepository.count();
+    if (totalCount <= 1) {
+      throw new BadRequestException('Cannot delete the only triage form in the system.');
+    }
+
+    await this.formRepository.remove(form);
+    return { message: 'Triage form deleted successfully.' };
   }
 
   /**
-   * Validates the whole active flow, then flips the form live and assigns a
+   * Validates the flow for the target form, then flips the form live and assigns a
    * stable public slug (when one does not exist yet).
    */
-  async publish(): Promise<PublishTriageFormResultDto> {
-    const validation = await this.validatorService.validateFlowForPublish();
+  async publish(id?: string): Promise<PublishTriageFormResultDto> {
+    const form = id
+      ? await this.formRepository.findOne({ where: { id } })
+      : await this.getDefaultForm();
+
+    if (!form) throw new NotFoundException('Triage form not found.');
+
+    const validation = await this.validatorService.validateFlowForPublish(form.id);
     if (!validation.ok) {
       throw new BadRequestException({
         message:
@@ -197,7 +330,6 @@ export class TriageFormService implements OnModuleInit {
       });
     }
 
-    const form = await this.getActiveForm();
     if (!form.slug) {
       form.slug = this.makeSlug(form.title);
       const clash = await this.formRepository.findOne({ where: { slug: form.slug } });
@@ -210,8 +342,13 @@ export class TriageFormService implements OnModuleInit {
     return this.toPublishResult(await this.formRepository.save(form));
   }
 
-  async unpublish(): Promise<PublishTriageFormResultDto> {
-    const form = await this.getActiveForm();
+  async unpublish(id?: string): Promise<PublishTriageFormResultDto> {
+    const form = id
+      ? await this.formRepository.findOne({ where: { id } })
+      : await this.getDefaultForm();
+
+    if (!form) throw new NotFoundException('Triage form not found.');
+
     form.status = 'draft';
     return this.toPublishResult(await this.formRepository.save(form));
   }
@@ -220,11 +357,24 @@ export class TriageFormService implements OnModuleInit {
   // Public responder
   // ============================================================
 
-  async getPublicForm(slug: string): Promise<PublicTriageFormDto> {
-    const form = await this.formRepository.findOne({ where: { slug } });
-    if (!form || form.status !== 'published') {
+  async getPublicForm(slugOrId?: string): Promise<PublicTriageFormDto> {
+    let form: TriageForm | null = null;
+    if (!slugOrId || slugOrId === 'default') {
+      form = await this.formRepository.findOne({ where: { isDefault: true } });
+      if (!form) {
+        form = await this.formRepository.findOne({ where: { status: 'published' } });
+      }
+    } else {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slugOrId);
+      form = await this.formRepository.findOne({
+        where: isUuid ? [{ id: slugOrId }, { slug: slugOrId }] : { slug: slugOrId },
+      });
+    }
+
+    if (!form) {
       throw new NotFoundException('This Business Triage form is not available.');
     }
+
     if (form.settings?.acceptResponses === false) {
       return {
         title: form.title,
@@ -234,7 +384,14 @@ export class TriageFormService implements OnModuleInit {
         startQuestion: null,
       };
     }
-    const startQuestion = await this.questionService.getStartQuestion();
+
+    let startQuestion: any = null;
+    try {
+      startQuestion = await this.questionService.getStartQuestion(form.id);
+    } catch {
+      startQuestion = null;
+    }
+
     return {
       title: form.title,
       description: form.description,

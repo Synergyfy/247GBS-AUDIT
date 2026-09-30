@@ -13,17 +13,31 @@ import {
     Plus,
     X,
     Loader2,
-    ClipboardList
+    ClipboardList,
+    Layers,
+    Building2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import useAdminAudits from "@/services/admin/audits/hooks";
 import { API_BASE_URL } from "@/lib/api";
+import { AuditTemplateManager } from "@/components/audit/admin/AuditTemplateManager";
+import {
+    fetchEcosystemSectors,
+    fetchEcosystemCategories,
+    fetchEcosystemSubcategories,
+    type EcosystemSector,
+    type EcosystemCategory,
+    type EcosystemSubcategory,
+} from "@/services/ecosystem/catalog";
 
 interface CreateAuditForm {
     userId: string;
     auditType: string;
     assignee: string;
     dueDate: string;
+    sectorId: string;
+    categoryId: string;
+    subcategoryId: string;
 }
 
 const defaultForm: CreateAuditForm = {
@@ -31,6 +45,9 @@ const defaultForm: CreateAuditForm = {
     auditType: "",
     assignee: "",
     dueDate: "",
+    sectorId: "",
+    categoryId: "",
+    subcategoryId: "",
 };
 
 const AUDIT_TYPES = [
@@ -44,6 +61,7 @@ const AUDIT_TYPES = [
 ];
 
 export default function AuditsPage() {
+    const [activeTab, setActiveTab] = useState<"templates" | "clients">("templates");
     const [filter, setFilter] = useState("All");
     const [searchTerm, setSearchTerm] = useState("");
     const { data: auditsData, metrics, loading, error, refresh } = useAdminAudits();
@@ -58,6 +76,32 @@ export default function AuditsPage() {
     // Users for dropdown
     const [users, setUsers] = useState<{ id: string; label: string }[]>([]);
     const [usersLoading, setUsersLoading] = useState(false);
+
+    // Central Hub Solution Ecosystem Catalog
+    const [modalSectors, setModalSectors] = useState<EcosystemSector[]>([]);
+    const [modalCategories, setModalCategories] = useState<EcosystemCategory[]>([]);
+    const [modalSubcategories, setModalSubcategories] = useState<EcosystemSubcategory[]>([]);
+
+    useEffect(() => {
+        fetchEcosystemSectors().then(setModalSectors);
+    }, []);
+
+    useEffect(() => {
+        if (!form.sectorId) {
+            setModalCategories([]);
+            setModalSubcategories([]);
+            return;
+        }
+        fetchEcosystemCategories(form.sectorId).then(setModalCategories);
+    }, [form.sectorId]);
+
+    useEffect(() => {
+        if (!form.categoryId) {
+            setModalSubcategories([]);
+            return;
+        }
+        fetchEcosystemSubcategories(form.categoryId, form.sectorId).then(setModalSubcategories);
+    }, [form.categoryId, form.sectorId]);
 
     const audits = auditsData ?? [];
     const filteredAudits = (filter === "All" ? audits : audits.filter(a => a.status === filter))
@@ -116,6 +160,9 @@ export default function AuditsPage() {
             };
             if (form.assignee.trim()) payload.assignee = form.assignee;
             if (form.dueDate) payload.dueDate = new Date(form.dueDate).toISOString();
+            if (form.sectorId) payload.sectorId = form.sectorId;
+            if (form.categoryId) payload.categoryId = form.categoryId;
+            if (form.subcategoryId) payload.subcategoryId = form.subcategoryId;
 
             const res = await fetch(`${API_BASE_URL}/admin/audits`, {
                 method: "POST",
@@ -148,19 +195,63 @@ export default function AuditsPage() {
 
     return (
         <div className="space-y-6 md:space-y-8 pb-24 md:pb-0">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            {/* Top Level Section Switcher */}
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200/80 pb-4">
                 <div>
-                    <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight mb-1">Audit Oversight</h1>
-                    <p className="text-xs md:text-sm text-slate-500 font-medium tracking-tight">Monitor ongoing forensic investigations and report generation.</p>
+                    <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight mb-1">
+                        {activeTab === "templates" ? "Audit Templates & Flows" : "Audit Oversight"}
+                    </h1>
+                    <p className="text-xs md:text-sm text-slate-500 font-medium tracking-tight">
+                        {activeTab === "templates"
+                            ? "Configure Short and Long Audit templates, default flows, routing, and QR intake links."
+                            : "Monitor ongoing client forensic investigations and report generation."}
+                    </p>
                 </div>
-                <button
-                    onClick={openModal}
-                    className="flex items-center justify-center gap-2 px-6 py-4 md:py-3 bg-orange-500 text-white rounded-2xl md:rounded-xl font-bold text-sm hover:bg-orange-600 active:scale-95 transition-all shadow-lg shadow-orange-200"
-                >
-                    <Plus size={18} />
-                    Initiate New Audit
-                </button>
+
+                <div className="flex items-center gap-1.5 rounded-2xl bg-slate-100 p-1.5 border border-slate-200/60">
+                    <button
+                        onClick={() => setActiveTab("templates")}
+                        className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs md:text-sm font-bold transition-all ${
+                            activeTab === "templates"
+                                ? "bg-white text-slate-900 shadow-sm"
+                                : "text-slate-500 hover:text-slate-900"
+                        }`}
+                    >
+                        <Layers size={15} />
+                        Templates & Builder
+                    </button>
+
+                    <button
+                        onClick={() => setActiveTab("clients")}
+                        className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs md:text-sm font-bold transition-all ${
+                            activeTab === "clients"
+                                ? "bg-white text-slate-900 shadow-sm"
+                                : "text-slate-500 hover:text-slate-900"
+                        }`}
+                    >
+                        <ClipboardList size={15} />
+                        Client Audits ({metrics?.totalActive ?? 0})
+                    </button>
+                </div>
             </div>
+
+            {activeTab === "templates" ? (
+                <AuditTemplateManager />
+            ) : (
+                <>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div>
+                            <h2 className="text-lg font-bold text-slate-800 tracking-tight">Active Client Audits</h2>
+                            <p className="text-xs text-slate-500 font-medium">Manage and initiate client audit records.</p>
+                        </div>
+                        <button
+                            onClick={openModal}
+                            className="flex items-center justify-center gap-2 px-6 py-3 bg-orange-500 text-white rounded-2xl md:rounded-xl font-bold text-sm hover:bg-orange-600 active:scale-95 transition-all shadow-lg shadow-orange-200"
+                        >
+                            <Plus size={18} />
+                            Initiate New Audit
+                        </button>
+                    </div>
 
             {/* Metrics Row - Responsive Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
@@ -357,6 +448,8 @@ export default function AuditsPage() {
                     </div>
                 </div>
             </div>
+            </>
+            )}
 
             {/* Initiate Audit Modal */}
             <AnimatePresence>
@@ -457,6 +550,69 @@ export default function AuditsPage() {
                                                 <option key={t} value={t}>{t}</option>
                                             ))}
                                         </select>
+                                    </div>
+
+                                    {/* Sector, Category & Subcategory Selection (Central Hub Solution) */}
+                                    <div className="p-4 rounded-2xl border border-slate-200/80 bg-slate-50/50 space-y-3">
+                                        <div className="flex items-center gap-2">
+                                            <Building2 size={16} className="text-orange-500" />
+                                            <div>
+                                                <h4 className="text-xs font-bold text-slate-800">Target Sector & Category</h4>
+                                                <p className="text-[11px] text-slate-400 font-medium">Select Central Hub Solution business sector.</p>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                                                Sector
+                                            </label>
+                                            <select
+                                                value={form.sectorId}
+                                                onChange={e => setForm({ ...form, sectorId: e.target.value, categoryId: "", subcategoryId: "" })}
+                                                className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium outline-none focus:border-orange-500"
+                                            >
+                                                <option value="">— General / All Sectors —</option>
+                                                {modalSectors.map(s => (
+                                                    <option key={s.id} value={s.id}>{s.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        {form.sectorId && (
+                                            <div>
+                                                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                                                    Category
+                                                </label>
+                                                <select
+                                                    value={form.categoryId}
+                                                    onChange={e => setForm({ ...form, categoryId: e.target.value, subcategoryId: "" })}
+                                                    className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium outline-none focus:border-orange-500"
+                                                >
+                                                    <option value="">— All Categories —</option>
+                                                    {modalCategories.map(c => (
+                                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        )}
+
+                                        {form.categoryId && (
+                                            <div>
+                                                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                                                    Subcategory
+                                                </label>
+                                                <select
+                                                    value={form.subcategoryId}
+                                                    onChange={e => setForm({ ...form, subcategoryId: e.target.value })}
+                                                    className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium outline-none focus:border-orange-500"
+                                                >
+                                                    <option value="">— All Subcategories —</option>
+                                                    {modalSubcategories.map(sc => (
+                                                        <option key={sc.id} value={sc.id}>{sc.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="grid grid-cols-2 gap-4">

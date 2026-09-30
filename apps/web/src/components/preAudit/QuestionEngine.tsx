@@ -44,9 +44,11 @@ import {
   saveSubmission,
 } from "@/lib/preAudit/storage";
 import { submitPreAudit } from "@/services/preAudit/submit";
+import { useAuth } from "@/context/AuthContext";
 import { ProgressHeader } from "./ProgressHeader";
 import { AnswerOption } from "./AnswerOption";
 import { EmailStep } from "./EmailStep";
+import { TriageEmailOtpStep } from "./TriageEmailOtpStep";
 import { ReviewStep } from "./ReviewStep";
 import { ConsentStep } from "./ConsentStep";
 import { ConfirmationStep } from "./ConfirmationStep";
@@ -72,6 +74,7 @@ function errorMessageOf(err: unknown, fallback: string): string {
  */
 export function QuestionEngine(options: PreAuditEngineOptions) {
   const router = useRouter();
+  const { user, isAuthenticated } = useAuth();
   const exitHref = options.exitHref ?? "/audit/pre-audit";
   const title = options.title ?? "Business Pre-Audit";
   const settings = {
@@ -501,22 +504,27 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
 
   // ==================== SUBMIT ====================
 
-  const handleSubmit = async () => {
+  const handleSubmitWithEmail = async (overrideEmail?: string) => {
     if (isBusy) return;
 
-    if (!consentGranted) {
-      setPhase("consent");
-      return;
+    let targetEmail: string;
+    if (overrideEmail !== undefined) {
+      targetEmail = overrideEmail.trim();
+    } else {
+      if (!consentGranted) {
+        setPhase("consent");
+        return;
+      }
+      const emailResult = emailSubmissionValue();
+      if (!emailResult.ok) {
+        setEmailError(emailResult.message ?? null);
+        setPhase("email");
+        return;
+      }
+      targetEmail = emailResult.value;
     }
 
-    const emailResult = emailSubmissionValue();
-    if (!emailResult.ok) {
-      setEmailError(emailResult.message ?? null);
-      setPhase("email");
-      return;
-    }
-
-    const fingerprint = fingerprintOf(emailResult.value, visited);
+    const fingerprint = fingerprintOf(targetEmail, visited);
     const existing = findDuplicateSubmission(fingerprint);
     if (existing) {
       clearProgress();
@@ -542,12 +550,16 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
     let serverDestinationType: PreAuditSubmission["destinationType"] | null = null;
     let serverDestinationTarget: PreAuditSubmission["destinationTarget"] | null = null;
     let serverConsentGrantedAt: string | null | undefined;
+    let serverRecommendedAudit: PreAuditSubmission["recommendedAudit"] = null;
+    let serverDiagnosticSummary: any = null;
     try {
-      const server = await submitPreAudit(emailResult.value, visited);
+      const server = await submitPreAudit(targetEmail, visited);
       serverSessionId = server.id;
       serverDestinationType = (server.destinationType as PreAuditSubmission["destinationType"]) ?? null;
       serverDestinationTarget = server.destinationTarget ?? null;
       serverConsentGrantedAt = server.consentGrantedAt ?? null;
+      serverRecommendedAudit = (server.recommendedAuditType as PreAuditSubmission["recommendedAudit"]) ?? null;
+      serverDiagnosticSummary = server.diagnosticSummary ?? null;
     } catch (err) {
       const status = (err as { status?: number }).status;
       if (status !== undefined && status >= 400 && status < 500) {
@@ -566,7 +578,7 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
 
     const serverReached = serverConsentGrantedAt !== undefined;
     const newSubmission = buildSubmission({
-      email: emailResult.value,
+      email: targetEmail,
       visited,
       existingId: createRecordId(),
       destinationType: serverReached && serverDestinationType ? serverDestinationType : undefined,
@@ -574,8 +586,10 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
         serverReached && serverDestinationType && serverDestinationTarget
           ? serverDestinationTarget
           : undefined,
+      recommendedAudit: serverReached && serverRecommendedAudit ? serverRecommendedAudit : undefined,
       serverAuthoritative: serverReached,
       consentGrantedAt: serverReached ? serverConsentGrantedAt ?? null : undefined,
+      diagnosticSummary: serverDiagnosticSummary || undefined,
     });
     if (serverSessionId) newSubmission.serverSessionId = serverSessionId;
 
@@ -599,6 +613,10 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
     } else {
       router.push(options.afterSubmitHref ?? exitHref);
     }
+  };
+
+  const handleSubmit = async () => {
+    return handleSubmitWithEmail();
   };
 
   // ==================== SCREENS ====================
@@ -677,17 +695,17 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
   if (phase === "email") {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/30 p-4 sm:p-6 pt-24 sm:pt-28 pb-12">
-        <main className="max-w-3xl mx-auto">
-          <EmailStep
-            email={email}
-            error={emailError}
-            disabled={isBusy}
-            optional={!settings.requireEmail}
-            onEmailChange={(value) => {
-              setEmail(value);
-              if (emailError) setEmailError(null);
+        <main className="max-w-2xl mx-auto">
+          <TriageEmailOtpStep
+            isAuthenticated={isAuthenticated}
+            userEmail={user?.email}
+            title="Receive Your Pre-Audit Results"
+            subtitle="Verify your email to receive your full assessment answers, personalized insights, and tailored audit roadmap directly to your inbox."
+            onVerified={async (verifiedEmail) => {
+              setEmail(verifiedEmail);
+              setConsentGranted(true);
+              await handleSubmitWithEmail(verifiedEmail);
             }}
-            onContinue={continueFromEmail}
             onBack={() => {
               setEmailError(null);
               setPhase("review");

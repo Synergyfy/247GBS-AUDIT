@@ -52,6 +52,29 @@ export class TriageFormSettingsDto {
   confirmationMessage?: string;
 }
 
+export class CreateTriageFormDto {
+  @ApiProperty({ default: 'Business Triage' })
+  @IsString()
+  @MaxLength(200)
+  title: string;
+
+  @ApiPropertyOptional({ description: 'Short description shown above the first question.', nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  description?: string | null;
+
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  isDefault?: boolean;
+
+  @ApiPropertyOptional({ type: TriageFormSettingsDto })
+  @IsOptional()
+  @IsObject()
+  settings?: TriageFormSettingsDto;
+}
+
 export class UpdateTriageFormDto {
   @ApiPropertyOptional({ default: 'Business Triage' })
   @IsOptional()
@@ -65,6 +88,11 @@ export class UpdateTriageFormDto {
   @MaxLength(2000)
   description?: string | null;
 
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  isDefault?: boolean;
+
   @ApiPropertyOptional({ type: TriageFormSettingsDto })
   @IsOptional()
   @IsObject()
@@ -76,6 +104,8 @@ export class TriageFormDto {
   @ApiProperty() title: string;
   @ApiProperty({ nullable: true }) description: string | null;
   @ApiProperty({ nullable: true }) slug: string | null;
+  @ApiProperty({ default: false }) isDefault: boolean;
+  @ApiPropertyOptional({ default: 0 }) questionCount?: number;
   @ApiProperty({ default: 'draft', enum: ['draft', 'published'] }) status: string;
   @ApiProperty({ type: Object }) settings: Record<string, any>;
   @ApiProperty({ nullable: true }) publishedAt: string | null;

@@ -18,6 +18,7 @@ import {
     UserCheck
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { checkUserPreAuditStatus } from "@/lib/preAudit/storage";
 
 interface TriageResult {
     assignedAudit: 'SHORT_FORM' | 'LONG_FORM';
@@ -42,20 +43,33 @@ export default function DashboardPage() {
     const [improvementPlanComplete, setImprovementPlanComplete] = useState(false);
 
     useEffect(() => {
-        // Check triage
-        const completed = localStorage.getItem("247gbs_assessment_completed");
-        const resultStr = localStorage.getItem("247gbs_triage_result");
+        let isMounted = true;
+        async function initDashboard() {
+            // Check pre-audit / triage status
+            const status = await checkUserPreAuditStatus(user?.email);
+            if (!isMounted) return;
 
-        if (completed && resultStr) {
-            try {
-                const result = JSON.parse(resultStr);
-                setTriageResult(result);
-            } catch {
-                setTriageResult({ assignedAudit: 'SHORT_FORM', completedAt: new Date().toISOString() });
+            if (status.completed) {
+                setTriageResult({
+                    assignedAudit: (status.recommendedAuditType as 'SHORT_FORM' | 'LONG_FORM') || 'LONG_FORM',
+                    completedAt: new Date().toISOString(),
+                });
+            } else {
+                // Fallback check legacy keys if any
+                const completed = localStorage.getItem("247gbs_assessment_completed");
+                const resultStr = localStorage.getItem("247gbs_triage_result");
+
+                if (completed && resultStr) {
+                    try {
+                        const result = JSON.parse(resultStr);
+                        setTriageResult(result);
+                    } catch {
+                        setTriageResult({ assignedAudit: 'SHORT_FORM', completedAt: new Date().toISOString() });
+                    }
+                } else if (completed) {
+                    setTriageResult({ assignedAudit: 'SHORT_FORM', completedAt: new Date().toISOString() });
+                }
             }
-        } else if (completed) {
-            setTriageResult({ assignedAudit: 'SHORT_FORM', completedAt: new Date().toISOString() });
-        }
 
         // Check sector info
         const sectorStr = localStorage.getItem("247gbs_audit_sector");
@@ -85,8 +99,17 @@ export default function DashboardPage() {
             setImprovementPlanComplete(true);
         }
 
-        setLoading(false);
-    }, []);
+        if (isMounted) {
+            setLoading(false);
+        }
+    }
+
+    initDashboard();
+
+    return () => {
+        isMounted = false;
+    };
+}, [user?.email]);
 
     const isLong = triageResult?.assignedAudit === 'LONG_FORM';
     const auditName = isLong ? 'Long Business Audit' : 'Short Business Audit';
@@ -324,16 +347,16 @@ export default function DashboardPage() {
                         <AlertCircle size={32} className="text-orange-500" />
                     </div>
                     <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mb-3">
-                        Complete Your Business Triage First
+                        Complete Your Business Pre-Audit First
                     </h3>
                     <p className="text-slate-500 text-sm sm:text-base max-w-md mx-auto mb-8">
-                        Before starting your audit, you need to complete the free Business Triage. This helps us determine the most appropriate audit for your business.
+                        Before starting your audit, you must complete the free Pre-Audit. This diagnoses your baseline funding gap, working capital, and operational capacity, which unlocks and calibrates your comprehensive audit.
                     </p>
                     <Link
-                        href="/audit/welcome"
+                        href="/audit/pre-audit/flow"
                         className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-8 py-4 rounded-2xl font-bold text-base shadow-xl shadow-orange-500/30 transition-all hover:-translate-y-1"
                     >
-                        Start Business Triage
+                        Start Pre-Audit
                         <ArrowRight size={18} />
                     </Link>
                 </motion.div>
@@ -353,7 +376,7 @@ export default function DashboardPage() {
                                 <CheckCircle2 size={18} className="text-green-600" />
                             </div>
                             <div>
-                                <h4 className="font-bold text-slate-900 text-sm mb-1">Business Triage Complete</h4>
+                                <h4 className="font-bold text-slate-900 text-sm mb-1">Business Pre-Audit Complete</h4>
                                 <p className="text-xs text-slate-500 leading-relaxed">
                                     Your responses have been analysed and your audit has been automatically assigned.
                                 </p>

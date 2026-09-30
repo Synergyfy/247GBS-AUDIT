@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -23,7 +24,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { API_BASE_URL } from "@/lib/api";
-import { loadSubmissions } from "@/lib/preAudit/storage";
+import { loadSubmissions, checkUserPreAuditStatus } from "@/lib/preAudit/storage";
 import { buildPreAuditPrefill } from "@/lib/preAudit/prefill";
 import type { TriageDestinationType } from "@/services/triage/types";
 import { AUDIT_QUESTIONS } from "@/data/questions";
@@ -104,15 +105,186 @@ async function persistAnswersToServer(id: string, answers: Record<string, any>):
 export default function AuditFlowPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { user } = useAuth();
+    const { user, isAuthenticated } = useAuth();
 
     const auditType = (searchParams.get("type") as AuditType) || "SHORT_FORM";
+    const auditFormId = searchParams.get("auditFormId") || "";
     const sectorId = searchParams.get("sector") || "";
     const groupId = searchParams.get("group") || "";
     const businessTypeId = searchParams.get("businessType") || "";
 
+    const [dynamicQuestions, setDynamicQuestions] = useState<Question[] | null>(null);
+
+    // Track pre-audit status for authenticated users
+    const [preAuditStatus, setPreAuditStatus] = useState<{
+        checked: boolean;
+        completed: boolean;
+    }>({ checked: false, completed: false });
+
+    useEffect(() => {
+        if (!isAuthenticated) {
+            setPreAuditStatus({ checked: true, completed: false });
+            return;
+        }
+
+        let isMounted = true;
+        checkUserPreAuditStatus(user?.email).then((status) => {
+            if (!isMounted) return;
+            setPreAuditStatus({ checked: true, completed: status.completed });
+        });
+
+        return () => {
+            isMounted = false;
+        };
+    }, [isAuthenticated, user?.email]);
+
+    // Gate 1: All audits require authentication
+    if (!isAuthenticated) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/40 flex items-center justify-center p-4 sm:p-6">
+                <div className="max-w-md w-full bg-white rounded-3xl shadow-xl border border-slate-100 p-8 sm:p-10 text-center">
+                    <div className="w-16 h-16 rounded-2xl bg-orange-100 text-orange-500 flex items-center justify-center mx-auto mb-6">
+                        <Shield size={32} />
+                    </div>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-orange-600 bg-orange-50 px-3 py-1 rounded-full inline-block mb-3">
+                        Authentication Required
+                    </span>
+                    <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-3">
+                        Business Audit
+                    </h1>
+                    <p className="text-slate-500 text-sm leading-relaxed mb-8">
+                        The Business Audit performs forensic assessments, models strategic capacity recovery, and tracks confidential business data. Please sign in or create an account to access the audit.
+                    </p>
+                    <div className="space-y-3">
+                        <Link
+                            href="/auth/signin"
+                            className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20 transition-all hover:-translate-y-0.5"
+                        >
+                            Sign In to Continue
+                            <ArrowRight size={18} />
+                        </Link>
+                        <Link
+                            href="/auth/signup"
+                            className="w-full bg-slate-900 hover:bg-black text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5 text-sm"
+                        >
+                            Create a Free Account
+                        </Link>
+                        <Link
+                            href="/audit/pre-audit/flow"
+                            className="w-full inline-block text-xs font-semibold text-slate-400 hover:text-slate-600 pt-2 transition-colors"
+                        >
+                            Take the Free Pre-Audit First
+                        </Link>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // Gate 2: Checking pre-audit status
+    if (isAuthenticated && !preAuditStatus.checked) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/40 flex items-center justify-center p-4">
+                <div className="text-center space-y-3">
+                    <Loader2 size={36} className="text-orange-500 animate-spin mx-auto" />
+                    <p className="text-sm font-medium text-slate-500">Checking pre-audit completion status...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Gate 3: All authenticated users must do Pre-Audit first before doing the Audit
+    if (isAuthenticated && preAuditStatus.checked && !preAuditStatus.completed) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/40 flex items-center justify-center p-4 sm:p-6">
+                <div className="max-w-md w-full bg-white rounded-3xl shadow-xl border border-slate-100 p-8 sm:p-10 text-center">
+                    <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-6">
+                        <AlertCircle size={32} />
+                    </div>
+
+                    {/* 2-Step Sequence Indicator */}
+                    <div className="flex items-center justify-center gap-2 mb-6">
+                        <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-orange-500 text-white shadow-sm">
+                            <span className="w-4 h-4 rounded-full bg-white text-orange-600 flex items-center justify-center text-[10px] font-black">1</span>
+                            Pre-Audit (Required)
+                        </span>
+                        <ChevronRight size={14} className="text-slate-300" />
+                        <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-400">
+                            <span className="w-4 h-4 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center text-[10px] font-bold">2</span>
+                            Audit
+                        </span>
+                    </div>
+
+                    <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-3">
+                        Pre-Audit Required First
+                    </h1>
+                    <p className="text-slate-500 text-sm leading-relaxed mb-8">
+                        All authenticated businesses must complete the baseline Pre-Audit first. The pre-audit diagnoses your funding gap, working capital, and operational spare capacity to calibrate and unlock your full audit.
+                    </p>
+
+                    <div className="space-y-3">
+                        <Link
+                            href="/audit/pre-audit/flow"
+                            className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20 transition-all hover:-translate-y-0.5"
+                        >
+                            Complete Step 1: Pre-Audit
+                            <ArrowRight size={18} />
+                        </Link>
+                        <Link
+                            href="/dashboard"
+                            className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-all text-sm"
+                        >
+                            Return to Dashboard
+                        </Link>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    useEffect(() => {
+        if (!auditFormId) return;
+        fetch(`${API_BASE_URL}/audit/public/form/${encodeURIComponent(auditFormId)}`)
+            .then((res) => (res.ok ? res.json() : null))
+            .then((form) => {
+                if (form?.questions && Array.isArray(form.questions) && form.questions.length > 0) {
+                    const validCategories: AuditCategory[] = [
+                        "SPARE_CAPACITY",
+                        "EXCESS_STOCK",
+                        "CUSTOMERS",
+                        "MARKETING",
+                        "TECHNOLOGY",
+                        "FINANCE",
+                    ];
+                    const mapped: Question[] = form.questions.map((q: any) => ({
+                        id: q.id,
+                        text: q.text,
+                        description: q.description || undefined,
+                        type: (q.type === "multi_choice"
+                            ? "multi-select"
+                            : q.type === "yes_no"
+                            ? "boolean"
+                            : "multiple-choice") as QuestionType,
+                        category: (q.category && validCategories.includes(q.category as AuditCategory))
+                            ? (q.category as AuditCategory)
+                            : "SPARE_CAPACITY",
+                        options: (q.answers || []).map((a: any) => ({
+                            id: a.id,
+                            label: a.text,
+                            value: a.scoreImpact ?? 5,
+                        })),
+                    }));
+                    setDynamicQuestions(mapped);
+                }
+            })
+            .catch(() => {});
+    }, [auditFormId]);
+
     // Filter questions for this audit
     const filteredQuestions = useMemo(() => {
+        if (dynamicQuestions && dynamicQuestions.length > 0) {
+            return dynamicQuestions;
+        }
         return AUDIT_QUESTIONS.filter(q => {
             if (auditType === "SHORT_FORM" && q.isLongFormOnly) return false;
             if (q.sectorSpecific && sectorId && !q.sectorSpecific.includes(sectorId)) return false;
@@ -120,7 +292,7 @@ export default function AuditFlowPage() {
             if (q.typeId && q.typeId !== businessTypeId) return false;
             return true;
         });
-    }, [auditType, sectorId, groupId, businessTypeId]);
+    }, [dynamicQuestions, auditType, sectorId, groupId, businessTypeId]);
 
     // Group questions by stage category
     const stageQuestions = useMemo(() => {

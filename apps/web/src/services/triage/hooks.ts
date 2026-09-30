@@ -58,7 +58,7 @@ async function authFetch(path: string, init: RequestInit, retried = false): Prom
   return res.json();
 }
 
-export function useAdminTriageQuestions() {
+export function useAdminTriageQuestions(formId?: string) {
   const [data, setData] = useState<AdminTriageResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +67,10 @@ export function useAdminTriageQuestions() {
     setLoading(true);
     setError(null);
     try {
-      const json = (await authFetch("/admin/triage/questions", { method: "GET", signal })) as AdminTriageResponse;
+      const url = formId
+        ? `/admin/triage/questions?formId=${encodeURIComponent(formId)}`
+        : "/admin/triage/questions";
+      const json = (await authFetch(url, { method: "GET", signal })) as AdminTriageResponse;
       setData(json);
     } catch (err: any) {
       if (err?.name === "AbortError") return;
@@ -75,7 +78,7 @@ export function useAdminTriageQuestions() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [formId]);
 
   useEffect(() => {
     const ac = new AbortController();
@@ -128,6 +131,7 @@ export function useAdminTriageQuestionById(id: string | null) {
 }
 
 export interface QuestionPayload {
+  formId?: string | null;
   text: string;
   type?: QuestionType;
   description?: string | null;
@@ -197,28 +201,57 @@ export const triageApi = {
 export interface UpdateFormPayload {
   title?: string;
   description?: string | null;
+  isDefault?: boolean;
   settings?: Partial<TriageFormSettings>;
 }
 
 export const formApi = {
-  getForm: async (): Promise<TriageForm> => {
-    const res = await authFetch("/admin/triage/form", { method: "GET" });
+  listForms: async (): Promise<TriageForm[]> => {
+    const res = await authFetch("/admin/triage/forms", { method: "GET" });
+    return res as unknown as TriageForm[];
+  },
+
+  createForm: async (payload: { title: string; description?: string | null; isDefault?: boolean; settings?: Partial<TriageFormSettings> }): Promise<TriageForm> => {
+    const res = await authFetch("/admin/triage/forms", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
     return res as unknown as TriageForm;
   },
 
-  updateForm: (payload: UpdateFormPayload) =>
-    authFetch("/admin/triage/form", {
+  getForm: async (id?: string): Promise<TriageForm> => {
+    const url = id ? `/admin/triage/forms/${id}` : "/admin/triage/form";
+    const res = await authFetch(url, { method: "GET" });
+    return res as unknown as TriageForm;
+  },
+
+  updateForm: (payload: UpdateFormPayload, id?: string) => {
+    const url = id ? `/admin/triage/forms/${id}` : "/admin/triage/form";
+    return authFetch(url, {
       method: "PATCH",
       body: JSON.stringify(payload),
+    });
+  },
+
+  setDefault: (id: string): Promise<TriageForm> =>
+    authFetch(`/admin/triage/forms/${id}/default`, {
+      method: "POST",
     }),
 
-  publish: async (): Promise<PublishTriageFormResult> => {
-    const res = await authFetch("/admin/triage/publish", { method: "POST" });
+  deleteForm: (id: string): Promise<{ message: string }> =>
+    authFetch(`/admin/triage/forms/${id}`, {
+      method: "DELETE",
+    }),
+
+  publish: async (id?: string): Promise<PublishTriageFormResult> => {
+    const url = id ? `/admin/triage/forms/${id}/publish` : "/admin/triage/publish";
+    const res = await authFetch(url, { method: "POST" });
     return res as unknown as PublishTriageFormResult;
   },
 
-  unpublish: async (): Promise<PublishTriageFormResult> => {
-    const res = await authFetch("/admin/triage/unpublish", { method: "POST" });
+  unpublish: async (id?: string): Promise<PublishTriageFormResult> => {
+    const url = id ? `/admin/triage/forms/${id}/unpublish` : "/admin/triage/unpublish";
+    const res = await authFetch(url, { method: "POST" });
     return res as unknown as PublishTriageFormResult;
   },
 

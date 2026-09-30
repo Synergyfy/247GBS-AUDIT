@@ -62,4 +62,6 @@ export class PreAuditSubmissionResultDto {
   @ApiProperty({ nullable: true }) consentGrantedAt: string | null;
   @ApiProperty() answeredCount: number;
   @ApiProperty({ description: 'True when this submission is a duplicate of an earlier one.' }) isDuplicate: boolean;
+  @ApiPropertyOptional({ description: 'Synthesized pre-audit diagnostic summary including funding gap and operational analysis.' })
+  diagnosticSummary?: any;
 }

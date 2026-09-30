@@ -20,23 +20,34 @@ export interface MailMessage {
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
-  private readonly transport: Transporter | null;
+  private readonly transport: Transporter | null = null;
+  private readonly resendApiKey: string | null = null;
   private readonly from: string;
   private readonly enabled: boolean;
 
   constructor(private readonly configService: ConfigService) {
+    const rawFrom =
+      configService.get<string>('SMTP_FROM') ||
+      configService.get<string>('MAIL_FROM') ||
+      'Central Hub Solution <no-reply@centralhubsolution.com>';
+    this.from = rawFrom.replace(/^["']|["']$/g, '');
+
+    const resendKey = configService.get<string>('RESEND_API_KEY');
+    if (resendKey && resendKey.trim().length > 0) {
+      this.resendApiKey = resendKey.trim();
+      this.enabled = true;
+      this.logger.log(`Resend email provider active with sender: ${this.from}`);
+      return;
+    }
+
     const host = configService.get<string>('SMTP_HOST');
     const consentFlag = configService.get<string>('MAIL_ENABLED') === 'true';
     this.enabled = Boolean(host && consentFlag);
 
-    this.from =
-      configService.get<string>('MAIL_FROM') ||
-      `247GBS Audit <no-reply@${host || '247gbsaudit.local'}>`;
-
     if (!this.enabled) {
       this.transport = null;
       this.logger.warn(
-        'SMTP mail is disabled (set MAIL_ENABLED=true and SMTP_HOST to enable).',
+        'Mail is disabled (set RESEND_API_KEY or set MAIL_ENABLED=true and SMTP_HOST to enable).',
       );
       return;
     }
@@ -63,15 +74,45 @@ export class MailService {
   /** Sends a message; never rejects. Failures are logged and ignored. */
   async send(message: MailMessage): Promise<void> {
     try {
-      if (!this.enabled || !this.transport || !message.to) return;
-      await this.transport.sendMail({
-        from: this.from,
-        to: message.to,
-        subject: message.subject,
-        text: message.text,
-        html: message.html,
-      });
-      this.logger.debug(`Mail sent to ${message.to}: ${message.subject}`);
+      if (!this.enabled || !message.to) return;
+
+      if (this.resendApiKey) {
+        const response = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${this.resendApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from: this.from,
+            to: [message.to],
+            subject: message.subject,
+            html: message.html,
+            text: message.text,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorBody = await response.text();
+          this.logger.error(`Resend API error (${response.status}): ${errorBody}`);
+          return;
+        }
+
+        const data = await response.json();
+        this.logger.log(`Mail sent via Resend to ${message.to} (ID: ${data?.id})`);
+        return;
+      }
+
+      if (this.transport) {
+        await this.transport.sendMail({
+          from: this.from,
+          to: message.to,
+          subject: message.subject,
+          text: message.text,
+          html: message.html,
+        });
+        this.logger.log(`Mail sent via SMTP to ${message.to}: ${message.subject}`);
+      }
     } catch (error) {
       this.logger.error(
         `Failed to send mail to ${message.to}: ${message.subject}`,

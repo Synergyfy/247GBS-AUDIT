@@ -164,6 +164,7 @@ export interface AdminTriageAnswer {
 
 export interface AdminTriageQuestion {
   id: string;
+  formId?: string | null;
   text: string;
   type: QuestionType;
   description: string | null;
@@ -205,9 +206,18 @@ export interface TriageForm {
   title: string;
   description: string | null;
   slug: string | null;
+  isDefault: boolean;
+  questionCount?: number;
   status: TriageFormStatus;
   settings: TriageFormSettings;
   publishedAt: string | null;
+}
+
+export interface CreateTriageFormPayload {
+  title: string;
+  description?: string | null;
+  isDefault?: boolean;
+  settings?: Partial<TriageFormSettings>;
 }
 
 export interface PublishTriageFormResult {

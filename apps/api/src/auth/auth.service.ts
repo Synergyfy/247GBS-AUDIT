@@ -152,19 +152,30 @@ export class AuthService {
     };
     if (role) payload.role = role;
 
+    const accessSecret =
+      this.configService.get<string>('JWT_ACCESS_SECRET') ||
+      'default-jwt-access-secret-key-32chars';
+    const refreshSecret =
+      this.configService.get<string>('JWT_REFRESH_SECRET') ||
+      'default-jwt-refresh-secret-key-32chars';
+    const accessExpiration =
+      this.configService.get<string>('JWT_ACCESS_EXPIRATION') || '15m';
+    const refreshExpiration =
+      this.configService.get<string>('JWT_REFRESH_EXPIRATION') || '7d';
+
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(
         payload,
         {
-          secret: this.configService.get<string>('JWT_ACCESS_SECRET')!,
-          expiresIn: this.configService.get<string>('JWT_ACCESS_EXPIRATION')! as any,
+          secret: accessSecret,
+          expiresIn: accessExpiration as any,
         },
       ),
       this.jwtService.signAsync(
         payload,
         {
-          secret: this.configService.get<string>('JWT_REFRESH_SECRET')!,
-          expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRATION')! as any,
+          secret: refreshSecret,
+          expiresIn: refreshExpiration as any,
         },
       ),
     ]);

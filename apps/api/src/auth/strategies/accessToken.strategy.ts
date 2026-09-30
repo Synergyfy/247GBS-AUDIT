@@ -19,7 +19,9 @@ export class AccessTokenStrategy extends PassportStrategy(Strategy, 'jwt') {
         ExtractJwt.fromAuthHeaderAsBearerToken(),
         (req: Request) => req?.cookies?.['access_token'] || null,
       ]),
-      secretOrKey: configService.get<string>('JWT_ACCESS_SECRET')!,
+      secretOrKey:
+        configService.get<string>('JWT_ACCESS_SECRET') ||
+        'default-jwt-access-secret-key-32chars',
     });
   }
 

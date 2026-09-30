@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { mcomService } from '@/services/mcom';
+import { API_BASE_URL } from '@/lib/api';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 interface TokenPayload {
@@ -54,7 +55,7 @@ export default function AuthCallbackPage() {
     // If MCOM Central redirected with code/state, redirect to backend callback
     // (matches affiliate project: browser redirect, not AJAX — cookies need to be sent)
     if (code && state) {
-      const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      const backendUrl = API_BASE_URL;
       window.location.href = `${backendUrl}/auth/sso/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
       return;
     }

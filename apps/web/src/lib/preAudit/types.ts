@@ -5,6 +5,7 @@ import type {
   QuestionType,
   TriageFormSettings,
 } from "@/services/triage/types";
+import type { PreAuditDiagnosticSummary } from "./calculator";
 
 /**
  * The kind of answer input a pre-audit question supports, driven by the
@@ -94,6 +95,8 @@ export interface PreAuditSubmission {
   serverSessionId?: string;
   /** Server-confirmed consent timestamp, when the API was reachable. */
   consentGrantedAt?: string | null;
+  /** Full financial gap analysis and diagnostic summary. */
+  diagnosticSummary?: PreAuditDiagnosticSummary;
 }
 
 /** Snapshot persisted between visits so a user can continue where they left off. */

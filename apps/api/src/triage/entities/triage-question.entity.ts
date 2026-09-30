@@ -6,6 +6,10 @@ export class TriageQuestion {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
+  // The triage form this question belongs to (defaults to default form if null)
+  @Column({ type: 'uuid', nullable: true })
+  formId: string | null;
+
   @Column({ type: 'text' })
   text: string;
 
