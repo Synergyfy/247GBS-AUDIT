@@ -231,7 +231,7 @@ export class TriageFormService implements OnModuleInit {
 
     const isDefault = Boolean(dto.isDefault);
     if (isDefault) {
-      await this.formRepository.update({}, { isDefault: false });
+      await this.formRepository.update({ isDefault: true }, { isDefault: false });
     }
 
     const created = this.formRepository.create({
@@ -263,7 +263,7 @@ export class TriageFormService implements OnModuleInit {
     }
     if (dto.isDefault !== undefined) {
       if (dto.isDefault) {
-        await this.formRepository.update({}, { isDefault: false });
+        await this.formRepository.update({ isDefault: true }, { isDefault: false });
         form.isDefault = true;
       } else if (form.isDefault) {
         // Form was default, verify there is another default
@@ -286,7 +286,7 @@ export class TriageFormService implements OnModuleInit {
     const form = await this.formRepository.findOne({ where: { id } });
     if (!form) throw new NotFoundException(`Triage form with ID "${id}" not found.`);
 
-    await this.formRepository.update({}, { isDefault: false });
+    await this.formRepository.update({ isDefault: true }, { isDefault: false });
     form.isDefault = true;
     const saved = await this.formRepository.save(form);
     const count = await this.questionRepository.count({ where: { formId: form.id } });
