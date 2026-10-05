@@ -21,6 +21,7 @@ import { TriageOtpService } from './triage-otp.service';
 import { AuditModule } from '../audit/audit.module';
 import { AdminModule } from '../admin/admin.module';
 import { MailModule } from '../mail/mail.module';
+import { RedisModule } from '../redis/redis.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { MailModule } from '../mail/mail.module';
     AuditModule,
     AdminModule,
     MailModule,
+    RedisModule,
   ],
   controllers: [
     TriageController,

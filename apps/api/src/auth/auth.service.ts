@@ -1,4 +1,9 @@
-import { Injectable, ForbiddenException, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  BadRequestException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -17,7 +22,9 @@ export class AuthService {
   ) {}
 
   async signup(createUserDto: CreateUserDto) {
-    const existingUser = await this.usersService.findByEmail(createUserDto.email);
+    const existingUser = await this.usersService.findByEmail(
+      createUserDto.email,
+    );
     if (existingUser) {
       throw new BadRequestException('User already exists');
     }
@@ -28,7 +35,11 @@ export class AuthService {
       password: hashedPassword,
     });
 
-    const tokens = await this.getTokens(newUser.id, newUser.email);
+    const tokens = await this.getTokens(
+      newUser.id,
+      newUser.email,
+      newUser.role,
+    );
     await this.updateRefreshToken(newUser.id, tokens.refreshToken);
     return { tokens, user: newUser };
   }
@@ -50,6 +61,7 @@ export class AuthService {
 
     const tokens = await this.getTokens(user.id, user.email, user.role);
     await this.updateRefreshToken(user.id, tokens.refreshToken);
+    await this.usersService.update(user.id, { lastLoginAt: new Date() });
     return { tokens, user };
   }
 
@@ -62,7 +74,9 @@ export class AuthService {
 
     const role = (user.role || '').toLowerCase();
     if (role !== 'administrator' && role !== 'admin') {
-      throw new ForbiddenException('Access denied. Administrator privileges required.');
+      throw new ForbiddenException(
+        'Access denied. Administrator privileges required.',
+      );
     }
 
     if (user.isMfaEnabled) {
@@ -75,18 +89,21 @@ export class AuthService {
 
     const tokens = await this.getTokens(user.id, user.email, user.role);
     await this.updateRefreshToken(user.id, tokens.refreshToken);
+    await this.usersService.update(user.id, { lastLoginAt: new Date() });
     return { tokens, user };
   }
 
   async signinWithMfa(userId: string, code: string) {
     const user = await this.usersService.findById(userId);
-    if (!user || !user.mfaSecret) throw new UnauthorizedException('Authentication failed');
+    if (!user || !user.mfaSecret)
+      throw new UnauthorizedException('Authentication failed');
 
     const isCodeValid = await this.mfaService.verifyCode(code, user.mfaSecret);
     if (!isCodeValid) throw new BadRequestException('Invalid MFA code');
 
-    const tokens = await this.getTokens(user.id, user.email);
+    const tokens = await this.getTokens(user.id, user.email, user.role);
     await this.updateRefreshToken(user.id, tokens.refreshToken);
+    await this.usersService.update(user.id, { lastLoginAt: new Date() });
     return { tokens, user };
   }
 
@@ -105,7 +122,8 @@ export class AuthService {
 
   async enableMfa(userId: string, code: string) {
     const user = await this.usersService.findById(userId);
-    if (!user || !user.mfaSecret) throw new BadRequestException('MFA Setup not initiated');
+    if (!user || !user.mfaSecret)
+      throw new BadRequestException('MFA Setup not initiated');
 
     const isCodeValid = await this.mfaService.verifyCode(code, user.mfaSecret);
     if (!isCodeValid) throw new BadRequestException('Invalid MFA code');
@@ -115,7 +133,9 @@ export class AuthService {
   }
 
   async logout(userId: string) {
-    return this.usersService.update(userId, { currentHashedRefreshToken: null });
+    return this.usersService.update(userId, {
+      currentHashedRefreshToken: null,
+    });
   }
 
   async refreshTokens(userId: string, refreshToken: string) {
@@ -129,7 +149,7 @@ export class AuthService {
     );
     if (!refreshTokenMatches) throw new ForbiddenException('Access Denied');
 
-    const tokens = await this.getTokens(user.id, user.email);
+    const tokens = await this.getTokens(user.id, user.email, user.role);
     await this.updateRefreshToken(user.id, tokens.refreshToken);
     return tokens;
   }
@@ -152,32 +172,34 @@ export class AuthService {
     };
     if (role) payload.role = role;
 
-    const accessSecret =
-      this.configService.get<string>('JWT_ACCESS_SECRET') ||
-      'default-jwt-access-secret-key-32chars';
-    const refreshSecret =
-      this.configService.get<string>('JWT_REFRESH_SECRET') ||
-      'default-jwt-refresh-secret-key-32chars';
+    const accessSecret = this.configService.get<string>('JWT_ACCESS_SECRET');
+    const refreshSecret = this.configService.get<string>('JWT_REFRESH_SECRET');
+    if (!accessSecret) {
+      throw new Error('JWT_ACCESS_SECRET must be set');
+    }
+    if (!refreshSecret) {
+      throw new Error('JWT_REFRESH_SECRET must be set');
+    }
+    if (accessSecret.length < 32) {
+      throw new Error('JWT_ACCESS_SECRET must be at least 32 characters');
+    }
+    if (refreshSecret.length < 32) {
+      throw new Error('JWT_REFRESH_SECRET must be at least 32 characters');
+    }
     const accessExpiration =
       this.configService.get<string>('JWT_ACCESS_EXPIRATION') || '15m';
     const refreshExpiration =
       this.configService.get<string>('JWT_REFRESH_EXPIRATION') || '7d';
 
     const [accessToken, refreshToken] = await Promise.all([
-      this.jwtService.signAsync(
-        payload,
-        {
-          secret: accessSecret,
-          expiresIn: accessExpiration as any,
-        },
-      ),
-      this.jwtService.signAsync(
-        payload,
-        {
-          secret: refreshSecret,
-          expiresIn: refreshExpiration as any,
-        },
-      ),
+      this.jwtService.signAsync(payload, {
+        secret: accessSecret,
+        expiresIn: accessExpiration as any,
+      }),
+      this.jwtService.signAsync(payload, {
+        secret: refreshSecret,
+        expiresIn: refreshExpiration as any,
+      }),
     ]);
 
     return {

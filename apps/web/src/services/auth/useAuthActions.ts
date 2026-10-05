@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { persistSession } from '@/lib/auth';
 import { SignInRequest, SignInResponse, SignUpRequest, SignUpResponse } from './authTypes';
 import { API_BASE_URL } from '@/lib/api';
 
@@ -39,10 +40,15 @@ export function useAuthActions() {
 
             const { accessToken, user } = result as SignInResponse;
             
-            // Store token in localStorage
-            localStorage.setItem('247gbs_token', accessToken);
-            
+            // Single session helper writes user + both token keys (Context + store stay synced).
             const userEmail = user?.email ?? data.email;
+            const sessionUser = {
+                email: userEmail,
+                name: user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : userEmail,
+                avatar: `https://api.dicebear.com/7.x/shapes/svg?seed=${userEmail}`,
+                role: user?.role,
+            };
+            persistSession(sessionUser, accessToken);
             contextSignIn({
                 email: userEmail,
                 name: user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : undefined,
@@ -89,11 +95,18 @@ export function useAuthActions() {
             const accessToken = (result as SignUpResponse & { accessToken?: string })?.accessToken;
             let role: string | undefined = undefined;
             if (accessToken) {
-                localStorage.setItem('247gbs_token', accessToken);
-                // If backend also returned user info, update context
                 const user = (result as SignUpResponse).user;
                 role = user?.role;
                 const userEmail = user?.email ?? data.email;
+                persistSession(
+                    {
+                        email: userEmail,
+                        name: user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : userEmail,
+                        avatar: `https://api.dicebear.com/7.x/shapes/svg?seed=${userEmail}`,
+                        role: user?.role,
+                    },
+                    accessToken,
+                );
                 contextSignIn({
                     email: userEmail,
                     name: user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : undefined,

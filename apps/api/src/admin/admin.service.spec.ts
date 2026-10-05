@@ -14,12 +14,14 @@ describe('AdminService settings & help resources', () => {
   const makeService = () => {
     const settingsRepo = repo();
     const helpRepo = repo();
+    const mailService = { isEnabled: jest.fn(() => false), send: jest.fn(async () => {}) } as any;
     const service = new AdminService(
       repo() as any,
       repo() as any,
       repo() as any,
       settingsRepo as any,
       helpRepo as any,
+      mailService as any,
     );
     return { service, settingsRepo, helpRepo };
   };

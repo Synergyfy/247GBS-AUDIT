@@ -5,7 +5,8 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
+import { randomUUID } from 'node:crypto';
 import { AuditForm, AuditFormType } from './entities/audit-form.entity';
 import { AuditFormQuestion } from './entities/audit-form-question.entity';
 import { AuditFormAnswer } from './entities/audit-form-answer.entity';
@@ -42,7 +43,7 @@ export class AuditFormService implements OnModuleInit {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '')
         .slice(0, 80) || 'audit';
-    const suffix = Math.random().toString(36).slice(2, 8);
+    const suffix = randomUUID().replace(/-/g, '').slice(0, 8);
     return `${base}-${suffix}`;
   }
 
@@ -168,7 +169,6 @@ export class AuditFormService implements OnModuleInit {
   }
 
   async listForms(type?: AuditFormType): Promise<AuditFormDto[]> {
-    await this.ensureDefaults();
     const qb = this.formRepository.createQueryBuilder('f');
     if (type) {
       qb.where('f.auditType = :type', { type });
@@ -176,9 +176,19 @@ export class AuditFormService implements OnModuleInit {
     qb.orderBy('f.isDefault', 'DESC').addOrderBy('f.createdAt', 'ASC');
     const forms = await qb.getMany();
 
+    const countRows = await this.questionRepository
+      .createQueryBuilder('q')
+      .select('q.formId', 'formId')
+      .addSelect('COUNT(*)', 'count')
+      .groupBy('q.formId')
+      .getRawMany();
+    const countMap = new Map<string, number>(
+      countRows.map((r) => [r.formId, parseInt(r.count, 10)]),
+    );
+
     const dtos: AuditFormDto[] = [];
     for (const form of forms) {
-      const count = await this.questionRepository.count({ where: { formId: form.id } });
+      const count = countMap.get(form.id) ?? 0;
       dtos.push({
         id: form.id,
         title: form.title,
@@ -212,9 +222,14 @@ export class AuditFormService implements OnModuleInit {
       order: { order: 'ASC', createdAt: 'ASC' },
     });
 
-    const answers = await this.answerRepository.find({
-      order: { sortOrder: 'ASC', createdAt: 'ASC' },
-    });
+    const questionIds = questions.map((q) => q.id);
+    const answers =
+      questionIds.length > 0
+        ? await this.answerRepository.find({
+            where: { questionId: In(questionIds) },
+            order: { sortOrder: 'ASC', createdAt: 'ASC' },
+          })
+        : [];
 
     const answersByQ = new Map<string, any[]>();
     for (const a of answers) {
@@ -275,7 +290,7 @@ export class AuditFormService implements OnModuleInit {
     let slug = this.makeSlug(title);
     const existing = await this.formRepository.findOne({ where: { slug } });
     if (existing) {
-      slug = `${slug}-${Math.random().toString(36).slice(2, 6)}`;
+      slug = `${slug}-${randomUUID().replace(/-/g, '').slice(0, 6)}`;
     }
 
     if (dto.isDefault) {
@@ -361,10 +376,15 @@ export class AuditFormService implements OnModuleInit {
       throw new BadRequestException('Cannot delete the only audit form for this audit type.');
     }
 
-    // Remove questions and answers
+    // Remove questions and answers (single bulk delete for answers)
     const questions = await this.questionRepository.find({ where: { formId: form.id } });
-    for (const q of questions) {
-      await this.answerRepository.delete({ questionId: q.id });
+    const questionIds = questions.map((q) => q.id);
+    if (questionIds.length > 0) {
+      await this.answerRepository
+        .createQueryBuilder()
+        .delete()
+        .where('questionId IN (:...ids)', { ids: questionIds })
+        .execute();
     }
     await this.questionRepository.delete({ formId: form.id });
     await this.formRepository.remove(form);
@@ -461,7 +481,6 @@ export class AuditFormService implements OnModuleInit {
   // --- Public ---
 
   async getPublicForm(slugOrId?: string, type?: AuditFormType): Promise<AuditFormDto> {
-    await this.ensureDefaults();
     let form: AuditForm | null = null;
     if (!slugOrId || slugOrId === 'default') {
       const targetType = type || 'SHORT_FORM';

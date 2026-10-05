@@ -47,6 +47,7 @@ export default function UsersPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
     const [formSuccess, setFormSuccess] = useState(false);
+    const [createdCreds, setCreatedCreds] = useState<{ generatedPassword?: string; inviteSent?: boolean } | null>(null);
 
     const users = (usersData ?? []).map(u => ({
         id: u.id,
@@ -67,6 +68,7 @@ export default function UsersPage() {
         setForm(defaultForm);
         setFormError(null);
         setFormSuccess(false);
+        setCreatedCreds(null);
         setIsModalOpen(true);
     };
 
@@ -105,12 +107,22 @@ export default function UsersPage() {
                 throw new Error(err.message || `Failed to create user (${res.status})`);
             }
 
+            const created = await res.json().catch(() => ({}));
+            setCreatedCreds({
+                generatedPassword: created.generatedPassword,
+                inviteSent: created.inviteSent,
+            });
             setFormSuccess(true);
             refresh();
-            setTimeout(() => {
-                setIsModalOpen(false);
-                setFormSuccess(false);
-            }, 1500);
+            // Keep modal open so admin can copy the one-time password.
+            // Only auto-close when no generated password was returned.
+            if (!created.generatedPassword) {
+                setTimeout(() => {
+                    setIsModalOpen(false);
+                    setFormSuccess(false);
+                    setCreatedCreds(null);
+                }, 1500);
+            }
         } catch (err: any) {
             setFormError(err.message ?? "Something went wrong. Please try again.");
         } finally {
@@ -338,6 +350,45 @@ export default function UsersPage() {
                                     </div>
                                     <h3 className="text-xl font-bold text-slate-900 mb-1">User Created!</h3>
                                     <p className="text-sm text-slate-500">The new user has been added to the system.</p>
+                                    {createdCreds?.generatedPassword ? (
+                                        <div className="mt-6 w-full p-4 bg-amber-50 border border-amber-200 rounded-xl text-left">
+                                            <p className="text-xs font-bold uppercase tracking-widest text-amber-700 mb-2">
+                                                One-time password — copy now
+                                            </p>
+                                            <div className="flex items-center gap-2">
+                                                <code className="flex-1 px-3 py-2 bg-white border border-amber-200 rounded-lg text-sm font-mono break-all">
+                                                    {createdCreds.generatedPassword}
+                                                </code>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => navigator.clipboard?.writeText(createdCreds.generatedPassword!)}
+                                                    className="px-3 py-2 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-orange-500 transition-all"
+                                                >
+                                                    Copy
+                                                </button>
+                                            </div>
+                                            <p className="mt-2 text-xs font-medium text-slate-500">
+                                                {createdCreds.inviteSent
+                                                    ? "Invite email sent. Still copy this as backup — it won't be shown again."
+                                                    : "Invite email not sent (mail disabled). Share this securely — it won't be shown again."}
+                                            </p>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setIsModalOpen(false);
+                                                    setFormSuccess(false);
+                                                    setCreatedCreds(null);
+                                                }}
+                                                className="mt-4 w-full py-3 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-orange-500 transition-all"
+                                            >
+                                                Done
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        createdCreds?.inviteSent === true && (
+                                            <p className="mt-4 text-sm font-medium text-green-600">Invite email sent.</p>
+                                        )
+                                    )}
                                 </motion.div>
                             ) : (
                                 <form onSubmit={handleSubmit} className="space-y-5">

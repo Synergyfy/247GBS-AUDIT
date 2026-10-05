@@ -39,6 +39,7 @@ export default function AuthCallbackPage() {
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
+    const run = async () => {
     const token = searchParams.get('token');
     const role = searchParams.get('role');
     const code = searchParams.get('code');
@@ -60,10 +61,54 @@ export default function AuthCallbackPage() {
       return;
     }
 
-    // If backend redirected with token/role (backend callback flow)
+    // Cookie-based flow (no token in URL): backend set HttpOnly cookies and
+    // redirected to /auth/callback. Recover the session via refresh + profile.
     if (!token) {
-      setStatus('error');
-      setErrorMessage('No authentication token received');
+      try {
+        const refreshRes = await fetch(`${API_BASE_URL}/auth/refresh`, {
+          method: 'GET',
+          credentials: 'include',
+          headers: { Accept: 'application/json' },
+        });
+        if (!refreshRes.ok) throw new Error('No authentication token received');
+        const refreshJson = await refreshRes.json();
+        const freshToken = refreshJson?.accessToken;
+        if (!freshToken) throw new Error('No authentication token received');
+
+        const profileRes = await fetch(`${API_BASE_URL}/users/profile`, {
+          headers: { Authorization: `Bearer ${freshToken}` },
+          credentials: 'include',
+        });
+        if (!profileRes.ok) throw new Error('Could not load user profile');
+        const profile = await profileRes.json();
+        const userRole = profile?.role || 'User';
+        const email = profile?.email || '';
+        setAuth(
+          {
+            id: profile?.id || '',
+            email,
+            firstName: profile?.firstName || email.split('@')[0] || '',
+            lastName: profile?.lastName || '',
+            role: userRole,
+          },
+          freshToken
+        );
+        localStorage.setItem('247gbs_token', freshToken);
+        localStorage.setItem('auth_token', freshToken);
+        localStorage.setItem('247gbs_user', JSON.stringify(profile));
+        setStatus('success');
+        const redirectMap: Record<string, string> = {
+          Administrator: '/admin',
+          admin: '/admin',
+          agent: '/dashboard',
+          account_manager: '/dashboard',
+          consultant: '/dashboard',
+        };
+        setTimeout(() => router.push(redirectMap[userRole] || '/dashboard'), 1500);
+      } catch (e: any) {
+        setStatus('error');
+        setErrorMessage(e?.message || 'No authentication token received');
+      }
       return;
     }
 
@@ -86,6 +131,9 @@ export default function AuthCallbackPage() {
       },
       token
     );
+    // Legacy URL-token flow (deprecated): keep both keys in sync.
+    localStorage.setItem('247gbs_token', token);
+    localStorage.setItem('auth_token', token);
 
     setStatus('success');
 
@@ -102,6 +150,8 @@ export default function AuthCallbackPage() {
     setTimeout(() => {
       router.push(redirectPath);
     }, 1500);
+    };
+    run();
   }, [searchParams, setAuth, router]);
 
   return (

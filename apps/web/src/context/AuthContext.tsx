@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { refreshAccessToken, SESSION_EXPIRED_EVENT, isProtectedRoute } from "@/lib/auth";
+import { refreshAccessToken, SESSION_EXPIRED_EVENT, isProtectedRoute, clearSession } from "@/lib/auth";
 
 interface User {
     email: string;
@@ -43,9 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const invalidateStaleSession = () => {
             invalidSession = true;
-            localStorage.removeItem("247gbs_user");
-            localStorage.removeItem("auth_token");
-            localStorage.removeItem("247gbs_token");
+            clearSession();
             setUser(null);
         };
 
@@ -140,7 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const signOut = () => {
         setUser(null);
-        localStorage.removeItem("247gbs_user");
+        clearSession();
     };
 
     // Don't render children until we've checked localStorage

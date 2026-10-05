@@ -21,6 +21,7 @@ export interface IntelligenceResponse {
   efficiencyBreakdown: EfficiencyBreakdownItem[];
   maxRecoveryTarget: number;
   marketRank: number;
+  aiAvailable?: boolean;
 }
 
 export default IntelligenceResponse;

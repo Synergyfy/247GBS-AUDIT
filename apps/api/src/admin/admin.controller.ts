@@ -29,6 +29,13 @@ export class AdminController {
     return this.adminService.getDashboardData(this.getUserId(req));
   }
 
+  @Get('me')
+  @ApiOperation({ summary: 'Get current admin identity', description: 'Server-side role check for admin UI gating. Never trust localStorage.' })
+  async getMe(@Req() req: Request) {
+    const user = await this.adminService.verifyAdmin(this.getUserId(req));
+    return { id: user.id, email: user.email, role: user.role };
+  }
+
   // --- Users ---
 
   @Get('users')

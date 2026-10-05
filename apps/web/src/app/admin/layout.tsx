@@ -41,27 +41,55 @@ export default function AdminLayout({
             return;
         }
 
-        try {
-            const token = localStorage.getItem("247gbs_token");
-            const userStr = localStorage.getItem("247gbs_user");
+        let cancelled = false;
+        (async () => {
+            try {
+                const token = localStorage.getItem("247gbs_token");
+                const userStr = localStorage.getItem("247gbs_user");
 
-            if (!token || !userStr) {
+                if (!token || !userStr) {
+                    window.location.assign("/admin/login?reason=session-expired");
+                    return;
+                }
+
+                // Fast client prefilter (UX only — never authoritative).
+                try {
+                    const user = JSON.parse(userStr);
+                    const role = (user.role || "").toLowerCase();
+                    if (role !== "administrator" && role !== "admin") {
+                        window.location.assign("/admin/login?reason=unauthorized");
+                        return;
+                    }
+                } catch {
+                    window.location.assign("/admin/login?reason=session-expired");
+                    return;
+                }
+
+                // Authoritative server-side role check.
+                const res = await fetch(`${API_BASE_URL}/admin/me`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                    credentials: "include",
+                });
+                if (!res.ok) {
+                    window.location.assign("/admin/login?reason=unauthorized");
+                    return;
+                }
+                const me = await res.json();
+                const serverRole = (me.role || "").toLowerCase();
+                if (serverRole !== "administrator" && serverRole !== "admin") {
+                    window.location.assign("/admin/login?reason=unauthorized");
+                    return;
+                }
+
+                if (!cancelled) {
+                    setAdminUser(me);
+                    setIsCheckingAuth(false);
+                }
+            } catch {
                 window.location.assign("/admin/login?reason=session-expired");
-                return;
             }
-
-            const user = JSON.parse(userStr);
-            const role = (user.role || "").toLowerCase();
-            if (role !== "administrator" && role !== "admin") {
-                window.location.assign("/admin/login?reason=unauthorized");
-                return;
-            }
-
-            setAdminUser(user);
-            setIsCheckingAuth(false);
-        } catch {
-            window.location.assign("/admin/login?reason=session-expired");
-        }
+        })();
+        return () => { cancelled = true; };
     }, [pathname, isLoginPage]);
 
     const handleLogout = async () => {

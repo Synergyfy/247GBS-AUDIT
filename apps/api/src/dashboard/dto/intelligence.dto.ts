@@ -45,4 +45,7 @@ export class IntelligenceResponseDto {
 
   @ApiProperty({ example: 12, description: 'Market sector rank (lower is better)' })
   marketRank: number;
+
+  @ApiProperty({ example: true, description: 'Whether the AI model is configured' })
+  aiAvailable: boolean;
 }

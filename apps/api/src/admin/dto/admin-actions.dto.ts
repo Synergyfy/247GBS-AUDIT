@@ -1,5 +1,5 @@
 import { ApiProperty, PartialType } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsOptional, IsEnum } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsOptional, IsEnum, IsBoolean, MinLength } from 'class-validator';
 
 export class AdminCreateUserDto {
   @ApiProperty()
@@ -21,6 +21,11 @@ export class AdminCreateUserDto {
   @ApiProperty()
   @IsOptional()
   password?: string; // Optional, can generate random if not provided
+
+  @ApiProperty({ required: false, default: true })
+  @IsOptional()
+  @IsBoolean()
+  sendInvite?: boolean;
 
   @ApiProperty()
   @IsOptional()

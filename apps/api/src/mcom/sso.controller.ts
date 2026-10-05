@@ -9,12 +9,15 @@ import {
   Param,
   HttpException,
   HttpStatus,
+  UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { McomService } from './mcom.service';
 import { Public } from '../auth/decorators/public.decorator';
+import { AccessTokenGuard } from '../auth/guards/accessToken.guard';
 
 import { JwtService } from '@nestjs/jwt';
 
@@ -38,16 +41,33 @@ export class SsoController {
     });
   }
 
-  private getLocalTokens(userId: string, email: string) {
+  private setAccessTokenCookie(res: Response, token: string) {
+    const isProd = process.env.NODE_ENV === 'production';
+    res.cookie('access_token', token, {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: isProd ? 'none' : 'lax',
+      domain: isProd ? '.centralhubsolution.com' : undefined,
+      maxAge: 15 * 60 * 1000,
+    });
+  }
+
+  private getLocalTokens(userId: string, email: string, role?: string) {
     const accessSecret = this.configService.get<string>('JWT_ACCESS_SECRET')!;
     const refreshSecret = this.configService.get<string>('JWT_REFRESH_SECRET')!;
-    const accessExpiration = this.configService.get<string>('JWT_ACCESS_EXPIRATION')! as any;
-    const refreshExpiration = this.configService.get<string>('JWT_REFRESH_EXPIRATION')! as any;
+    const accessExpiration = this.configService.get<string>(
+      'JWT_ACCESS_EXPIRATION',
+    )! as any;
+    const refreshExpiration = this.configService.get<string>(
+      'JWT_REFRESH_EXPIRATION',
+    )! as any;
 
-    const accessToken = this.jwtService.sign(
-      { sub: userId, email },
-      { secret: accessSecret, expiresIn: accessExpiration },
-    );
+    const payload: Record<string, any> = { sub: userId, email };
+    if (role) payload.role = role;
+    const accessToken = this.jwtService.sign(payload, {
+      secret: accessSecret,
+      expiresIn: accessExpiration,
+    });
     const refreshToken = this.jwtService.sign(
       { sub: userId, email },
       { secret: refreshSecret, expiresIn: refreshExpiration },
@@ -151,13 +171,13 @@ export class SsoController {
       const { accessToken, refreshToken } = this.getLocalTokens(
         localUser.id,
         localUser.email,
+        localUser.role,
       );
 
       res.clearCookie('mcom_oauth_state');
+      this.setAccessTokenCookie(res, accessToken);
       this.setRefreshTokenCookie(res, refreshToken);
-      res.redirect(
-        `${frontendUrl}/auth/callback?token=${accessToken}&role=${localUser.role}`,
-      );
+      res.redirect(`${frontendUrl}/auth/callback`);
     } catch (error) {
       console.error('SSO callback error:', error);
       const errorMessage =
@@ -170,10 +190,14 @@ export class SsoController {
     }
   }
 
-  @Public()
   @Post('refresh')
+  @UseGuards(AccessTokenGuard)
   @ApiOperation({ summary: 'Refresh MCOM tokens for a user' })
-  async refreshTokens(@Body('userId') userId: string) {
+  async refreshTokens(@Body('userId') userId: string, @Req() req: Request) {
+    const requesterId = (req as any).user?.sub;
+    if (!requesterId || requesterId !== userId) {
+      throw new ForbiddenException('Access denied.');
+    }
     const user = await this.mcomService['usersService'].findById(userId);
     if (!user || !user.mcomRefreshToken) {
       throw new HttpException(
@@ -202,13 +226,18 @@ export class SsoController {
     }
   }
 
-  @Public()
   @Get('status/:userId')
+  @UseGuards(AccessTokenGuard)
   @ApiOperation({ summary: 'Get SSO connection status for a user' })
   async getStatus(
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Query('sync') sync?: string,
   ) {
+    const requesterId = (req as any).user?.sub;
+    if (!requesterId || requesterId !== userId) {
+      throw new ForbiddenException('Access denied.');
+    }
     const user = await this.mcomService['usersService'].findById(userId);
     if (!user) {
       throw new HttpException('User not found', HttpStatus.NOT_FOUND);
@@ -253,11 +282,17 @@ export class SsoController {
     };
   }
 
-  @Public()
   @Get('data/permissions')
+  @UseGuards(AccessTokenGuard)
   @ApiOperation({ summary: 'Fetch permissions from MCOM Central Hub' })
-  async getPermissions(@Query('userId') userId: string) {
-    const user = await this.mcomService['usersService'].findById(userId);
+  async getPermissions(@Query('userId') userId: string, @Req() req: Request) {
+    const requesterId = (req as any).user?.sub;
+    const effectiveUserId = userId || requesterId;
+    if (!requesterId || effectiveUserId !== requesterId) {
+      throw new ForbiddenException('Access denied.');
+    }
+    const user =
+      await this.mcomService['usersService'].findById(effectiveUserId);
     if (!user || !user.mcomAccessToken) {
       throw new HttpException('No MCOM tokens found', HttpStatus.NOT_FOUND);
     }

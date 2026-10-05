@@ -16,6 +16,10 @@ export class AIService {
     }
   }
 
+  isAvailable(): boolean {
+    return Boolean(this.model);
+  }
+
   async generateFollowUpQuestions(context: any, answers: any, metrics: any): Promise<any[]> {
     if (!this.model) {
       this.logger.warn('Gemini model not configured — skipping follow-up question generation');

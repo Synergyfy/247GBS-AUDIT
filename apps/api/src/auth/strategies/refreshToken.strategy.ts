@@ -10,15 +10,20 @@ export class RefreshTokenStrategy extends PassportStrategy(
   'jwt-refresh',
 ) {
   constructor(configService: ConfigService) {
+    const secret = configService.get<string>('JWT_REFRESH_SECRET');
+    if (!secret) {
+      throw new Error('JWT_REFRESH_SECRET must be set');
+    }
+    if (secret.length < 32) {
+      throw new Error('JWT_REFRESH_SECRET must be at least 32 characters');
+    }
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
         (request: Request) => request?.cookies?.['refresh_token'] || null,
         ExtractJwt.fromAuthHeaderAsBearerToken(),
         (request: Request) => request?.body?.refreshToken || null,
       ]),
-      secretOrKey:
-        configService.get<string>('JWT_REFRESH_SECRET') ||
-        'default-jwt-refresh-secret-key-32chars',
+      secretOrKey: secret,
       passReqToCallback: true,
     });
   }

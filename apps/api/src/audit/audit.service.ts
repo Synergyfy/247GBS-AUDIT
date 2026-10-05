@@ -137,7 +137,8 @@ export class AuditService {
     const questions = await this.aiService.generateFollowUpQuestions(context, session.answers, session.calculatedMetrics);
     
     session.followUpQuestions = questions;
-    return this.auditRepository.save(session);
+    const saved = await this.auditRepository.save(session);
+    return { ...saved, aiAvailable: this.aiService.isAvailable() };
   }
 
   async generateInsight(id: string, userId: string) {
@@ -149,7 +150,8 @@ export class AuditService {
     
     session.aiInsight = insight;
     session.status = AuditStatus.COMPLETED;
-    return this.auditRepository.save(session);
+    const saved = await this.auditRepository.save(session);
+    return { ...saved, aiAvailable: this.aiService.isAvailable() };
   }
 
   async getVaultStats(userId: string) {

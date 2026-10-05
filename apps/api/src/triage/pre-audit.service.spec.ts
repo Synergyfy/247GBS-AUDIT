@@ -6,6 +6,7 @@ import { TriageQuestion } from './entities/triage-question.entity';
 import { TriageAnswer } from './entities/triage-answer.entity';
 import { PreAuditSession } from './entities/pre-audit-session.entity';
 import { PreAuditMailer } from '../mail/pre-audit-mailer';
+import { TriageOtpService } from './triage-otp.service';
 import { SubmitPreAuditDto } from './dto/pre-audit.dto';
 
 interface AnswerFixture {
@@ -84,6 +85,9 @@ describe('PreAuditService', () => {
   const mailer = {
     sendPostSubmission: jest.fn(),
   };
+  const otpService = {
+    isVerified: jest.fn().mockResolvedValue(true),
+  };
 
   beforeEach(async () => {
     savedSessions = [];
@@ -96,6 +100,7 @@ describe('PreAuditService', () => {
         { provide: getRepositoryToken(TriageAnswer), useValue: answerRepository },
         { provide: getRepositoryToken(PreAuditSession), useValue: sessionRepository },
         { provide: PreAuditMailer, useValue: mailer },
+        { provide: TriageOtpService, useValue: otpService },
       ],
     }).compile();
 

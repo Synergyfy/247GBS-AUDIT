@@ -1,6 +1,8 @@
 import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, ILike, LessThan, Raw } from 'typeorm';
+import { randomBytes } from 'node:crypto';
+import { MailService, escapeHtml } from '../mail/mail.service';
 import { User } from '../users/entities/user.entity';
 import { AuditSession, AuditStatus } from '../audit/entities/audit-session.entity';
 import { AdminDashboardResponseDto, AdminStatItemDto, AdminActivityItemDto, AdminAuditTrendDto, AdminAuditItemDto, AdminAuditMetricsDto, AdminUserItemDto } from './dto/admin-dashboard.dto';
@@ -24,6 +26,7 @@ export class AdminService {
     private readonly settingsRepository: Repository<PlatformSetting>,
     @InjectRepository(HelpResource)
     private readonly helpRepository: Repository<HelpResource>,
+    private readonly mailService: MailService,
   ) {}
 
   async verifyAdmin(userId: string): Promise<User> {
@@ -82,11 +85,14 @@ export class AdminService {
     }));
   }
 
-  async createUser(dto: AdminCreateUserDto): Promise<User> {
+  async createUser(
+    dto: AdminCreateUserDto,
+  ): Promise<{ user: Omit<User, 'password'>; generatedPassword?: string; inviteSent: boolean }> {
     const existing = await this.userRepository.findOne({ where: { email: dto.email } });
     if (existing) throw new BadRequestException('User with this email already exists.');
 
-    const password = dto.password || Math.random().toString(36).slice(-8); 
+    const generated = dto.password ? undefined : randomBytes(16).toString('hex');
+    const password = dto.password || generated!;
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = this.userRepository.create({
@@ -95,14 +101,51 @@ export class AdminService {
       status: 'Active',
     });
 
-    return this.userRepository.save(user);
+    const saved = await this.userRepository.save(user);
+    // Never log the plaintext password. Returned once so the admin UI can show
+    // a one-time copy modal; also emailed as an invite when mail is enabled.
+    let inviteSent = false;
+    if (generated && dto.sendInvite !== false) {
+      try {
+        if (this.mailService.isEnabled()) {
+          const loginUrl = process.env.FRONTEND_URL || 'http://localhost:9009';
+          await this.mailService.send({
+            to: saved.email,
+            subject: 'Your 247GBS Audit account is ready',
+            text: `An administrator created your account.\n\nEmail: ${saved.email}\nTemporary password: ${generated}\n\nSign in at ${loginUrl} and change your password immediately.`,
+            html: `<p>An administrator created your account.</p><p>Email: ${escapeHtml(saved.email)}<br/>Temporary password: <code>${escapeHtml(generated)}</code></p><p>Sign in at <a href="${escapeHtml(loginUrl)}">${escapeHtml(loginUrl)}</a> and change your password immediately.</p>`,
+          });
+          inviteSent = true;
+        }
+      } catch {
+        inviteSent = false;
+      }
+    }
+    const { password: _omit, ...safeUser } = saved as User & { password?: string };
+    return generated
+      ? { user: safeUser, generatedPassword: generated, inviteSent }
+      : { user: safeUser, inviteSent };
   }
 
   async updateUser(id: string, dto: AdminUpdateUserDto): Promise<User> {
     const user = await this.userRepository.findOne({ where: { id } });
     if (!user) throw new NotFoundException('User not found');
 
-    Object.assign(user, dto);
+    const { password, role, ...rest } = dto as any;
+    Object.assign(user, rest);
+    if (role !== undefined) {
+      const normalized = String(role).toLowerCase();
+      if (normalized !== 'user' && normalized !== 'admin' && normalized !== 'administrator') {
+        throw new BadRequestException('Invalid role.');
+      }
+      user.role = role;
+    }
+    if (password !== undefined) {
+      if (typeof password !== 'string' || password.length < 8) {
+        throw new BadRequestException('Password must be at least 8 characters.');
+      }
+      user.password = await bcrypt.hash(password, 10);
+    }
     return this.userRepository.save(user);
   }
 
@@ -242,9 +285,23 @@ export class AdminService {
 
   private calculateProgress(audit: AuditSession): number {
     if (audit.status === AuditStatus.COMPLETED) return 100;
-    if (audit.status === AuditStatus.IN_PROGRESS) return 65;
-    if (audit.status === AuditStatus.SECTOR_SELECTED) return 30;
-    return 10;
+    const answers = (audit as any).answers;
+    const answeredCount = Array.isArray(answers)
+      ? answers.length
+      : answers && typeof answers === 'object'
+        ? Object.keys(answers).length
+        : 0;
+    // Status gives the floor/ceiling; answered count interpolates within the band
+    // so two audits with the same status but different completion differ.
+    const band =
+      audit.status === AuditStatus.IN_PROGRESS
+        ? { min: 30, max: 95 }
+        : audit.status === AuditStatus.SECTOR_SELECTED
+          ? { min: 15, max: 30 }
+          : { min: 5, max: 15 };
+    if (answeredCount <= 0) return band.min;
+    const scaled = band.min + Math.min(answeredCount, 12) * ((band.max - band.min) / 12);
+    return Math.round(Math.min(band.max, Math.max(band.min, scaled)));
   }
 
   async getStats(): Promise<AdminStatItemDto[]> {

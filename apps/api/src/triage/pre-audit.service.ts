@@ -1,15 +1,27 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { createHash } from 'node:crypto';
 import { TriageQuestion } from './entities/triage-question.entity';
 import { TriageAnswer } from './entities/triage-answer.entity';
 import { PreAuditSession } from './entities/pre-audit-session.entity';
-import { SubmitPreAuditDto, PreAuditStepDto, PreAuditSubmissionResultDto } from './dto/pre-audit.dto';
+import {
+  SubmitPreAuditDto,
+  PreAuditStepDto,
+  PreAuditSubmissionResultDto,
+} from './dto/pre-audit.dto';
 import { normalizeQuestionType, isChoiceType } from './question-types';
 import { destinationAuditType, resolveDestination } from './destination-types';
 import { PreAuditMailer } from '../mail/pre-audit-mailer';
-import { calculatePreAuditDiagnosis, PreAuditDiagnosticSummary } from './pre-audit-calculator';
+import {
+  calculatePreAuditDiagnosis,
+  PreAuditDiagnosticSummary,
+} from './pre-audit-calculator';
+import { TriageOtpService } from './triage-otp.service';
 
 type Destination = {
   nextQuestionId: string | null;
@@ -64,6 +76,7 @@ export class PreAuditService {
     @InjectRepository(PreAuditSession)
     private readonly sessionRepository: Repository<PreAuditSession>,
     private readonly mailer: PreAuditMailer,
+    private readonly otpService: TriageOtpService,
   ) {}
 
   /**
@@ -71,9 +84,22 @@ export class PreAuditService {
    * server re-walks the active question chain from the start, validates every
    * step against the database and computes the audit destination itself.
    */
-  async evaluateAndSave(dto: SubmitPreAuditDto): Promise<PreAuditSubmissionResultDto> {
+  async evaluateAndSave(
+    dto: SubmitPreAuditDto,
+  ): Promise<PreAuditSubmissionResultDto> {
     if (dto.consentGranted !== true) {
-      throw new BadRequestException('Consent is required before your pre-audit can be saved.');
+      throw new BadRequestException(
+        'Consent is required before your pre-audit can be saved.',
+      );
+    }
+
+    if (dto.email) {
+      const verified = await this.otpService.isVerified(dto.email);
+      if (!verified) {
+        throw new ForbiddenException(
+          'Email verification is required before submitting the pre-audit.',
+        );
+      }
     }
 
     const steps = dto.steps;
@@ -94,10 +120,12 @@ export class PreAuditService {
       order: { order: 'ASC', createdAt: 'ASC' },
     });
     const activeById = new Map(allActiveQuestions.map((q) => [q.id, q]));
-    
+
     const startQuestion = activeById.get(steps[0].questionId);
     if (!startQuestion) {
-      throw new BadRequestException('The first step references an inactive or missing start question.');
+      throw new BadRequestException(
+        'The first step references an inactive or missing start question.',
+      );
     }
 
     const activeQuestions = startQuestion.formId
@@ -121,7 +149,9 @@ export class PreAuditService {
 
       if (i === 0) {
         if (step.questionId !== startQuestion.id) {
-          throw new BadRequestException('The first step must start with the current start question.');
+          throw new BadRequestException(
+            'The first step must start with the current start question.',
+          );
         }
       } else if (expectedNext !== null) {
         // Linear continuation of the current (primary or branch) line.
@@ -177,8 +207,11 @@ export class PreAuditService {
       } else if (stepResult.destinationType || stepResult.auditType) {
         // A branch concluded. The LAST concluded branch is authoritative for the
         // recommendation (matching the client's last-terminal-wins rule).
-        recommendedAuditType = destinationAuditType(stepResult.destinationType || stepResult.auditType);
-        destinationType = stepResult.destinationType || stepResult.auditType || null;
+        recommendedAuditType = destinationAuditType(
+          stepResult.destinationType || stepResult.auditType,
+        );
+        destinationType =
+          stepResult.destinationType || stepResult.auditType || null;
         destinationTarget = stepResult.destinationTarget;
         expectedNext = this.resolvePendingNext(pending, visitedQuestionIds);
       } else {
@@ -191,14 +224,19 @@ export class PreAuditService {
     }
 
     if (destinationType === null && recommendedAuditType === null) {
-      throw new BadRequestException('The submitted flow did not conclude with a destination. Please refresh and try again.');
+      throw new BadRequestException(
+        'The submitted flow did not conclude with a destination. Please refresh and try again.',
+      );
     }
 
     const diagnosticSummary = calculatePreAuditDiagnosis(evaluated);
 
     // Multi-factor triage logic: If routing to an audit, ensure complex/unmet need
     // promotes to LONG_FORM rather than assuming budget == correct solution.
-    if (recommendedAuditType && diagnosticSummary.recommendation.auditType === 'LONG_FORM') {
+    if (
+      recommendedAuditType &&
+      diagnosticSummary.recommendation.auditType === 'LONG_FORM'
+    ) {
       recommendedAuditType = 'LONG_FORM';
       if (destinationType === 'SHORT_FORM') {
         destinationType = 'LONG_FORM';
@@ -208,7 +246,9 @@ export class PreAuditService {
     const fingerprint = this.makeFingerprint(dto);
 
     // Idempotent: a repeat of an identical submission returns the earlier result.
-    const existing = await this.sessionRepository.findOne({ where: { fingerprint } });
+    const existing = await this.sessionRepository.findOne({
+      where: { fingerprint },
+    });
     if (existing) {
       return this.toResult(existing, true, diagnosticSummary);
     }
@@ -232,7 +272,9 @@ export class PreAuditService {
     } catch (error: any) {
       // Unique constraint race on fingerprint → treat as duplicate.
       if (error?.code === '23505') {
-        const dup = await this.sessionRepository.findOne({ where: { fingerprint } });
+        const dup = await this.sessionRepository.findOne({
+          where: { fingerprint },
+        });
         if (dup) return this.toResult(dup, true, diagnosticSummary);
       }
       throw error;
@@ -252,7 +294,10 @@ export class PreAuditService {
     if (isChoiceType(type)) {
       return this.evaluateChoice(question, step, type, ordered);
     }
-    return { result: this.evaluateTyped(question, step, type, ordered), branches: [] };
+    return {
+      result: this.evaluateTyped(question, step, type, ordered),
+      branches: [],
+    };
   }
 
   /**
@@ -280,8 +325,16 @@ export class PreAuditService {
   ): Destination {
     const linearNext = this.linearNextOf(ordered, question.id);
     return linearNext
-      ? { nextQuestionId: linearNext, destinationType: null, destinationTarget: null }
-      : { nextQuestionId: null, destinationType: 'HUMAN_REVIEW', destinationTarget: null };
+      ? {
+          nextQuestionId: linearNext,
+          destinationType: null,
+          destinationTarget: null,
+        }
+      : {
+          nextQuestionId: null,
+          destinationType: 'HUMAN_REVIEW',
+          destinationTarget: null,
+        };
   }
 
   private effectiveDestinationOf(
@@ -290,7 +343,9 @@ export class PreAuditService {
     ordered: TriageQuestion[],
   ): Destination {
     const stored = this.destinationOf(answer);
-    const hasExplicit = Boolean(answer.nextQuestionId || stored.destinationType);
+    const hasExplicit = Boolean(
+      answer.nextQuestionId || stored.destinationType,
+    );
     return hasExplicit ? stored : this.linearFallback(question, ordered);
   }
 
@@ -301,14 +356,19 @@ export class PreAuditService {
     orderedQuestions: TriageQuestion[],
   ): Promise<EvaluatedChoice> {
     const optionIds = Array.isArray(step.optionIds) ? step.optionIds : [];
-    const isSingle = type === 'single_choice' || type === 'dropdown' || type === 'yes_no';
+    const isSingle =
+      type === 'single_choice' || type === 'dropdown' || type === 'yes_no';
     const isMulti = type === 'multiple_choice' || type === 'checkbox';
 
     if (optionIds.length === 0) {
-      throw new BadRequestException(`Question "${question.text}" must be answered.`);
+      throw new BadRequestException(
+        `Question "${question.text}" must be answered.`,
+      );
     }
     if (isSingle && optionIds.length > 1) {
-      throw new BadRequestException(`Question "${question.text}" accepts a single answer only.`);
+      throw new BadRequestException(
+        `Question "${question.text}" accepts a single answer only.`,
+      );
     }
 
     const options = await this.answerRepository.find({
@@ -329,19 +389,26 @@ export class PreAuditService {
     }
 
     // Canonical order — identical to the order the public flow presents options.
-    const ordered = [...selected].sort(
-      (a, b) =>
-        a.sortOrder === b.sortOrder
-          ? a.createdAt.getTime() - b.createdAt.getTime()
-          : a.sortOrder - b.sortOrder,
+    const ordered = [...selected].sort((a, b) =>
+      a.sortOrder === b.sortOrder
+        ? a.createdAt.getTime() - b.createdAt.getTime()
+        : a.sortOrder - b.sortOrder,
     );
 
     // Group the selections by their resolved route (one next question OR one
     // destination). The group containing the earliest option is the primary
     // route; every other route is queued as a pending branch (DFS).
-    const groups: { route: string; options: TriageAnswer[]; destination: Destination }[] = [];
+    const groups: {
+      route: string;
+      options: TriageAnswer[];
+      destination: Destination;
+    }[] = [];
     for (const option of ordered) {
-      const destination = this.effectiveDestinationOf(option, question, orderedQuestions);
+      const destination = this.effectiveDestinationOf(
+        option,
+        question,
+        orderedQuestions,
+      );
       const route = JSON.stringify([
         destination.nextQuestionId ?? null,
         destination.destinationType ?? null,
@@ -427,7 +494,9 @@ export class PreAuditService {
 
     if (value === undefined || value === null || value === '') {
       if (required) {
-        throw new BadRequestException(`Question "${question.text}" must be answered.`);
+        throw new BadRequestException(
+          `Question "${question.text}" must be answered.`,
+        );
       }
       return {
         ...this.effectiveTypedRoute(question, ordered),
@@ -481,7 +550,10 @@ export class PreAuditService {
   private effectiveTypedRoute(
     question: TriageQuestion,
     ordered: TriageQuestion[],
-  ): Pick<EvaluatedStep, 'nextQuestionId' | 'destinationType' | 'destinationTarget' | 'auditType'> {
+  ): Pick<
+    EvaluatedStep,
+    'nextQuestionId' | 'destinationType' | 'destinationTarget' | 'auditType'
+  > {
     const explicitNext = question.defaultNextQuestionId;
     const explicitDest = resolveDestination(question);
     const hasExplicit = Boolean(explicitNext || explicitDest.destinationType);
@@ -502,55 +574,90 @@ export class PreAuditService {
     };
   }
 
-  private validateText(question: TriageQuestion, value: any, type: string, cfg: any): string {
+  private validateText(
+    question: TriageQuestion,
+    value: any,
+    type: string,
+    cfg: any,
+  ): string {
     if (typeof value !== 'string') {
-      throw new BadRequestException(`Question "${question.text}" expects text.`);
+      throw new BadRequestException(
+        `Question "${question.text}" expects text.`,
+      );
     }
-    const max = cfg.maxLength ?? (type === 'short_text' ? 500 : MAX_TEXT_LENGTH);
+    const max =
+      cfg.maxLength ?? (type === 'short_text' ? 500 : MAX_TEXT_LENGTH);
     if (value.length > max) {
-      throw new BadRequestException(`Question "${question.text}" is limited to ${max} characters.`);
+      throw new BadRequestException(
+        `Question "${question.text}" is limited to ${max} characters.`,
+      );
     }
     return value;
   }
 
-  private validateNumber(question: TriageQuestion, value: any, cfg: any): number {
+  private validateNumber(
+    question: TriageQuestion,
+    value: any,
+    cfg: any,
+  ): number {
     const number = typeof value === 'number' ? value : Number(value);
     if (typeof value === 'string' && value.trim() === '') {
-      throw new BadRequestException(`Question "${question.text}" expects a number.`);
+      throw new BadRequestException(
+        `Question "${question.text}" expects a number.`,
+      );
     }
     if (!Number.isFinite(number)) {
-      throw new BadRequestException(`Question "${question.text}" expects a number.`);
+      throw new BadRequestException(
+        `Question "${question.text}" expects a number.`,
+      );
     }
     if (cfg.min !== undefined && number < cfg.min) {
-      throw new BadRequestException(`Question "${question.text}" must be at least ${cfg.min}.`);
+      throw new BadRequestException(
+        `Question "${question.text}" must be at least ${cfg.min}.`,
+      );
     }
     if (cfg.max !== undefined && number > cfg.max) {
-      throw new BadRequestException(`Question "${question.text}" must be at most ${cfg.max}.`);
+      throw new BadRequestException(
+        `Question "${question.text}" must be at most ${cfg.max}.`,
+      );
     }
     return number;
   }
 
   private validateDate(question: TriageQuestion, value: any, cfg: any): string {
     if (typeof value !== 'string' || !DATE_PATTERN.test(value)) {
-      throw new BadRequestException(`Question "${question.text}" expects a date (YYYY-MM-DD).`);
+      throw new BadRequestException(
+        `Question "${question.text}" expects a date (YYYY-MM-DD).`,
+      );
     }
     if (cfg.minDate && value < cfg.minDate) {
-      throw new BadRequestException(`Question "${question.text}" cannot be before ${cfg.minDate}.`);
+      throw new BadRequestException(
+        `Question "${question.text}" cannot be before ${cfg.minDate}.`,
+      );
     }
     if (cfg.maxDate && value > cfg.maxDate) {
-      throw new BadRequestException(`Question "${question.text}" cannot be after ${cfg.maxDate}.`);
+      throw new BadRequestException(
+        `Question "${question.text}" cannot be after ${cfg.maxDate}.`,
+      );
     }
     return value;
   }
 
   private validateTime(question: TriageQuestion, value: any): string {
     if (typeof value !== 'string' || !TIME_PATTERN.test(value)) {
-      throw new BadRequestException(`Question "${question.text}" expects a time (HH:MM).`);
+      throw new BadRequestException(
+        `Question "${question.text}" expects a time (HH:MM).`,
+      );
     }
     return value;
   }
 
-  private validateScale(question: TriageQuestion, value: any, type: string, cfg: any): number {
+  private validateScale(
+    question: TriageQuestion,
+    value: any,
+    type: string,
+    cfg: any,
+  ): number {
     const min = cfg.min ?? 1;
     const max = cfg.max ?? (type === 'rating' ? 5 : 10);
     const number = typeof value === 'number' ? value : Number(value);
@@ -564,17 +671,24 @@ export class PreAuditService {
 
   private validateFile(question: TriageQuestion, value: any, cfg: any): any {
     const cfgMaxMb = cfg.maxFileSizeMb ?? 10;
-    const allowed = Array.isArray(cfg.allowedTypes) && cfg.allowedTypes.length > 0 ? cfg.allowedTypes : null;
+    const allowed =
+      Array.isArray(cfg.allowedTypes) && cfg.allowedTypes.length > 0
+        ? cfg.allowedTypes
+        : null;
     const multiple = cfg.multipleFiles === true;
 
     const items = Array.isArray(value) ? value : [value];
     for (const item of items) {
       if (!item || typeof item !== 'object') {
-        throw new BadRequestException(`Question "${question.text}" expects a file.`);
+        throw new BadRequestException(
+          `Question "${question.text}" expects a file.`,
+        );
       }
       const size = item.size ?? item.byteLength ?? 0;
       if (typeof size !== 'number' || size <= 0) {
-        throw new BadRequestException(`Question "${question.text}" expects a file.`);
+        throw new BadRequestException(
+          `Question "${question.text}" expects a file.`,
+        );
       }
       if (size > cfgMaxMb * 1024 * 1024) {
         throw new BadRequestException(
@@ -582,7 +696,12 @@ export class PreAuditService {
         );
       }
       const mimeType = item.mimeType ?? item.type ?? '';
-      if (allowed && allowed.length > 0 && mimeType && !allowed.includes(mimeType)) {
+      if (
+        allowed &&
+        allowed.length > 0 &&
+        mimeType &&
+        !allowed.includes(mimeType)
+      ) {
         throw new BadRequestException(
           `Question "${question.text}" only accepts ${allowed.join(', ')} files.`,
         );
@@ -590,7 +709,9 @@ export class PreAuditService {
     }
 
     if (!multiple && items.length > 1) {
-      throw new BadRequestException(`Question "${question.text}" accepts a single file only.`);
+      throw new BadRequestException(
+        `Question "${question.text}" accepts a single file only.`,
+      );
     }
     return multiple ? items : items[0];
   }
@@ -616,7 +737,8 @@ export class PreAuditService {
     isDuplicate: boolean,
     diagnosticSummary?: PreAuditDiagnosticSummary,
   ): PreAuditSubmissionResultDto {
-    const summary = diagnosticSummary || calculatePreAuditDiagnosis(session.answers || []);
+    const summary =
+      diagnosticSummary || calculatePreAuditDiagnosis(session.answers || []);
     return {
       id: session.id,
       email: session.email,
@@ -626,7 +748,9 @@ export class PreAuditService {
       consentGrantedAt: session.consentGrantedAt
         ? session.consentGrantedAt.toISOString()
         : null,
-      answeredCount: Array.isArray(session.answers) ? session.answers.length : 0,
+      answeredCount: Array.isArray(session.answers)
+        ? session.answers.length
+        : 0,
       isDuplicate,
       diagnosticSummary: summary,
     };
@@ -671,7 +795,9 @@ export class PreAuditService {
         email: session.email,
         recommendedAuditType: session.recommendedAuditType,
         destinationType: session.destinationType ?? null,
-        completedAt: session.completedAt ? session.completedAt.toISOString() : null,
+        completedAt: session.completedAt
+          ? session.completedAt.toISOString()
+          : null,
         diagnosticSummary,
       },
     };

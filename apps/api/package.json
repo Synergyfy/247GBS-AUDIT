@@ -20,7 +20,11 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "clean": "rm -rf dist node_modules",
-    "seed:flows": "node seed-flows.js"
+    "seed:flows": "node seed-flows.js",
+    "typeorm": "typeorm-ts-node-commonjs",
+    "migration:run": "npm run typeorm -- migration:run -d src/data-source.ts",
+    "migration:revert": "npm run typeorm -- migration:revert -d src/data-source.ts",
+    "migration:show": "npm run typeorm -- migration:show -d src/data-source.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -42,6 +46,7 @@
     "class-validator": "^0.14.3",
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.2.3",
+    "ioredis": "^5.11.1",
     "nodemailer": "^10.0.10",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",

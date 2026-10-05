@@ -33,7 +33,7 @@ const USER_KEY = '247gbs_user';
  *  hard-invalidating the session). */
 let inFlightRefresh: Promise<string | null | false> | null = null;
 
-function persistAccessToken(token: string): void {
+export function persistAccessToken(token: string): void {
   if (typeof window === 'undefined') return;
   try {
     // The app's primary key is 247gbs_token (read by every admin/audit hook);
@@ -102,6 +102,23 @@ export async function refreshAccessToken(): Promise<string | null | false> {
     inFlightRefresh = null;
   });
   return inFlightRefresh;
+}
+
+/** Single entry-point for sign-in persistence (AuthContext authoritative).
+ *  Writes user + both token keys so Zustand store and Context never diverge. */
+export function persistSession(user: unknown, token: string): void {
+  if (typeof window === 'undefined') return;
+  persistAccessToken(token);
+  try {
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  } catch {
+    // ignore
+  }
+}
+
+/** Single entry-point for sign-out. Clears user + both token keys. */
+export function clearSession(): void {
+  handleSessionExpired();
 }
 
 export default refreshAccessToken;

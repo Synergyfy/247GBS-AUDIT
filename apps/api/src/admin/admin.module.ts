@@ -8,9 +8,12 @@ import { Invoice } from '../protocols/entities/invoice.entity';
 import { PlatformSetting } from './entities/platform-setting.entity';
 import { HelpResource } from './entities/help-resource.entity';
 
+import { MailModule } from '../mail/mail.module';
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, AuditSession, Invoice, PlatformSetting, HelpResource]),
+    MailModule,
   ],
   controllers: [AdminController],
   providers: [AdminService],

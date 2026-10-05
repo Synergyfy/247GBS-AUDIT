@@ -5,7 +5,8 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
+import { randomUUID } from 'node:crypto';
 import { TriageForm } from './entities/triage-form.entity';
 import { TriageQuestion } from './entities/triage-question.entity';
 import { TriageFlowValidatorService } from './triage-flow-validator.service';
@@ -177,7 +178,7 @@ export class TriageFormService implements OnModuleInit {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '')
         .slice(0, 80) || 'business-triage';
-    const suffix = Math.random().toString(36).slice(2, 8);
+    const suffix = randomUUID().replace(/-/g, '').slice(0, 8);
     return `${base}-${suffix}`;
   }
 
@@ -186,21 +187,34 @@ export class TriageFormService implements OnModuleInit {
   // ============================================================
 
   async listForms(): Promise<TriageFormDto[]> {
-    await this.ensureInitialized();
     const forms = await this.formRepository.find({
       order: { isDefault: 'DESC', createdAt: 'ASC' },
     });
 
     const defaultForm = forms.find((f) => f.isDefault);
 
+    // Single GROUP BY count query (plus legacy NULL-formId questions for default)
+    const countRows = await this.questionRepository
+      .createQueryBuilder('q')
+      .select('q.formId', 'formId')
+      .addSelect('COUNT(*)', 'count')
+      .groupBy('q.formId')
+      .getRawMany();
+    const countMap = new Map<string, number>(
+      countRows.map((r) => [r.formId, parseInt(r.count, 10)]),
+    );
+    let legacyNullCount = 0;
+    if (defaultForm) {
+      legacyNullCount = await this.questionRepository.count({ where: { formId: IsNull() } });
+    }
+
     // Compute question count per form
     const results: TriageFormDto[] = [];
     for (const form of forms) {
-      const qb = this.questionRepository.createQueryBuilder('q').where('q.formId = :formId', { formId: form.id });
+      let count = countMap.get(form.id) ?? 0;
       if (defaultForm && form.id === defaultForm.id) {
-        qb.orWhere('q.formId IS NULL');
+        count += legacyNullCount;
       }
-      const count = await qb.getCount();
       results.push(this.toFormDto(form, count));
     }
     return results;
@@ -209,8 +223,11 @@ export class TriageFormService implements OnModuleInit {
   async getForm(id?: string): Promise<TriageFormDto> {
     if (!id) {
       const defaultForm = await this.getDefaultForm();
-      const count = await this.questionRepository.count();
-      return this.toFormDto(defaultForm, count);
+      const [scoped, legacy] = await Promise.all([
+        this.questionRepository.count({ where: { formId: defaultForm.id } }),
+        this.questionRepository.count({ where: { formId: IsNull() } }),
+      ]);
+      return this.toFormDto(defaultForm, scoped + legacy);
     }
     const form = await this.formRepository.findOne({ where: { id } });
     if (!form) throw new NotFoundException(`Triage form with ID "${id}" not found.`);
@@ -228,7 +245,7 @@ export class TriageFormService implements OnModuleInit {
     let slug = this.makeSlug(title);
     const existingSlug = await this.formRepository.findOne({ where: { slug } });
     if (existingSlug) {
-      slug = `${slug}-${Math.random().toString(36).slice(2, 6)}`;
+      slug = `${slug}-${randomUUID().replace(/-/g, '').slice(0, 6)}`;
     }
 
     const isDefault = Boolean(dto.isDefault);
@@ -336,7 +353,7 @@ export class TriageFormService implements OnModuleInit {
       form.slug = this.makeSlug(form.title);
       const clash = await this.formRepository.findOne({ where: { slug: form.slug } });
       if (clash && clash.id !== form.id) {
-        form.slug = `${form.slug}-${Math.random().toString(36).slice(2, 6)}`;
+        form.slug = `${form.slug}-${randomUUID().replace(/-/g, '').slice(0, 6)}`;
       }
     }
     form.status = 'published';
