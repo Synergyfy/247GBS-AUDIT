@@ -6,6 +6,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { Shield, Lock, Mail, Eye, EyeOff, Loader2, AlertCircle, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { API_BASE_URL } from "@/lib/api";
+import { signInSession } from "@/lib/auth";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -69,16 +70,12 @@ export default function AdminLoginPage() {
       }
 
       if (data.accessToken && data.user) {
-        // Persist token and admin user profile
-        localStorage.setItem("247gbs_token", data.accessToken);
-        localStorage.setItem("auth_token", data.accessToken);
-        localStorage.setItem("247gbs_user", JSON.stringify(data.user));
-
-        try {
-          window.dispatchEvent(new StorageEvent("storage", { key: "auth_token", newValue: data.accessToken }));
-          window.dispatchEvent(new StorageEvent("storage", { key: "247gbs_user", newValue: JSON.stringify(data.user) }));
-        } catch {
-          window.dispatchEvent(new Event("auth_token_refreshed"));
+        // Single unified write: normalized user + both token keys + USER_UPDATED_EVENT.
+        // AuthContext + Zustand sync via event — no synthetic StorageEvent needed
+        // (StorageEvent only fires cross-tab natively, misses same-tab listeners).
+        const signed = signInSession(data.user, data.accessToken);
+        if (!signed) {
+          throw new Error("Invalid response format received from authentication server.");
         }
 
         window.location.assign("/admin");

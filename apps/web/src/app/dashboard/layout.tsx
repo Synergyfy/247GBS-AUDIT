@@ -21,6 +21,9 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { useAuthStore } from "@/stores/useAuthStore";
+import { buildSessionUser } from "@/lib/auth";
+import { API_BASE_URL } from "@/lib/api";
 import BottomNav from "@/components/BottomNav";
 import { AnimatePresence } from "framer-motion";
 
@@ -31,7 +34,49 @@ export default function DashboardLayout({
 }) {
     const pathname = usePathname();
     const router = useRouter();
-    const { user, signOut } = useAuth();
+    const { user: ctxUser, signOut, refreshUserFromProfile } = useAuth();
+    // Mirror fallback (same pattern as PublicNavbar): context authoritative,
+    // Zustand mirrors. Header never shows Guest while store has a valid session.
+    const storeUser = useAuthStore((s) => s.user);
+    const storeToken = useAuthStore((s) => s.token);
+    const fallbackUser = React.useMemo(() => {
+        if (ctxUser) return ctxUser;
+        if (!storeUser?.email) return null;
+        return buildSessionUser({
+            email: storeUser.email,
+            firstName: storeUser.firstName,
+            lastName: storeUser.lastName,
+            role: storeUser.role,
+            id: storeUser.id,
+        });
+    }, [ctxUser, storeUser]);
+    const user = fallbackUser;
+    const isAuthenticated = Boolean(user) && Boolean(ctxUser || storeToken);
+
+    // Self-heal: if context is null but a token exists, fetch profile once and
+    // push into context so header catches up even if callback event was missed.
+    React.useEffect(() => {
+        if (ctxUser || !storeToken) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                const token = localStorage.getItem("247gbs_token") || localStorage.getItem("auth_token") || storeToken;
+                if (!token) return;
+                const res = await fetch(`${API_BASE_URL}/users/profile`, {
+                    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+                    credentials: "include",
+                });
+                if (!res.ok) return;
+                const profile = await res.json();
+                if (!cancelled && profile?.email) refreshUserFromProfile(profile);
+            } catch {
+                // ignore — heartbeat / profile hook will retry
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [ctxUser, storeToken, refreshUserFromProfile]);
 
     const menuItems = [
         { icon: LayoutDashboard, label: "Overview", href: "/dashboard" },
@@ -57,11 +102,22 @@ export default function DashboardLayout({
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    // Sign out handler
-    const handleSignOut = () => {
+    // Sign out handler — invalidate server refresh token + clear HttpOnly cookies first.
+    const handleSignOut = async () => {
         setIsAvatarDropdownOpen(false);
-        signOut();
-        router.push("/auth/signin");
+        try {
+            const token = typeof window !== 'undefined'
+                ? (localStorage.getItem("247gbs_token") || localStorage.getItem("auth_token"))
+                : null;
+            await fetch(`${API_BASE_URL}/auth/logout`, {
+                method: "GET",
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+                credentials: "include",
+            }).catch(() => ({}));
+        } finally {
+            signOut();
+            router.push("/auth/signin");
+        }
     };
 
     // View profile handler

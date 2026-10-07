@@ -1,7 +1,8 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { Public } from '../auth/decorators/public.decorator';
+import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt.guard';
 import { PreAuditService } from './pre-audit.service';
 import { TriageOtpService } from './triage-otp.service';
 import { SubmitPreAuditDto, PreAuditSubmissionResultDto } from './dto/pre-audit.dto';
@@ -50,12 +51,18 @@ export class PreAuditController {
   @Public()
   @Post('submit')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({
     summary: 'Public pre-audit submission',
     description:
-      'Accepts the answers a visitor gave, re-evaluates them server-side against the configured question flow and returns the recommended audit type. Client-provided routing is never trusted.',
+      'Accepts the answers a visitor gave, re-evaluates them server-side against the configured question flow and returns the recommended audit type. Client-provided routing is never trusted. Authenticated callers omit email (derived from their session); guests must supply an OTP-verified email.',
   })
-  async submit(@Body() dto: SubmitPreAuditDto): Promise<PreAuditSubmissionResultDto> {
-    return this.preAuditService.evaluateAndSave(dto);
+  async submit(
+    @Body() dto: SubmitPreAuditDto,
+    @Req() req: any,
+  ): Promise<PreAuditSubmissionResultDto> {
+    const authEmail: string | null =
+      typeof req?.user?.email === 'string' ? req.user.email : null;
+    return this.preAuditService.evaluateAndSave(dto, authEmail);
   }
 }

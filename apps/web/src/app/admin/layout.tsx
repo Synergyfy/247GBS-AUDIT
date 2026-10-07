@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { API_BASE_URL } from "@/lib/api";
+import { refreshAccessToken } from "@/lib/auth";
 import { motion } from "framer-motion";
 import {
     LayoutDashboard,
@@ -44,12 +45,24 @@ export default function AdminLayout({
         let cancelled = false;
         (async () => {
             try {
-                const token = localStorage.getItem("247gbs_token");
+                let token: string | null = localStorage.getItem("247gbs_token") || localStorage.getItem("auth_token");
                 const userStr = localStorage.getItem("247gbs_user");
 
-                if (!token || !userStr) {
+                if (!userStr) {
                     window.location.assign("/admin/login?reason=session-expired");
                     return;
+                }
+
+                // Access token may be expired (15m) while the 7d HttpOnly refresh
+                // cookie is still valid — try silent refresh instead of bouncing.
+                if (!token) {
+                    const refreshed = await refreshAccessToken();
+                    if (typeof refreshed === 'string' && refreshed) {
+                        token = refreshed;
+                    } else {
+                        window.location.assign("/admin/login?reason=session-expired");
+                        return;
+                    }
                 }
 
                 // Fast client prefilter (UX only — never authoritative).
@@ -65,11 +78,24 @@ export default function AdminLayout({
                     return;
                 }
 
-                // Authoritative server-side role check.
-                const res = await fetch(`${API_BASE_URL}/admin/me`, {
+                // Authoritative server-side role check (with one silent-refresh retry).
+                let res = await fetch(`${API_BASE_URL}/admin/me`, {
                     headers: { Authorization: `Bearer ${token}` },
                     credentials: "include",
                 });
+                if (res.status === 401) {
+                    const newToken = await refreshAccessToken();
+                    if (typeof newToken === 'string' && newToken) {
+                        token = newToken;
+                        res = await fetch(`${API_BASE_URL}/admin/me`, {
+                            headers: { Authorization: `Bearer ${token}` },
+                            credentials: "include",
+                        });
+                    } else {
+                        window.location.assign("/admin/login?reason=session-expired");
+                        return;
+                    }
+                }
                 if (!res.ok) {
                     window.location.assign("/admin/login?reason=unauthorized");
                     return;

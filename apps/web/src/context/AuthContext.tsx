@@ -1,20 +1,21 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { refreshAccessToken, SESSION_EXPIRED_EVENT, isProtectedRoute, clearSession } from "@/lib/auth";
+import { refreshAccessToken, SESSION_EXPIRED_EVENT, USER_UPDATED_EVENT, isProtectedRoute, clearSession, normalizeUser, buildSessionUser } from "@/lib/auth";
+import type { SessionUser } from "@/lib/auth";
+import { API_BASE_URL } from "@/lib/api";
 
-interface User {
-    email: string;
-    name: string;
-    avatar: string;
-    role?: string;
-}
+type User = SessionUser;
+
+export { normalizeUser, buildSessionUser };
+export type { SessionUser };
 
 interface AuthContextType {
     user: User | null;
     isAuthenticated: boolean;
     signIn: (userData: Partial<User> & { email: string }) => void;
     signOut: () => void;
+    refreshUserFromProfile: (profile: Record<string, unknown>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -28,7 +29,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const storedUser = localStorage.getItem("247gbs_user");
         if (storedUser) {
             try {
-                setUser(JSON.parse(storedUser));
+                const parsed = JSON.parse(storedUser);
+                if (parsed?.email) {
+                    const normalized = normalizeUser(parsed);
+                    setUser(normalized);
+                    localStorage.setItem("247gbs_user", JSON.stringify(normalized));
+                } else {
+                    localStorage.removeItem("247gbs_user");
+                }
             } catch {
                 localStorage.removeItem("247gbs_user");
             }
@@ -77,13 +85,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const onStorageChange = (e: StorageEvent) => {
             // Sign-out (or removal) in another tab invalidates this tab too.
-            if (e.key === "247gbs_user" && e.newValue === null) {
-                if (mounted) invalidateStaleSession();
+            if (e.key === "247gbs_user") {
+                if (e.newValue === null) {
+                    if (mounted) invalidateStaleSession();
+                } else if (mounted) {
+                    try {
+                        const parsed = JSON.parse(e.newValue);
+                        if (parsed?.email) setUser(normalizeUser(parsed));
+                    } catch {
+                        // ignore
+                    }
+                }
             }
+        };
+
+        const onUserUpdated = () => {
+            if (!mounted) return;
+            const stored = localStorage.getItem("247gbs_user");
+            if (stored) {
+                try {
+                    const parsed = JSON.parse(stored);
+                    if (parsed?.email) setUser(normalizeUser(parsed));
+                } catch {
+                    // ignore
+                }
+            }
+        };
+
+        const onTokenRefreshed = () => {
+            // Access token rotated — no user change needed. Kept for compat with
+            // legacy 'auth_token_refreshed' dispatches.
         };
 
         window.addEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
         window.addEventListener("storage", onStorageChange);
+        window.addEventListener(USER_UPDATED_EVENT, onUserUpdated);
+        window.addEventListener("247gbs:user-updated", onUserUpdated);
+        window.addEventListener("auth_token_refreshed", onTokenRefreshed);
 
         const doRefresh = async () => {
             try {
@@ -105,7 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         };
 
         // Only attempt refresh if there's a stored session (skip on auth pages, fresh visits)
-        const hasSession = localStorage.getItem("247gbs_user") || localStorage.getItem("auth_token");
+        const hasSession = localStorage.getItem("247gbs_user") || localStorage.getItem("247gbs_token") || localStorage.getItem("auth_token");
         if (!hasSession) {
             // Still listen for expirations driven by other tabs/API callers.
         } else {
@@ -121,22 +159,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             mounted = false;
             window.removeEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
             window.removeEventListener("storage", onStorageChange);
+            window.removeEventListener(USER_UPDATED_EVENT, onUserUpdated);
+            window.removeEventListener("247gbs:user-updated", onUserUpdated);
+            window.removeEventListener("auth_token_refreshed", onTokenRefreshed);
             clearInterval(id);
         };
     }, []);
 
     const signIn = (userData: Partial<User> & { email: string }) => {
-        const newUser: User = {
-            email: userData.email,
-            name: userData.name || userData.email.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
-            avatar: userData.avatar || `https://api.dicebear.com/7.x/shapes/svg?seed=${userData.email}`,
-            role: userData.role || 'User',
-        };
+        const newUser = normalizeUser(userData);
         setUser(newUser);
-        localStorage.setItem("247gbs_user", JSON.stringify(newUser));
+        try {
+            localStorage.setItem("247gbs_user", JSON.stringify(newUser));
+            window.dispatchEvent(new CustomEvent(USER_UPDATED_EVENT));
+        } catch {
+            // ignore
+        }
+    };
+
+    // Sync context from a freshly fetched profile (e.g. /users/profile) when
+    // context is null/stale but token is valid. Merges firstName/lastName into
+    // display name instead of leaving header as Guest.
+    const refreshUserFromProfile = (profile: Record<string, unknown>) => {
+        const built = buildSessionUser(profile);
+        if (!built) return;
+        setUser((prev) => {
+            if (prev && prev.email === built.email && prev.name === built.name && prev.role === built.role) {
+                return prev;
+            }
+            try {
+                localStorage.setItem("247gbs_user", JSON.stringify(built));
+            } catch {
+                // ignore
+            }
+            return built;
+        });
     };
 
     const signOut = () => {
+        // Best-effort server logout (invalidates DB refresh hash + clears HttpOnly cookies).
+        try {
+            const token = localStorage.getItem("247gbs_token") || localStorage.getItem("auth_token");
+            fetch(`${API_BASE_URL}/auth/logout`, {
+                method: "GET",
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+                credentials: "include",
+            }).catch(() => {});
+        } catch {
+            // ignore
+        }
         setUser(null);
         clearSession();
     };
@@ -147,7 +218,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     return (
-        <AuthContext.Provider value={{ user, isAuthenticated: !!user, signIn, signOut }}>
+        <AuthContext.Provider value={{ user, isAuthenticated: !!user, signIn, signOut, refreshUserFromProfile }}>
             {children}
         </AuthContext.Provider>
     );
