@@ -45,6 +45,7 @@ import {
 } from "@/lib/preAudit/storage";
 import { submitPreAudit } from "@/services/preAudit/submit";
 import { useAuth } from "@/context/AuthContext";
+import { useAuthStore } from "@/stores/useAuthStore";
 import { ProgressHeader } from "./ProgressHeader";
 import { AnswerOption } from "./AnswerOption";
 import { EmailStep } from "./EmailStep";
@@ -74,7 +75,15 @@ function errorMessageOf(err: unknown, fallback: string): string {
  */
 export function QuestionEngine(options: PreAuditEngineOptions) {
   const router = useRouter();
-  const { user, isAuthenticated } = useAuth();
+  const { user: ctxUser, isAuthenticated: ctxAuth } = useAuth();
+  const { user: storeUser, token: storeToken, isAuthenticated: storeAuth } = useAuthStore();
+
+  // Session email comes ONLY from a live authenticated session (already
+  // verified at signup/login). A leftover email string in storage must never
+  // count as authentication.
+  const activeEmail = (ctxUser?.email || storeUser?.email || "").trim();
+  const isUserAuthenticated = Boolean(ctxAuth || storeAuth || Boolean(storeToken));
+
   const exitHref = options.exitHref ?? "/audit/pre-audit";
   const title = options.title ?? "Business Pre-Audit";
   const settings = {
@@ -91,6 +100,7 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
   const [visited, setVisited] = useState<PreAuditVisitedEntry[]>([]);
   const [currentQuestion, setCurrentQuestion] = useState<TriagePublicQuestion | null>(null);
   const [email, setEmail] = useState("");
+
   const [emailError, setEmailError] = useState<string | null>(null);
   const [consentGranted, setConsentGranted] = useState(false);
   const [multiSelection, setMultiSelection] = useState<string[]>([]);
@@ -478,18 +488,196 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
     }
   }, [visited]);
 
+  // ==================== SUBMIT ====================
+
+  const handleSubmitWithEmail = useCallback(
+    async (overrideEmail?: string) => {
+      if (isBusy) return;
+
+      // Authenticated users never send an email — the server derives it from
+      // their session (already verified). Guests must supply OTP-verified email.
+      let localEmail: string;
+      let serverEmail: string | null;
+      if (isUserAuthenticated) {
+        if (!activeEmail) {
+          setError({
+            title: "We couldn't verify your session",
+            message: "Your sign-in session is missing an email. Please sign in again.",
+          });
+          setPhase("error");
+          return;
+        }
+        if (!consentGranted) {
+          setPhase("consent");
+          return;
+        }
+        localEmail = activeEmail;
+        serverEmail = null;
+      } else {
+        if (!consentGranted) {
+          setPhase("consent");
+          return;
+        }
+        let targetEmail: string;
+        if (overrideEmail !== undefined && overrideEmail.trim()) {
+          targetEmail = overrideEmail.trim();
+        } else {
+          const emailResult = emailSubmissionValue();
+          if (!emailResult.ok) {
+            setEmailError(emailResult.message ?? null);
+            setPhase("email");
+            return;
+          }
+          targetEmail = emailResult.value;
+        }
+        if (!targetEmail) {
+          setEmailError("Email is required to submit the pre-audit. Verify your email to continue.");
+          setPhase("email");
+          return;
+        }
+        localEmail = targetEmail;
+        serverEmail = targetEmail;
+      }
+
+      const fingerprint = fingerprintOf(localEmail, visited);
+      const existing = findDuplicateSubmission(fingerprint);
+      if (existing) {
+        clearProgress();
+        if (settings.showConfirmation) {
+          setSubmission(existing);
+          setIsDuplicate(true);
+          setPhase("confirmation");
+        } else {
+          router.push(options.afterSubmitHref ?? exitHref);
+        }
+        return;
+      }
+
+      setIsBusy(true);
+      setPhase("submitting");
+
+      // Brief transition so the saving state is visible rather than a flash.
+      await new Promise((resolve) => setTimeout(resolve, 650));
+
+      // Re-evaluate server-side. Only genuine validation rejections (4xx) block:
+      // an unreachable API still lets the audit complete on the device.
+      let serverSessionId: string | undefined;
+      let serverDestinationType: PreAuditSubmission["destinationType"] | null = null;
+      let serverDestinationTarget: PreAuditSubmission["destinationTarget"] | null = null;
+      let serverConsentGrantedAt: string | null | undefined;
+      let serverRecommendedAudit: PreAuditSubmission["recommendedAudit"] = null;
+      let serverDiagnosticSummary: any = null;
+      try {
+        const server = await submitPreAudit(serverEmail, visited);
+        serverSessionId = server.id;
+        serverDestinationType = (server.destinationType as PreAuditSubmission["destinationType"]) ?? null;
+        serverDestinationTarget = server.destinationTarget ?? null;
+        serverConsentGrantedAt = server.consentGrantedAt ?? null;
+        serverRecommendedAudit = (server.recommendedAuditType as PreAuditSubmission["recommendedAudit"]) ?? null;
+        serverDiagnosticSummary = server.diagnosticSummary ?? null;
+      } catch (err) {
+        const status = (err as { status?: number }).status;
+        if (status !== undefined && status >= 400 && status < 500) {
+          setIsBusy(false);
+          // Guests whose OTP expired/invalid get sent back to verify again.
+          if (!isUserAuthenticated && (status === 403 || status === 401)) {
+            setEmailError(
+              errorMessageOf(err, "Email verification is required. Please verify your email to continue.")
+            );
+            setConsentGranted(false);
+            setPhase("email");
+            return;
+          }
+          setError({
+            title: "We couldn't verify your pre-audit",
+            message: errorMessageOf(
+              err,
+              "The pre-audit couldn't be verified. Please try again."
+            ),
+          });
+          setPhase("error");
+          return;
+        }
+      }
+
+      const serverReached = serverConsentGrantedAt !== undefined;
+      const newSubmission = buildSubmission({
+        email: localEmail,
+        visited,
+        existingId: createRecordId(),
+        destinationType: serverReached && serverDestinationType ? serverDestinationType : undefined,
+        destinationTarget:
+          serverReached && serverDestinationType && serverDestinationTarget
+            ? serverDestinationTarget
+            : undefined,
+        recommendedAudit: serverReached && serverRecommendedAudit ? serverRecommendedAudit : undefined,
+        serverAuthoritative: serverReached,
+        consentGrantedAt: serverReached ? serverConsentGrantedAt ?? null : undefined,
+        diagnosticSummary: serverDiagnosticSummary || undefined,
+      });
+      if (serverSessionId) newSubmission.serverSessionId = serverSessionId;
+
+      const saved = saveSubmission(newSubmission);
+      if (!saved) {
+        setIsBusy(false);
+        setError({
+          title: "We couldn't save your pre-audit",
+          message:
+            "Your answers couldn't be saved on this device. Please check your browser settings and try again.",
+        });
+        setPhase("error");
+        return;
+      }
+
+      clearProgress();
+      if (settings.showConfirmation) {
+        setSubmission(newSubmission);
+        setIsDuplicate(false);
+        setPhase("confirmation");
+      } else {
+        router.push(options.afterSubmitHref ?? exitHref);
+      }
+    },
+    [
+      isBusy,
+      isUserAuthenticated,
+      activeEmail,
+      consentGranted,
+      emailSubmissionValue,
+      visited,
+      settings.showConfirmation,
+      options.afterSubmitHref,
+      exitHref,
+      router,
+    ]
+  );
+
+  const handleSubmit = async () => {
+    return handleSubmitWithEmail();
+  };
+
   // ==================== EMAIL & REVIEW ====================
 
-  /** Review continues to the email step when the form collects email, else straight to consent. */
-  const continueFromReview = useCallback(() => {
+  /** Review goes to consent for signed-in users (no email/OTP), or to email+OTP for guests. */
+  const continueFromReview = useCallback(async () => {
     setEmailError(null);
-    setConsentGranted(false);
     if (!settings.collectEmail) {
+      setConsentGranted(false);
       setPhase("consent");
       return;
     }
+
+    // Authenticated: session email is already verified — show consent, then submit with null email.
+    if (isUserAuthenticated) {
+      setConsentGranted(false);
+      setPhase("consent");
+      return;
+    }
+
+    // Guests must enter email and verify OTP (email required to finish).
+    setConsentGranted(false);
     setPhase("email");
-  }, [settings.collectEmail]);
+  }, [settings.collectEmail, isUserAuthenticated]);
 
   const continueFromEmail = useCallback(() => {
     setEmailError(null);
@@ -502,122 +690,16 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
     setPhase("consent");
   }, [emailSubmissionValue]);
 
-  // ==================== SUBMIT ====================
-
-  const handleSubmitWithEmail = async (overrideEmail?: string) => {
-    if (isBusy) return;
-
-    let targetEmail: string;
-    if (overrideEmail !== undefined) {
-      targetEmail = overrideEmail.trim();
-    } else {
-      if (!consentGranted) {
-        setPhase("consent");
-        return;
-      }
-      const emailResult = emailSubmissionValue();
-      if (!emailResult.ok) {
-        setEmailError(emailResult.message ?? null);
-        setPhase("email");
-        return;
-      }
-      targetEmail = emailResult.value;
+  // Authenticated users never use the email/OTP phase (e.g. restored guest
+  // progress after signing in) — move them straight to consent.
+  useEffect(() => {
+    if (phase === "email" && isUserAuthenticated) {
+      setEmail("");
+      setEmailError(null);
+      setConsentGranted(false);
+      setPhase("consent");
     }
-
-    const fingerprint = fingerprintOf(targetEmail, visited);
-    const existing = findDuplicateSubmission(fingerprint);
-    if (existing) {
-      clearProgress();
-      if (settings.showConfirmation) {
-        setSubmission(existing);
-        setIsDuplicate(true);
-        setPhase("confirmation");
-      } else {
-        router.push(options.afterSubmitHref ?? exitHref);
-      }
-      return;
-    }
-
-    setIsBusy(true);
-    setPhase("submitting");
-
-    // Brief transition so the saving state is visible rather than a flash.
-    await new Promise((resolve) => setTimeout(resolve, 650));
-
-    // Re-evaluate server-side. Only genuine validation rejections (4xx) block:
-    // an unreachable API still lets the audit complete on the device.
-    let serverSessionId: string | undefined;
-    let serverDestinationType: PreAuditSubmission["destinationType"] | null = null;
-    let serverDestinationTarget: PreAuditSubmission["destinationTarget"] | null = null;
-    let serverConsentGrantedAt: string | null | undefined;
-    let serverRecommendedAudit: PreAuditSubmission["recommendedAudit"] = null;
-    let serverDiagnosticSummary: any = null;
-    try {
-      const server = await submitPreAudit(targetEmail, visited);
-      serverSessionId = server.id;
-      serverDestinationType = (server.destinationType as PreAuditSubmission["destinationType"]) ?? null;
-      serverDestinationTarget = server.destinationTarget ?? null;
-      serverConsentGrantedAt = server.consentGrantedAt ?? null;
-      serverRecommendedAudit = (server.recommendedAuditType as PreAuditSubmission["recommendedAudit"]) ?? null;
-      serverDiagnosticSummary = server.diagnosticSummary ?? null;
-    } catch (err) {
-      const status = (err as { status?: number }).status;
-      if (status !== undefined && status >= 400 && status < 500) {
-        setIsBusy(false);
-        setError({
-          title: "We couldn't verify your pre-audit",
-          message: errorMessageOf(
-            err,
-            "The pre-audit couldn't be verified. Please try again."
-          ),
-        });
-        setPhase("error");
-        return;
-      }
-    }
-
-    const serverReached = serverConsentGrantedAt !== undefined;
-    const newSubmission = buildSubmission({
-      email: targetEmail,
-      visited,
-      existingId: createRecordId(),
-      destinationType: serverReached && serverDestinationType ? serverDestinationType : undefined,
-      destinationTarget:
-        serverReached && serverDestinationType && serverDestinationTarget
-          ? serverDestinationTarget
-          : undefined,
-      recommendedAudit: serverReached && serverRecommendedAudit ? serverRecommendedAudit : undefined,
-      serverAuthoritative: serverReached,
-      consentGrantedAt: serverReached ? serverConsentGrantedAt ?? null : undefined,
-      diagnosticSummary: serverDiagnosticSummary || undefined,
-    });
-    if (serverSessionId) newSubmission.serverSessionId = serverSessionId;
-
-    const saved = saveSubmission(newSubmission);
-    if (!saved) {
-      setIsBusy(false);
-      setError({
-        title: "We couldn't save your pre-audit",
-        message:
-          "Your answers couldn't be saved on this device. Please check your browser settings and try again.",
-      });
-      setPhase("error");
-      return;
-    }
-
-    clearProgress();
-    if (settings.showConfirmation) {
-      setSubmission(newSubmission);
-      setIsDuplicate(false);
-      setPhase("confirmation");
-    } else {
-      router.push(options.afterSubmitHref ?? exitHref);
-    }
-  };
-
-  const handleSubmit = async () => {
-    return handleSubmitWithEmail();
-  };
+  }, [phase, isUserAuthenticated]);
 
   // ==================== SCREENS ====================
 
@@ -693,18 +775,30 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
   }
 
   if (phase === "email") {
+    // Authenticated users never verify OTP — bounce them to consent.
+    if (isUserAuthenticated) {
+      setEmail("");
+      setEmailError(null);
+      setConsentGranted(false);
+      setPhase("consent");
+      return null;
+    }
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/30 p-4 sm:p-6 pt-24 sm:pt-28 pb-12">
         <main className="max-w-2xl mx-auto">
           <TriageEmailOtpStep
-            isAuthenticated={isAuthenticated}
-            userEmail={user?.email}
+            isAuthenticated={false}
             title="Receive Your Pre-Audit Results"
-            subtitle="Verify your email to receive your full assessment answers, personalized insights, and tailored audit roadmap directly to your inbox."
+            subtitle="Enter your email and verify it with the 6-digit code to receive your full assessment answers, personalized insights, and tailored audit roadmap directly to your inbox."
             onVerified={async (verifiedEmail) => {
-              setEmail(verifiedEmail);
+              const target = (verifiedEmail || "").trim();
+              if (!target) {
+                setEmailError("Email is required to continue. Verify your email to proceed.");
+                return;
+              }
+              setEmail(target);
               setConsentGranted(true);
-              await handleSubmitWithEmail(verifiedEmail);
+              await handleSubmitWithEmail(target);
             }}
             onBack={() => {
               setEmailError(null);
@@ -723,10 +817,11 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
           <ConsentStep
             consentGranted={consentGranted}
             disabled={isBusy}
+            accountEmail={isUserAuthenticated ? activeEmail : email}
             onConsentChange={setConsentGranted}
             onBack={() => {
               setConsentGranted(false);
-              setPhase("email");
+              setPhase(isUserAuthenticated ? "review" : "email");
             }}
             onSubmit={() => void handleSubmit()}
           />
@@ -736,6 +831,12 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
   }
 
   if (phase === "review") {
+    const nextLabel = !settings.collectEmail
+      ? "Continue to consent"
+      : isUserAuthenticated
+        ? "Continue to consent"
+        : "Continue to email";
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/30 p-4 sm:p-6 pt-24 sm:pt-28 pb-12">
         <main className="max-w-3xl mx-auto">
@@ -743,9 +844,9 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
             visited={visited}
             disabled={isBusy}
             allowEdit={settings.allowEditing}
-            nextLabel={settings.collectEmail ? "Continue to email" : "Continue to consent"}
+            nextLabel={nextLabel}
             onEditQuestion={(index) => void editQuestion(index)}
-            onContinue={continueFromReview}
+            onContinue={() => void continueFromReview()}
             onBack={() => {
               if (visited.length >= 1) void editQuestion(visited.length - 1);
             }}

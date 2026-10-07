@@ -83,9 +83,14 @@ export class PreAuditService {
    * Evaluates a public pre-audit submission. The client is NEVER trusted: the
    * server re-walks the active question chain from the start, validates every
    * step against the database and computes the audit destination itself.
+   *
+   * Authenticated callers (valid JWT) must NOT send an email — it is derived
+   * from their session (already verified at signup/login) and skips OTP.
+   * Guests must supply an OTP-verified email; the only opt-out is abandoning.
    */
   async evaluateAndSave(
     dto: SubmitPreAuditDto,
+    authEmail?: string | null,
   ): Promise<PreAuditSubmissionResultDto> {
     if (dto.consentGranted !== true) {
       throw new BadRequestException(
@@ -93,13 +98,30 @@ export class PreAuditService {
       );
     }
 
-    if (dto.email) {
+    const sessionEmail = (authEmail ?? '').trim();
+    const isAuthenticated = sessionEmail.length > 0;
+    let finalEmail: string | null;
+
+    if (isAuthenticated) {
+      if (dto.email && dto.email.trim().length > 0) {
+        throw new BadRequestException(
+          'Authenticated submissions must not include an email address. It is taken from your signed-in account.',
+        );
+      }
+      finalEmail = sessionEmail;
+    } else {
+      if (!dto.email || dto.email.trim().length === 0) {
+        throw new BadRequestException(
+          'Email is required to submit the pre-audit. Verify your email to continue, or exit if you do not wish to proceed.',
+        );
+      }
       const verified = await this.otpService.isVerified(dto.email);
       if (!verified) {
         throw new ForbiddenException(
           'Email verification is required before submitting the pre-audit.',
         );
       }
+      finalEmail = dto.email.trim();
     }
 
     const steps = dto.steps;
@@ -243,7 +265,7 @@ export class PreAuditService {
       }
     }
 
-    const fingerprint = this.makeFingerprint(dto);
+    const fingerprint = this.makeFingerprint(dto, finalEmail);
 
     // Idempotent: a repeat of an identical submission returns the earlier result.
     const existing = await this.sessionRepository.findOne({
@@ -254,7 +276,7 @@ export class PreAuditService {
     }
 
     const session = this.sessionRepository.create({
-      email: dto.email ?? null,
+      email: finalEmail ?? null,
       answers: evaluated,
       fingerprint,
       recommendedAuditType,
@@ -720,8 +742,9 @@ export class PreAuditService {
   // Helpers
   // ============================================================
 
-  private makeFingerprint(dto: SubmitPreAuditDto): string {
-    const email = dto.email ? dto.email.trim().toLowerCase() : '';
+  private makeFingerprint(dto: SubmitPreAuditDto, emailOverride?: string | null): string {
+    const raw = emailOverride !== undefined ? emailOverride : dto.email;
+    const email = raw ? raw.trim().toLowerCase() : '';
     const body = JSON.stringify({
       steps: dto.steps.map((s) => ({
         q: s.questionId,

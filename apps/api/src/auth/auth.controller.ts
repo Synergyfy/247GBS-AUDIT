@@ -21,6 +21,7 @@ import { RefreshTokenGuard } from './guards/refreshToken.guard';
 import { CreateUserDto } from '../users/dto/create-user.dto';
 import { AuthDto } from './dto/auth.dto';
 import { AuthService } from './auth.service';
+import { Public } from './decorators/public.decorator';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -36,6 +37,7 @@ export class AuthController {
       secure: isProd,
       sameSite: isProd ? 'none' : 'lax',
       domain,
+      path: '/',
       maxAge: 15 * 60 * 1000, // 15 mins
     });
 
@@ -44,6 +46,7 @@ export class AuthController {
       secure: isProd,
       sameSite: isProd ? 'none' : 'lax',
       domain,
+      path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
   }
@@ -51,9 +54,16 @@ export class AuthController {
   private clearCookies(res: Response) {
     const isProd = process.env.NODE_ENV === 'production';
     const domain = isProd ? '.centralhubsolution.com' : undefined;
+    const base = {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: (isProd ? 'none' : 'lax') as 'none' | 'lax',
+      domain,
+      path: '/',
+    };
 
-    res.clearCookie('access_token', { domain, path: '/' });
-    res.clearCookie('refresh_token', { domain, path: '/' });
+    res.clearCookie('access_token', base);
+    res.clearCookie('refresh_token', base);
   }
 
   @ApiOperation({
@@ -65,6 +75,7 @@ export class AuthController {
     description: 'User successfully registered.',
     schema: { example: { accessToken: 'jwt...' } },
   })
+  @Public()
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('signup')
@@ -90,6 +101,7 @@ export class AuthController {
     description: 'User successfully logged in or MFA required.',
     schema: { example: { accessToken: 'jwt...', mfaRequired: false } },
   })
+  @Public()
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('signin')
@@ -122,6 +134,7 @@ export class AuthController {
     description: 'Admin successfully logged in.',
     schema: { example: { accessToken: 'jwt...' } },
   })
+  @Public()
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('admin/signin')
@@ -177,6 +190,7 @@ export class AuthController {
       'Second step of login: verifies the TOTP code for a user with MFA enabled.',
   })
   @ApiBody({ schema: { example: { userId: 'uuid...', code: '123456' } } })
+  @Public()
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('mfa/authenticate')
@@ -218,6 +232,7 @@ export class AuthController {
     description: 'Tokens successfully refreshed.',
     schema: { example: { accessToken: 'jwt...' } },
   })
+  @Public()
   @UseGuards(RefreshTokenGuard)
   @Get('refresh')
   async refreshTokens(

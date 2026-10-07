@@ -8,6 +8,7 @@ interface ConsentStepProps {
   onConsentChange: (granted: boolean) => void;
   onBack: () => void;
   onSubmit: () => void;
+  accountEmail?: string;
 }
 
 const CONSENT_BULLETS = [
@@ -17,7 +18,7 @@ const CONSENT_BULLETS = [
 ];
 
 /** Explicit consent gate placed between email and submission. */
-export function ConsentStep({ consentGranted, disabled, onConsentChange, onBack, onSubmit }: ConsentStepProps) {
+export function ConsentStep({ consentGranted, disabled, onConsentChange, onBack, onSubmit, accountEmail }: ConsentStepProps) {
   return (
     <div className="bg-white rounded-3xl shadow-2xl shadow-slate-200/50 border border-slate-50 relative z-10 overflow-hidden">
       <div className="p-6 sm:p-10 lg:p-14">
@@ -34,8 +35,13 @@ export function ConsentStep({ consentGranted, disabled, onConsentChange, onBack,
           Do you agree to us processing this pre-audit?
         </h2>
         <p className="text-slate-500 text-sm sm:text-base leading-relaxed mb-6">
-          To give you an accurate recommendation we store the answers you entered and the email you
-          provided. You won&apos;t be contacted unless you choose to continue to a full audit.
+          To give you an accurate recommendation we store the answers you entered and link them to{" "}
+          {accountEmail ? (
+            <span className="font-bold text-slate-900">{accountEmail}</span>
+          ) : (
+            "your verified email"
+          )}
+          . You won&apos;t be contacted unless you choose to continue to a full audit.
         </p>
 
         <ul className="space-y-2.5 mb-6">
