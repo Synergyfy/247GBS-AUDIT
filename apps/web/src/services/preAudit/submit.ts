@@ -17,14 +17,29 @@ export interface PreAuditSubmitResult {
   diagnosticSummary?: any;
 }
 
+function authHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  };
+  if (typeof window !== "undefined") {
+    const token =
+      localStorage.getItem("247gbs_token") || localStorage.getItem("auth_token");
+    if (token && token.trim()) {
+      headers.Authorization = `Bearer ${token.trim()}`;
+    }
+  }
+  return headers;
+}
+
 /**
  * Re-evaluation submission: the server walks the configured flow from the
  * start question, validates every answer and computes the recommended
  * destination itself. The client never sends destinations; consent is
  * required and recorded server-authoritatively.
  *
- * @param email Address when the form collects one; pass null to submit
- *              without an email (forms with "collect email" disabled).
+ * Authenticated callers pass null (email is derived from their session and
+ * must NOT be sent). Guests pass their OTP-verified email (required).
  */
 export async function submitPreAudit(
   email: string | null,
@@ -40,7 +55,8 @@ export async function submitPreAudit(
   };
   const res = await fetch(`${API_BASE_URL}/pre-audit/submit`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    headers: authHeaders(),
+    credentials: "include",
     body: JSON.stringify(body),
   });
 
@@ -76,7 +92,8 @@ export async function submitPreAuditSteps(
   };
   const res = await fetch(`${API_BASE_URL}/pre-audit/submit`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    headers: authHeaders(),
+    credentials: "include",
     body: JSON.stringify(body),
   });
 

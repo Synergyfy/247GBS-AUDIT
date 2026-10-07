@@ -24,7 +24,7 @@ export class PreAuditStepDto {
 }
 
 export class SubmitPreAuditDto {
-  @ApiPropertyOptional({ description: 'Optional email recorded with the submission.' })
+  @ApiPropertyOptional({ description: 'Guest email (required + OTP-verified when unauthenticated). Must be omitted when authenticated — the session email is used.' })
   @IsOptional()
   @IsEmail({}, { message: 'A valid email address is required when provided.' })
   @MaxLength(254)

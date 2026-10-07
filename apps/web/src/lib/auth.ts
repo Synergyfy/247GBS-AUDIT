@@ -8,6 +8,7 @@ import { API_BASE_URL } from './api';
  * never be redirected; stale state is simply cleared.
  */
 export const SESSION_EXPIRED_EVENT = '247gbs:session-expired';
+export const USER_UPDATED_EVENT = '247gbs:user-updated';
 
 /**
  * True when `pathname` is a customer/business route that genuinely requires a
@@ -26,6 +27,81 @@ export function isProtectedRoute(pathname?: string): boolean {
 const ACCESS_TOKEN_KEY = '247gbs_token';
 const LEGACY_ACCESS_TOKEN_KEY = 'auth_token';
 const USER_KEY = '247gbs_user';
+
+/** Canonical session user — Context authoritative, Zustand mirrors. */
+export interface SessionUserInput {
+  email: string;
+  name?: string | null;
+  avatar?: string | null;
+  role?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  id?: string | null;
+}
+
+export interface SessionUser {
+  email: string;
+  name: string;
+  avatar: string;
+  role: string;
+  firstName?: string;
+  lastName?: string;
+  id?: string;
+}
+
+function formatEmailPrefix(email: string): string {
+  return email
+    .split('@')[0]
+    .replace(/[._-]+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .trim();
+}
+
+/** Single normalizer — handles Context shape {name,avatar}, Prisma shape
+ *  {firstName,lastName}, and Central Hub SSO shape. Always derives a display
+ *  name instead of falling back to Guest. */
+export function normalizeUser(input: SessionUserInput): SessionUser {
+  const email = (input.email || '').trim();
+  const firstName = (input.firstName || '').trim() || undefined;
+  const lastName = (input.lastName || '').trim() || undefined;
+  const explicitName = (input.name || '').trim() || undefined;
+  const combinedName =
+    firstName && lastName
+      ? `${firstName} ${lastName}`
+      : firstName || lastName || undefined;
+  const name = explicitName || combinedName || (email ? formatEmailPrefix(email) : 'Guest');
+  const avatar =
+    (input.avatar || '').trim() ||
+    `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(email || 'guest')}`;
+  const out: SessionUser = {
+    email,
+    name,
+    avatar,
+    role: (input.role || '').trim() || 'User',
+  };
+  if (firstName) out.firstName = firstName;
+  if (lastName) out.lastName = lastName;
+  if (input.id) out.id = input.id;
+  return out;
+}
+
+/** Build a session user from backend shapes (Prisma user, /users/profile,
+ *  JWT payload, SSO JIT). Accepts loose input, always normalizes. */
+export function buildSessionUser(input: Record<string, unknown> | null | undefined): SessionUser | null {
+  if (!input) return null;
+  const rec = input as Record<string, string | undefined>;
+  const email = (rec.email || '').trim();
+  if (!email) return null;
+  return normalizeUser({
+    email,
+    name: rec.name,
+    avatar: rec.avatar,
+    role: rec.role,
+    firstName: rec.firstName,
+    lastName: rec.lastName,
+    id: rec.id ?? rec.sub,
+  });
+}
 
 /** Single-flight refresh: concurrent callers share ONE in-flight request so
  *  the rotating refresh cookie/token can never race against itself (a race
@@ -77,9 +153,10 @@ async function refreshOnce(): Promise<string | null | false> {
       },
     });
 
-    if (res.status === 401) {
+    if (res.status === 401 || res.status === 403) {
       // invalid/expired refresh session — tear down local state so listeners
       // (AuthContext) can move the user to the sign-in page.
+      // 403 covers rotating-refresh mismatch (bcrypt compare fail -> Forbidden).
       handleSessionExpired();
       return false;
     }
@@ -105,15 +182,42 @@ export async function refreshAccessToken(): Promise<string | null | false> {
 }
 
 /** Single entry-point for sign-in persistence (AuthContext authoritative).
- *  Writes user + both token keys so Zustand store and Context never diverge. */
+ *  Writes normalized user + both token keys so Zustand store and Context never
+ *  diverge. Fires USER_UPDATED_EVENT for same-tab sync (StorageEvent only fires
+ *  cross-tab natively). Returns normalized user or null if email missing. */
 export function persistSession(user: unknown, token: string): void {
   if (typeof window === 'undefined') return;
   persistAccessToken(token);
   try {
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
+    const normalized =
+      (user as SessionUser)?.email
+        ? normalizeUser(user as SessionUserInput)
+        : buildSessionUser(user as Record<string, unknown>);
+    if (!normalized) return;
+    localStorage.setItem(USER_KEY, JSON.stringify(normalized));
+    try {
+      window.dispatchEvent(new CustomEvent(USER_UPDATED_EVENT));
+    } catch {
+      // ignore
+    }
   } catch {
     // ignore
   }
+}
+
+/** Unified sign-in: normalize + persist + notify. Use this from every login
+ *  entry point (callback, admin/login, useAuthActions) instead of raw
+ *  localStorage.setItem. Does NOT touch React state directly — AuthContext
+ *  and Zustand pick it up via USER_UPDATED_EVENT / storage listeners. */
+export function signInSession(userInput: unknown, token: string): SessionUser | null {
+  if (typeof window === 'undefined') return null;
+  const normalized =
+    (userInput as SessionUser)?.email
+      ? normalizeUser(userInput as SessionUserInput)
+      : buildSessionUser(userInput as Record<string, unknown>);
+  if (!normalized || !token) return null;
+  persistSession(normalized, token);
+  return normalized;
 }
 
 /** Single entry-point for sign-out. Clears user + both token keys. */
