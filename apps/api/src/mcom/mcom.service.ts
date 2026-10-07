@@ -10,11 +10,81 @@ import { UsersService } from '../users/users.service';
 interface McomUserInfo {
   id: string;
   email: string;
-  name: string;
+  // Upstream POST /sso/token returns firstName/lastName (no `name`);
+  // GET /sso/userinfo returns firstName/lastName + derived `name`.
+  // Accept all variants so the real Central Hub name is never dropped.
+  name?: string;
+  sub?: string;
+  displayName?: string;
+  fullName?: string;
+  firstName?: string;
+  lastName?: string;
+  given_name?: string;
+  family_name?: string;
+  businessProfile?: { businessName?: string } | null;
   role: string;
   membershipLevel?: string;
   membershipStatus?: string;
   permissions?: Record<string, boolean>;
+}
+
+export function emailPrefix(email: string): string {
+  return (email || '')
+    .split('@')[0]
+    .replace(/[._-]+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .trim();
+}
+
+/** Resolve the real Central Hub display name.
+ *  Priority: name ?? displayName ?? fullName ?? "firstName lastName"
+ *  (incl. given_name/family_name) ?? businessProfile.businessName.
+ *  Returns null when nothing real exists — caller falls back to email-prefix
+ *  (last-resort safety; every Central Hub user is expected to have a name). */
+export function resolveDisplayName(
+  input: Partial<McomUserInfo> | null | undefined,
+): string | null {
+  if (!input) return null;
+  const pick = (...vals: Array<string | undefined | null>): string | null => {
+    for (const v of vals) {
+      const t = (v || '').trim();
+      if (t) return t;
+    }
+    return null;
+  };
+  const pair = pick(
+    input.firstName && input.lastName
+      ? `${input.firstName.trim()} ${input.lastName.trim()}`
+      : undefined,
+    input.given_name && input.family_name
+      ? `${input.given_name.trim()} ${input.family_name.trim()}`
+      : undefined,
+  );
+  return (
+    pick(
+      input.name,
+      input.displayName,
+      input.fullName,
+      pair,
+      input.firstName,
+      input.lastName,
+      input.given_name,
+      input.family_name,
+      input.businessProfile?.businessName,
+    ) || null
+  );
+}
+
+/** Split a display name into firstName/lastName (first token + remainder). */
+export function splitDisplayName(displayName: string | null | undefined): {
+  firstName: string;
+  lastName: string;
+} {
+  const parts = (displayName || '').trim().split(/\s+/).filter(Boolean);
+  return {
+    firstName: parts[0] || '',
+    lastName: parts.slice(1).join(' ') || '',
+  };
 }
 
 interface McomTokenResponse {
@@ -92,10 +162,11 @@ export class McomService {
     const params = new URLSearchParams({
       client_id: this.mcomClientId,
       redirect_uri: redirectUri,
+      response_type: 'code',
       state,
       scope: this.mcomScopes,
     });
-    return `https://www.centralhubsolution.com/login?${params.toString()}`;
+    return `${this.mcomSolutionsUrl}/api/v1/auth/sso/authorize?${params.toString()}`;
   }
 
   async exchangeCode(code: string): Promise<McomTokenResponse> {
@@ -203,15 +274,34 @@ export class McomService {
     const permissions = mcomUser.permissions || {};
     const permissionKey = `canAccess_${this.platformSlug.replace(/-/g, '_')}`;
 
+    // Real Central Hub name (never the 'MCOM'/'User' placeholder).
+    // Last-resort fallback is the email prefix — every upstream user is
+    // expected to carry a name, so this path should rarely trigger.
+    const resolved = resolveDisplayName(mcomUser) || emailPrefix(mcomUser.email);
+    const { firstName: resolvedFirst, lastName: resolvedLast } =
+      splitDisplayName(resolved);
+    const isPlaceholderName =
+      (user?.firstName === 'MCOM' && user?.lastName === 'User') ||
+      (!user?.firstName && !user?.lastName);
+
     if (user) {
+      const hasRealUpstreamName = Boolean(resolveDisplayName(mcomUser));
       await this.usersService.update(user.id, {
         mcomUserId: mcomUser.id,
         mcomMembershipLevel: mcomUser.membershipLevel || undefined,
         mcomMembershipTier: (mcomUser as any).membershipTier || undefined,
         mcomMembershipStatus: mcomUser.membershipStatus || undefined,
         mcomCanAccessVcard: permissions[permissionKey] || false,
-        firstName: mcomUser.name?.split(' ')[0] || user.firstName,
-        lastName: mcomUser.name?.split(' ').slice(1).join(' ') || user.lastName,
+        // Overwrite when upstream carries a real name, or repair rows
+        // poisoned with the old 'MCOM'/'User' placeholder.
+        firstName:
+          hasRealUpstreamName || isPlaceholderName
+            ? resolvedFirst || user.firstName
+            : user.firstName,
+        lastName:
+          hasRealUpstreamName || isPlaceholderName
+            ? resolvedLast || user.lastName
+            : user.lastName,
       });
       return this.usersService.findById(user.id);
     }
@@ -219,8 +309,8 @@ export class McomService {
     const newUser = await this.usersService.create({
       email: mcomUser.email,
       password: crypto.randomBytes(32).toString('hex'),
-      firstName: mcomUser.name?.split(' ')[0] || 'MCOM',
-      lastName: mcomUser.name?.split(' ').slice(1).join(' ') || 'User',
+      firstName: resolvedFirst || emailPrefix(mcomUser.email),
+      lastName: resolvedLast,
       businessName: 'MCOM SSO User',
       role: mcomUser.role === 'admin' ? 'Administrator' : 'User',
       mcomUserId: mcomUser.id,

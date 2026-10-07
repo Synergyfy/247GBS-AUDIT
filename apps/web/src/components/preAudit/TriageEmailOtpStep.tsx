@@ -18,7 +18,7 @@ import { sendPreAuditOtp, verifyPreAuditOtp } from "@/services/preAudit/otp";
 
 interface TriageEmailOtpStepProps {
   userEmail?: string | null;
-  isAuthenticated: boolean;
+  isAuthenticated?: boolean;
   onVerified: (email: string) => Promise<void> | void;
   onBack: () => void;
   title?: string;
@@ -27,17 +27,23 @@ interface TriageEmailOtpStepProps {
 
 export function TriageEmailOtpStep({
   userEmail,
-  isAuthenticated,
   onVerified,
   onBack,
   title = "Receive Your Pre-Audit Results",
   subtitle = "Verify your email to get your pre-audit summary, answers, and tailored roadmap sent directly to your inbox.",
 }: TriageEmailOtpStepProps) {
-  // If user is authenticated, we default to their email
+  // Guest-only step: email is required to finish (abandoning is the only opt-out).
+  // Authenticated users never render this component — their session email is used.
   const [email, setEmail] = useState<string>(userEmail || "");
-  const [step, setStep] = useState<"input-email" | "input-otp">(
-    isAuthenticated && userEmail ? "input-email" : "input-email"
-  );
+
+  useEffect(() => {
+    if (userEmail && !email) {
+      setEmail(userEmail);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userEmail]);
+
+  const [step, setStep] = useState<"input-email" | "input-otp">("input-email");
   const [otp, setOtp] = useState<string[]>(["", "", "", "", "", ""]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,19 +69,6 @@ export function TriageEmailOtpStep({
       }, 100);
     }
   }, [step]);
-
-  // Handle Authenticated user 1-click continuation
-  const handleAuthenticatedSubmit = async () => {
-    if (!email) return;
-    setIsLoading(true);
-    setError(null);
-    try {
-      await onVerified(email);
-    } catch (err: any) {
-      setError(err?.message || "Failed to finalize pre-audit. Please try again.");
-      setIsLoading(false);
-    }
-  };
 
   // Handle Send OTP
   const handleSendOtp = async () => {
@@ -182,71 +175,7 @@ export function TriageEmailOtpStep({
           {subtitle}
         </p>
 
-        {/* Authenticated Mode: No OTP required */}
-        {isAuthenticated && userEmail ? (
-          <div className="space-y-6">
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 sm:p-6 flex items-start gap-4">
-              <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center text-green-600 shrink-0">
-                <CheckCircle2 size={20} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                    Logged-in Account
-                  </span>
-                  <span className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                    Verified
-                  </span>
-                </div>
-                <div className="text-base sm:text-lg font-bold text-slate-900 truncate mt-0.5">
-                  {userEmail}
-                </div>
-                <p className="text-xs text-slate-500 mt-1">
-                  Because you are already logged in, no OTP is needed. We will send your answers and personalized audit summary directly to this email.
-                </p>
-              </div>
-            </div>
-
-            {error && (
-              <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 p-4 rounded-xl border border-red-200">
-                <AlertCircle size={16} className="shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
-
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-4 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={onBack}
-                disabled={isLoading}
-                className="flex items-center gap-2 text-slate-400 hover:text-slate-900 font-bold text-[10px] sm:text-xs uppercase tracking-widest transition-all disabled:opacity-50"
-              >
-                <ChevronLeft size={14} />
-                Back to questions
-              </button>
-
-              <button
-                type="button"
-                onClick={handleAuthenticatedSubmit}
-                disabled={isLoading}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-8 py-4 rounded-2xl font-bold text-sm sm:text-base shadow-xl shadow-orange-500/20 transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 size={18} className="animate-spin" />
-                    Finalizing &amp; Sending...
-                  </>
-                ) : (
-                  <>
-                    Send Results &amp; Complete
-                    <ArrowRight size={16} />
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        ) : (
-          /* Unauthenticated Mode: Requires Email + OTP */
+        {/* Guests must verify email with OTP — email required to finish. */}
           <div className="space-y-6">
             {step === "input-email" ? (
               <motion.div
@@ -451,7 +380,6 @@ export function TriageEmailOtpStep({
               </motion.div>
             )}
           </div>
-        )}
       </div>
     </div>
   );

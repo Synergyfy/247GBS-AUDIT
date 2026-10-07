@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { persistSession, clearSession, SESSION_EXPIRED_EVENT } from '@/lib/auth';
+import { persistSession, clearSession, SESSION_EXPIRED_EVENT, USER_UPDATED_EVENT, buildSessionUser } from '@/lib/auth';
 
 interface User {
   id: string;
@@ -66,7 +66,31 @@ if (typeof window !== 'undefined') {
 
   // Cross-store sync: Context-driven sign-out (or another tab) clears this store too.
   const syncClear = () => useAuthStore.setState({ user: null, token: null, isAuthenticated: false });
+  const syncUser = () => {
+    try {
+      const raw = localStorage.getItem('247gbs_user');
+      const token = localStorage.getItem('247gbs_token') || localStorage.getItem('auth_token');
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!parsed?.email) return;
+      // Mirror canonical user into store shape (firstName/lastName preserved by normalizer).
+      const normalized = buildSessionUser(parsed);
+      const storeUser = {
+        id: (normalized?.id || parsed.id || '') as string,
+        email: parsed.email as string,
+        firstName: (normalized?.firstName || parsed.firstName || '') as string,
+        lastName: (normalized?.lastName || parsed.lastName || '') as string,
+        role: (normalized?.role || parsed.role || 'User') as string,
+        isOnboarded: parsed.isOnboarded,
+      };
+      useAuthStore.setState({ user: storeUser, token: token || useAuthStore.getState().token, isAuthenticated: true });
+    } catch {
+      // ignore
+    }
+  };
   window.addEventListener(SESSION_EXPIRED_EVENT, syncClear);
+  window.addEventListener(USER_UPDATED_EVENT, syncUser);
+  window.addEventListener('247gbs:user-updated', syncUser);
   window.addEventListener('storage', (e) => {
     if (e.key === '247gbs_user' && e.newValue === null) syncClear();
     if ((e.key === '247gbs_token' || e.key === 'auth_token') && e.newValue) {

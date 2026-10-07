@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
+import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt.guard';
 import { TriageService } from './triage.service';
 import { TriageController } from './triage.controller';
 import { TriageFlowValidatorService } from './triage-flow-validator.service';
@@ -25,6 +27,7 @@ import { RedisModule } from '../redis/redis.module';
 
 @Module({
   imports: [
+    JwtModule.register({}),
     TypeOrmModule.forFeature([
       AuditTriage,
       TriageQuestion,
@@ -54,6 +57,7 @@ import { RedisModule } from '../redis/redis.module';
     TriageReportService,
     PreAuditService,
     TriageOtpService,
+    OptionalJwtAuthGuard,
   ],
   exports: [
     TriageService,

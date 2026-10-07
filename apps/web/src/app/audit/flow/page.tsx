@@ -138,110 +138,6 @@ export default function AuditFlowPage() {
         };
     }, [isAuthenticated, user?.email]);
 
-    // Gate 1: All audits require authentication
-    if (!isAuthenticated) {
-        return (
-            <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/40 flex items-center justify-center p-4 sm:p-6">
-                <div className="max-w-md w-full bg-white rounded-3xl shadow-xl border border-slate-100 p-8 sm:p-10 text-center">
-                    <div className="w-16 h-16 rounded-2xl bg-orange-100 text-orange-500 flex items-center justify-center mx-auto mb-6">
-                        <Shield size={32} />
-                    </div>
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-orange-600 bg-orange-50 px-3 py-1 rounded-full inline-block mb-3">
-                        Authentication Required
-                    </span>
-                    <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-3">
-                        Business Audit
-                    </h1>
-                    <p className="text-slate-500 text-sm leading-relaxed mb-8">
-                        The Business Audit performs forensic assessments, models strategic capacity recovery, and tracks confidential business data. Please sign in or create an account to access the audit.
-                    </p>
-                    <div className="space-y-3">
-                        <Link
-                            href="/auth/signin"
-                            className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20 transition-all hover:-translate-y-0.5"
-                        >
-                            Sign In to Continue
-                            <ArrowRight size={18} />
-                        </Link>
-                        <Link
-                            href="/auth/signup"
-                            className="w-full bg-slate-900 hover:bg-black text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5 text-sm"
-                        >
-                            Create a Free Account
-                        </Link>
-                        <Link
-                            href="/audit/pre-audit/flow"
-                            className="w-full inline-block text-xs font-semibold text-slate-400 hover:text-slate-600 pt-2 transition-colors"
-                        >
-                            Take the Free Pre-Audit First
-                        </Link>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    // Gate 2: Checking pre-audit status
-    if (isAuthenticated && !preAuditStatus.checked) {
-        return (
-            <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/40 flex items-center justify-center p-4">
-                <div className="text-center space-y-3">
-                    <Loader2 size={36} className="text-orange-500 animate-spin mx-auto" />
-                    <p className="text-sm font-medium text-slate-500">Checking pre-audit completion status...</p>
-                </div>
-            </div>
-        );
-    }
-
-    // Gate 3: All authenticated users must do Pre-Audit first before doing the Audit
-    if (isAuthenticated && preAuditStatus.checked && !preAuditStatus.completed) {
-        return (
-            <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/40 flex items-center justify-center p-4 sm:p-6">
-                <div className="max-w-md w-full bg-white rounded-3xl shadow-xl border border-slate-100 p-8 sm:p-10 text-center">
-                    <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-6">
-                        <AlertCircle size={32} />
-                    </div>
-
-                    {/* 2-Step Sequence Indicator */}
-                    <div className="flex items-center justify-center gap-2 mb-6">
-                        <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-orange-500 text-white shadow-sm">
-                            <span className="w-4 h-4 rounded-full bg-white text-orange-600 flex items-center justify-center text-[10px] font-black">1</span>
-                            Pre-Audit (Required)
-                        </span>
-                        <ChevronRight size={14} className="text-slate-300" />
-                        <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-400">
-                            <span className="w-4 h-4 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center text-[10px] font-bold">2</span>
-                            Audit
-                        </span>
-                    </div>
-
-                    <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-3">
-                        Pre-Audit Required First
-                    </h1>
-                    <p className="text-slate-500 text-sm leading-relaxed mb-8">
-                        All authenticated businesses must complete the baseline Pre-Audit first. The pre-audit diagnoses your funding gap, working capital, and operational spare capacity to calibrate and unlock your full audit.
-                    </p>
-
-                    <div className="space-y-3">
-                        <Link
-                            href="/audit/pre-audit/flow"
-                            className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20 transition-all hover:-translate-y-0.5"
-                        >
-                            Complete Step 1: Pre-Audit
-                            <ArrowRight size={18} />
-                        </Link>
-                        <Link
-                            href="/dashboard"
-                            className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-all text-sm"
-                        >
-                            Return to Dashboard
-                        </Link>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
     useEffect(() => {
         const url = auditFormId
             ? `${API_BASE_URL}/audit/public/form/${encodeURIComponent(auditFormId)}`
@@ -589,6 +485,109 @@ export default function AuditFlowPage() {
             return prev;
         });
     }, [activeStages, stageQuestions]);
+
+    // Auth / pre-audit gates — placed AFTER all hooks so hook order never
+    // changes between renders (Rules of Hooks). These only gate rendering.
+    if (!isAuthenticated) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/40 flex items-center justify-center p-4 sm:p-6">
+                <div className="max-w-md w-full bg-white rounded-3xl shadow-xl border border-slate-100 p-8 sm:p-10 text-center">
+                    <div className="w-16 h-16 rounded-2xl bg-orange-100 text-orange-500 flex items-center justify-center mx-auto mb-6">
+                        <Shield size={32} />
+                    </div>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-orange-600 bg-orange-50 px-3 py-1 rounded-full inline-block mb-3">
+                        Authentication Required
+                    </span>
+                    <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-3">
+                        Business Audit
+                    </h1>
+                    <p className="text-slate-500 text-sm leading-relaxed mb-8">
+                        The Business Audit performs forensic assessments, models strategic capacity recovery, and tracks confidential business data. Please sign in or create an account to access the audit.
+                    </p>
+                    <div className="space-y-3">
+                        <Link
+                            href="/auth/signin"
+                            className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20 transition-all hover:-translate-y-0.5"
+                        >
+                            Sign In to Continue
+                            <ArrowRight size={18} />
+                        </Link>
+                        <Link
+                            href="/auth/signup"
+                            className="w-full bg-slate-900 hover:bg-black text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5 text-sm"
+                        >
+                            Create a Free Account
+                        </Link>
+                        <Link
+                            href="/audit/pre-audit/flow"
+                            className="w-full inline-block text-xs font-semibold text-slate-400 hover:text-slate-600 pt-2 transition-colors"
+                        >
+                            Take the Free Pre-Audit First
+                        </Link>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (isAuthenticated && !preAuditStatus.checked) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/40 flex items-center justify-center p-4">
+                <div className="text-center space-y-3">
+                    <Loader2 size={36} className="text-orange-500 animate-spin mx-auto" />
+                    <p className="text-sm font-medium text-slate-500">Checking pre-audit completion status...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (isAuthenticated && preAuditStatus.checked && !preAuditStatus.completed) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/40 flex items-center justify-center p-4 sm:p-6">
+                <div className="max-w-md w-full bg-white rounded-3xl shadow-xl border border-slate-100 p-8 sm:p-10 text-center">
+                    <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-6">
+                        <AlertCircle size={32} />
+                    </div>
+
+                    {/* 2-Step Sequence Indicator */}
+                    <div className="flex items-center justify-center gap-2 mb-6">
+                        <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-orange-500 text-white shadow-sm">
+                            <span className="w-4 h-4 rounded-full bg-white text-orange-600 flex items-center justify-center text-[10px] font-black">1</span>
+                            Pre-Audit (Required)
+                        </span>
+                        <ChevronRight size={14} className="text-slate-300" />
+                        <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-400">
+                            <span className="w-4 h-4 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center text-[10px] font-bold">2</span>
+                            Audit
+                        </span>
+                    </div>
+
+                    <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-3">
+                        Pre-Audit Required First
+                    </h1>
+                    <p className="text-slate-500 text-sm leading-relaxed mb-8">
+                        All authenticated businesses must complete the baseline Pre-Audit first. The pre-audit diagnoses your funding gap, working capital, and operational spare capacity to calibrate and unlock your full audit.
+                    </p>
+
+                    <div className="space-y-3">
+                        <Link
+                            href="/audit/pre-audit/flow"
+                            className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20 transition-all hover:-translate-y-0.5"
+                        >
+                            Complete Step 1: Pre-Audit
+                            <ArrowRight size={18} />
+                        </Link>
+                        <Link
+                            href="/dashboard"
+                            className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-all text-sm"
+                        >
+                            Return to Dashboard
+                        </Link>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     const setAnswer = (questionId: string, value: any) => {
         setState(prev => ({

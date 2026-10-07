@@ -15,11 +15,12 @@ import {
 import type { Request, Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
-import { McomService } from './mcom.service';
+import { McomService, resolveDisplayName } from './mcom.service';
 import { Public } from '../auth/decorators/public.decorator';
 import { AccessTokenGuard } from '../auth/guards/accessToken.guard';
-
 import { JwtService } from '@nestjs/jwt';
+import { UsersService } from '../users/users.service';
+import * as bcrypt from 'bcrypt';
 
 @ApiTags('MCOM SSO')
 @Controller('auth/sso')
@@ -28,6 +29,7 @@ export class SsoController {
     private mcomService: McomService,
     private configService: ConfigService,
     private jwtService: JwtService,
+    private usersService: UsersService,
   ) {}
 
   private setRefreshTokenCookie(res: Response, token: string) {
@@ -37,6 +39,7 @@ export class SsoController {
       secure: isProd,
       sameSite: isProd ? 'none' : 'lax',
       domain: isProd ? '.centralhubsolution.com' : undefined,
+      path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
   }
@@ -48,6 +51,7 @@ export class SsoController {
       secure: isProd,
       sameSite: isProd ? 'none' : 'lax',
       domain: isProd ? '.centralhubsolution.com' : undefined,
+      path: '/',
       maxAge: 15 * 60 * 1000,
     });
   }
@@ -107,6 +111,7 @@ export class SsoController {
       secure: isProd,
       sameSite: isProd ? 'none' : 'lax',
       domain: isProd ? '.centralhubsolution.com' : undefined,
+      path: '/',
       maxAge: 600000,
     });
 
@@ -133,6 +138,7 @@ export class SsoController {
   ) {
     const frontendUrl =
       this.configService.get<string>('FRONTEND_URL') || 'http://localhost:9009';
+    const isProd = process.env.NODE_ENV === 'production';
 
     try {
       if (!code) {
@@ -154,7 +160,24 @@ export class SsoController {
       const mcomAccessToken = tokenResponse.accessToken;
       const mcomRefreshToken = tokenResponse.refreshToken;
       const expiresIn = tokenResponse.expiresIn;
-      const mcomUser = tokenResponse.user;
+      let mcomUser = tokenResponse.user;
+
+      // POST /sso/token returns {firstName,lastName} without `name`;
+      // GET /sso/userinfo returns the full shape incl. derived `name`.
+      // Enrich when the token response carries no usable name so JIT
+      // provisioning stores the real Central Hub name (never MCOM/User).
+      try {
+        if (!resolveDisplayName(mcomUser)) {
+          const info = await this.mcomService.fetchUserInfo(mcomAccessToken);
+          mcomUser = {
+            ...mcomUser,
+            ...info,
+            id: (info as { sub?: string }).sub || mcomUser.id,
+          };
+        }
+      } catch {
+        // Non-fatal: jitProvision falls back to email-prefix.
+      }
 
       const localUser = await this.mcomService.jitProvision({
         ...mcomUser,
@@ -174,10 +197,24 @@ export class SsoController {
         localUser.role,
       );
 
-      res.clearCookie('mcom_oauth_state');
+      const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
+      await this.usersService.update(localUser.id, {
+        currentHashedRefreshToken: hashedRefreshToken,
+        lastLoginAt: new Date(),
+      });
+
+      res.clearCookie('mcom_oauth_state', {
+        httpOnly: true,
+        secure: isProd,
+        sameSite: isProd ? 'none' : 'lax',
+        domain: isProd ? '.centralhubsolution.com' : undefined,
+        path: '/',
+      });
       this.setAccessTokenCookie(res, accessToken);
       this.setRefreshTokenCookie(res, refreshToken);
-      res.redirect(`${frontendUrl}/auth/callback`);
+      res.redirect(
+        `${frontendUrl}/auth/callback?token=${encodeURIComponent(accessToken)}&role=${encodeURIComponent(localUser.role || 'User')}`,
+      );
     } catch (error) {
       console.error('SSO callback error:', error);
       const errorMessage =
@@ -198,7 +235,7 @@ export class SsoController {
     if (!requesterId || requesterId !== userId) {
       throw new ForbiddenException('Access denied.');
     }
-    const user = await this.mcomService['usersService'].findById(userId);
+    const user = await this.usersService.findById(userId);
     if (!user || !user.mcomRefreshToken) {
       throw new HttpException(
         'No MCOM tokens found for user',
@@ -238,7 +275,7 @@ export class SsoController {
     if (!requesterId || requesterId !== userId) {
       throw new ForbiddenException('Access denied.');
     }
-    const user = await this.mcomService['usersService'].findById(userId);
+    const user = await this.usersService.findById(userId);
     if (!user) {
       throw new HttpException('User not found', HttpStatus.NOT_FOUND);
     }

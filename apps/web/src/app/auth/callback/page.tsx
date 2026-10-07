@@ -1,12 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
-import { mcomService } from '@/services/mcom';
 import { API_BASE_URL } from '@/lib/api';
-import { useAuthStore } from '@/stores/useAuthStore';
+import { signInSession, refreshAccessToken } from '@/lib/auth';
 
 interface TokenPayload {
   email: string;
@@ -34,11 +33,14 @@ function parseJwt(token: string): TokenPayload | null {
 export default function AuthCallbackPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { setAuth } = useAuthStore();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState('');
+  const didRun = useRef(false);
 
   useEffect(() => {
+    if (didRun.current) return;
+    didRun.current = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const run = async () => {
     const token = searchParams.get('token');
     const role = searchParams.get('role');
@@ -62,18 +64,13 @@ export default function AuthCallbackPage() {
     }
 
     // Cookie-based flow (no token in URL): backend set HttpOnly cookies and
-    // redirected to /auth/callback. Recover the session via refresh + profile.
+    // redirected to /auth/callback. Recover the session via single-flight refresh + profile.
     if (!token) {
       try {
-        const refreshRes = await fetch(`${API_BASE_URL}/auth/refresh`, {
-          method: 'GET',
-          credentials: 'include',
-          headers: { Accept: 'application/json' },
-        });
-        if (!refreshRes.ok) throw new Error('No authentication token received');
-        const refreshJson = await refreshRes.json();
-        const freshToken = refreshJson?.accessToken;
-        if (!freshToken) throw new Error('No authentication token received');
+        // Use shared single-flight helper so this never races the 5m heartbeat
+        // (rotating refresh consumed twice would hard-invalidate the session).
+        const freshToken = await refreshAccessToken();
+        if (typeof freshToken !== 'string' || !freshToken) throw new Error('No authentication token received');
 
         const profileRes = await fetch(`${API_BASE_URL}/users/profile`, {
           headers: { Authorization: `Bearer ${freshToken}` },
@@ -82,20 +79,10 @@ export default function AuthCallbackPage() {
         if (!profileRes.ok) throw new Error('Could not load user profile');
         const profile = await profileRes.json();
         const userRole = profile?.role || 'User';
-        const email = profile?.email || '';
-        setAuth(
-          {
-            id: profile?.id || '',
-            email,
-            firstName: profile?.firstName || email.split('@')[0] || '',
-            lastName: profile?.lastName || '',
-            role: userRole,
-          },
-          freshToken
-        );
-        localStorage.setItem('247gbs_token', freshToken);
-        localStorage.setItem('auth_token', freshToken);
-        localStorage.setItem('247gbs_user', JSON.stringify(profile));
+        // Single unified write: normalized user + both token keys + USER_UPDATED_EVENT.
+        // AuthContext (authoritative) + Zustand (mirror) pick it up — no divergence.
+        const signed = signInSession(profile, freshToken);
+        if (!signed) throw new Error('No authentication token received');
         setStatus('success');
         const redirectMap: Record<string, string> = {
           Administrator: '/admin',
@@ -104,10 +91,10 @@ export default function AuthCallbackPage() {
           account_manager: '/dashboard',
           consultant: '/dashboard',
         };
-        setTimeout(() => router.push(redirectMap[userRole] || '/dashboard'), 1500);
-      } catch (e: any) {
+        timer = setTimeout(() => router.push(redirectMap[userRole] || '/dashboard'), 1500);
+      } catch (e: unknown) {
         setStatus('error');
-        setErrorMessage(e?.message || 'No authentication token received');
+        setErrorMessage(e instanceof Error ? e.message : 'No authentication token received');
       }
       return;
     }
@@ -120,20 +107,56 @@ export default function AuthCallbackPage() {
     }
 
     const userRole = role || payload.role || 'User';
-    setAuth(
+    // Prefer full profile (real Central Hub firstName/lastName) over JWT email-prefix.
+    try {
+      const profileRes = await fetch(`${API_BASE_URL}/users/profile`, {
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
+      });
+      if (profileRes.ok) {
+        const profile = await profileRes.json();
+        const signed = signInSession({ ...profile, role: profile?.role || userRole }, token);
+        if (signed) {
+          try {
+            window.history.replaceState(null, '', window.location.pathname);
+          } catch {
+            // ignore
+          }
+          setStatus('success');
+          const redirectMap: Record<string, string> = {
+            Administrator: '/admin',
+            admin: '/admin',
+            agent: '/dashboard',
+            account_manager: '/dashboard',
+            consultant: '/dashboard',
+          };
+          timer = setTimeout(() => router.push(redirectMap[signed.role] || '/dashboard'), 1500);
+          return;
+        }
+      }
+    } catch {
+      // fall through to JWT fallback
+    }
+    // JWT fallback (no profile reachable): derive name from email via normalizer.
+    const fallback = signInSession(
       {
         id: payload.sub,
         email: payload.email,
-        firstName: payload.email.split('@')[0],
-        lastName: '',
         role: userRole,
-        isOnboarded: payload.isOnboarded,
       },
       token
     );
-    // Legacy URL-token flow (deprecated): keep both keys in sync.
-    localStorage.setItem('247gbs_token', token);
-    localStorage.setItem('auth_token', token);
+    if (!fallback) {
+      setStatus('error');
+      setErrorMessage('Invalid authentication token');
+      return;
+    }
+    // Strip token from URL so it never lingers in history/logs.
+    try {
+      window.history.replaceState(null, '', window.location.pathname);
+    } catch {
+      // ignore
+    }
 
     setStatus('success');
 
@@ -147,12 +170,15 @@ export default function AuthCallbackPage() {
 
     const redirectPath = redirectMap[userRole] || '/dashboard';
 
-    setTimeout(() => {
+    timer = setTimeout(() => {
       router.push(redirectPath);
     }, 1500);
     };
     run();
-  }, [searchParams, setAuth, router]);
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [searchParams, router]);
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center font-sans">
