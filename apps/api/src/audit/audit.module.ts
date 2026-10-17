@@ -9,8 +9,12 @@ import { AuditFormAnswer } from './entities/audit-form-answer.entity';
 import { PreAuditSession } from '../triage/entities/pre-audit-session.entity';
 import { AIModule } from '../ai/ai.module';
 import { AdminModule } from '../admin/admin.module';
+import { PartnerModule } from '../partner/partner.module';
 import { AuditFormService } from './audit-form.service';
-import { AdminAuditFormsController, PublicAuditFormsController } from './audit-form.controller';
+import {
+  AdminAuditFormsController,
+  PublicAuditFormsController,
+} from './audit-form.controller';
 
 @Module({
   imports: [
@@ -23,6 +27,7 @@ import { AdminAuditFormsController, PublicAuditFormsController } from './audit-f
     ]),
     AIModule,
     AdminModule,
+    PartnerModule,
   ],
   controllers: [
     AuditController,
@@ -33,4 +38,3 @@ import { AdminAuditFormsController, PublicAuditFormsController } from './audit-f
   exports: [AuditService, AuditFormService],
 })
 export class AuditModule {}
-
