@@ -14,6 +14,7 @@ import { ProtocolsModule } from './protocols/protocols.module';
 import { AdminModule } from './admin/admin.module';
 import { SpecialistsModule } from './dashboard/specialists/specialists.module';
 import { McomModule } from './mcom/mcom.module';
+import { PartnerModule } from './partner/partner.module';
 import { PublicModule } from './public/public.module';
 import { RedisModule } from './redis/redis.module';
 
@@ -81,6 +82,7 @@ import { RedisModule } from './redis/redis.module';
     AdminModule,
     SpecialistsModule,
     McomModule,
+    PartnerModule,
     PublicModule,
     RedisModule,
   ],
