@@ -1,12 +1,17 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AuditSession, AuditStatus } from './entities/audit-session.entity';
-import { AuditType } from '../triage/entities/triage.entity';
 import { User } from '../users/entities/user.entity';
 import { PreAuditSession } from '../triage/entities/pre-audit-session.entity';
 import { CalculationFactory } from './calculators/calculation.factory';
 import { AIService } from '../ai/ai.service';
+import { AuditPartnerNotifier } from '../partner/audit-partner-notifier.service';
 
 @Injectable()
 export class AuditService {
@@ -16,12 +21,13 @@ export class AuditService {
     @InjectRepository(PreAuditSession)
     private preAuditRepository: Repository<PreAuditSession>,
     private aiService: AIService,
+    private auditNotifier: AuditPartnerNotifier,
   ) {}
 
   async createFromTriage(
     user: User,
     auditType: string,
-    scopes: string[]
+    scopes: string[],
   ): Promise<AuditSession> {
     const session = this.auditRepository.create({
       userId: user.id,
@@ -51,7 +57,10 @@ export class AuditService {
     }
 
     const resolvedType =
-      auditType || preAudit.recommendedAuditType || preAudit.destinationType || null;
+      auditType ||
+      preAudit.recommendedAuditType ||
+      preAudit.destinationType ||
+      null;
     if (!resolvedType) {
       throw new BadRequestException(
         'This pre-audit has no audit recommendation to start from.',
@@ -100,7 +109,13 @@ export class AuditService {
     });
   }
 
-  async updateSector(id: string, userId: string, sectorId: string, groupId: string, businessTypeId: string) {
+  async updateSector(
+    id: string,
+    userId: string,
+    sectorId: string,
+    groupId: string,
+    businessTypeId: string,
+  ) {
     const session = await this.findOne(id, userId);
     if (!session) throw new NotFoundException('Audit session not found');
 
@@ -112,7 +127,11 @@ export class AuditService {
     return this.auditRepository.save(session);
   }
 
-  async updateAnswers(id: string, userId: string, newAnswers: Record<string, any>) {
+  async updateAnswers(
+    id: string,
+    userId: string,
+    newAnswers: Record<string, any>,
+  ) {
     const session = await this.findOne(id, userId);
     if (!session) throw new NotFoundException('Audit session not found');
 
@@ -133,28 +152,58 @@ export class AuditService {
     const session = await this.findOne(id, userId);
     if (!session) throw new NotFoundException('Audit session not found');
 
-    const context = { sector: session.sectorId, businessType: session.businessTypeId };
-    const questions = await this.aiService.generateFollowUpQuestions(context, session.answers, session.calculatedMetrics);
-    
+    const context = {
+      sector: session.sectorId,
+      businessType: session.businessTypeId,
+    };
+    const questions = await this.aiService.generateFollowUpQuestions(
+      context,
+      session.answers,
+      session.calculatedMetrics,
+    );
+
     session.followUpQuestions = questions;
-    return this.auditRepository.save(session);
+    const saved = await this.auditRepository.save(session);
+    return { ...saved, aiAvailable: this.aiService.isAvailable() };
   }
 
   async generateInsight(id: string, userId: string) {
     const session = await this.findOne(id, userId);
     if (!session) throw new NotFoundException('Audit session not found');
 
-    const context = { sector: session.sectorId, businessType: session.businessTypeId };
-    const insight = await this.aiService.generateStrategicInsight(context, session.answers, session.calculatedMetrics);
-    
+    const context = {
+      sector: session.sectorId,
+      businessType: session.businessTypeId,
+    };
+    const insight: unknown = await this.aiService.generateStrategicInsight(
+      context,
+      session.answers,
+      session.calculatedMetrics,
+    );
+
     session.aiInsight = insight;
     session.status = AuditStatus.COMPLETED;
-    return this.auditRepository.save(session);
+    const saved = await this.auditRepository.save(session);
+
+    // Optional outbound push (no-op unless configured). Never blocks or fails
+    // the completion — the notifier swallows its own errors.
+    await this.auditNotifier.notifyAuditCompleted({
+      id: saved.id,
+      userId: saved.userId,
+      status: saved.status,
+      auditType: saved.auditType,
+      sectorId: saved.sectorId,
+      calculatedMetrics: saved.calculatedMetrics,
+    });
+
+    return { ...saved, aiAvailable: this.aiService.isAvailable() };
   }
 
   async getVaultStats(userId: string) {
     const audits = await this.findAllByUser(userId);
-    const completedAudits = audits.filter(a => a.status === AuditStatus.COMPLETED);
+    const completedAudits = audits.filter(
+      (a) => a.status === AuditStatus.COMPLETED,
+    );
 
     // Calculate total data points (number of answers)
     const totalDataPoints = audits.reduce((sum, audit) => {
@@ -162,11 +211,13 @@ export class AuditService {
     }, 0);
 
     // Calculate efficiency trend (mocking the comparison logic for now based on last two audits)
-    let trendStr = "0%";
+    let trendStr = '0%';
     if (completedAudits.length >= 2) {
-      const latest = completedAudits[0].calculatedMetrics?.capacityDrainPct || 0;
-      const previous = completedAudits[1].calculatedMetrics?.capacityDrainPct || 0;
-      
+      const latest =
+        completedAudits[0].calculatedMetrics?.capacityDrainPct || 0;
+      const previous =
+        completedAudits[1].calculatedMetrics?.capacityDrainPct || 0;
+
       if (previous > 0) {
         const diff = ((previous - latest) / previous) * 100;
         trendStr = `${diff >= 0 ? '+' : ''}${diff.toFixed(1)}%`;
@@ -175,9 +226,10 @@ export class AuditService {
 
     const totalAudits = audits.length;
     const completedAuditsList = completedAudits.length;
-    const archivalIntegrity = totalAudits > 0
-      ? `${Math.round((completedAuditsList / totalAudits) * 100)}%`
-      : '0%';
+    const archivalIntegrity =
+      totalAudits > 0
+        ? `${Math.round((completedAuditsList / totalAudits) * 100)}%`
+        : '0%';
 
     return {
       totalDataPoints,

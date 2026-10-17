@@ -12,17 +12,19 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { McomService } from './mcom.service';
 import { UsersService } from '../users/users.service';
 import { Public } from '../auth/decorators/public.decorator';
+import { RedisService } from '../redis/redis.service';
+
+const WEBHOOK_DEDUP_TTL_SECONDS = 24 * 60 * 60;
 
 @ApiTags('Webhooks')
 @Controller('webhooks')
 export class WebhookController {
   private readonly logger = new Logger(WebhookController.name);
-  private readonly processedBodies = new Set<string>();
-  private readonly MAX_DEDUP_SIZE = 1000;
 
   constructor(
     private mcomService: McomService,
     private usersService: UsersService,
+    private readonly redis: RedisService,
   ) {}
 
   @Public()
@@ -49,15 +51,15 @@ export class WebhookController {
       }
 
       const bodyHash = this.mcomService.hashBody(rawBody);
-      if (this.processedBodies.has(bodyHash)) {
+      const dedupKey = `webhook:${bodyHash}`;
+      const firstSeen = await this.redis.setnx(
+        dedupKey,
+        WEBHOOK_DEDUP_TTL_SECONDS,
+        '1',
+      );
+      if (!firstSeen) {
         return res.status(200).json({ received: true, duplicate: true });
       }
-
-      if (this.processedBodies.size >= this.MAX_DEDUP_SIZE) {
-        const firstHash = this.processedBodies.values().next().value;
-        this.processedBodies.delete(firstHash);
-      }
-      this.processedBodies.add(bodyHash);
 
       const event = req.body;
       const eventType = event.event || event.type;

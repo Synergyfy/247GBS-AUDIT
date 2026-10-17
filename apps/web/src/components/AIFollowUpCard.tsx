@@ -28,13 +28,15 @@ interface AIFollowUpCardProps {
     isLoading: boolean;
     onSubmit: (answers: Record<string, string>) => void;
     onSkip: () => void;
+    aiAvailable?: boolean;
 }
 
 export default function AIFollowUpCard({
     questions,
     isLoading,
     onSubmit,
-    onSkip
+    onSkip,
+    aiAvailable,
 }: AIFollowUpCardProps) {
     const [answers, setAnswers] = useState<Record<string, string>>({});
 
@@ -71,8 +73,32 @@ export default function AIFollowUpCard({
         );
     }
 
-    // No questions — nothing to render
+    // No questions — show AI-unavailable notice instead of silent blank,
+    // otherwise render nothing.
     if (!questions || questions.length === 0) {
+        if (aiAvailable === false) {
+            return (
+                <div className="bg-amber-50 rounded-[2rem] p-6 border border-amber-200 flex items-start gap-4">
+                    <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600 shrink-0">
+                        <Sparkles size={20} />
+                    </div>
+                    <div>
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-amber-700 mb-1">
+                            Intelligence Engine unavailable
+                        </div>
+                        <p className="text-sm font-medium text-slate-600">
+                            AI follow-up questions are unavailable (check GEMINI_API_KEY). You can continue — your audit is saved.
+                        </p>
+                        <button
+                            onClick={onSkip}
+                            className="mt-3 text-xs font-bold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors flex items-center gap-2"
+                        >
+                            Continue <SkipForward size={14} />
+                        </button>
+                    </div>
+                </div>
+            );
+        }
         return null;
     }
 

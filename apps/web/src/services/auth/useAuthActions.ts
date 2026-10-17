@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { signInSession } from '@/lib/auth';
 import { SignInRequest, SignInResponse, SignUpRequest, SignUpResponse } from './authTypes';
 import { API_BASE_URL } from '@/lib/api';
 
@@ -38,15 +39,24 @@ export function useAuthActions() {
             }
 
             const { accessToken, user } = result as SignInResponse;
-            
-            // Store token in localStorage
-            localStorage.setItem('247gbs_token', accessToken);
-            
+
+            // Unified write: normalized user + both token keys + event.
+            // signInSession notifies Context/Store; contextSignIn updates React state immediately.
             const userEmail = user?.email ?? data.email;
+            const normalized = signInSession(
+                {
+                    email: userEmail,
+                    firstName: user?.firstName,
+                    lastName: user?.lastName,
+                    role: user?.role,
+                },
+                accessToken
+            );
             contextSignIn({
                 email: userEmail,
-                name: user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : undefined,
-                role: user?.role,
+                name: normalized?.name,
+                avatar: normalized?.avatar,
+                role: normalized?.role ?? user?.role,
             });
             
             return { success: true, role: user?.role };
@@ -89,15 +99,23 @@ export function useAuthActions() {
             const accessToken = (result as SignUpResponse & { accessToken?: string })?.accessToken;
             let role: string | undefined = undefined;
             if (accessToken) {
-                localStorage.setItem('247gbs_token', accessToken);
-                // If backend also returned user info, update context
                 const user = (result as SignUpResponse).user;
                 role = user?.role;
                 const userEmail = user?.email ?? data.email;
+                const normalized = signInSession(
+                    {
+                        email: userEmail,
+                        firstName: user?.firstName,
+                        lastName: user?.lastName,
+                        role: user?.role,
+                    },
+                    accessToken,
+                );
                 contextSignIn({
                     email: userEmail,
-                    name: user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : undefined,
-                    role: user?.role,
+                    name: normalized?.name,
+                    avatar: normalized?.avatar,
+                    role: normalized?.role ?? user?.role,
                 });
             }
 

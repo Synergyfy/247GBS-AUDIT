@@ -90,3 +90,57 @@ export function findDuplicateSubmission(
 ): PreAuditSubmission | undefined {
   return submissions.find((s) => s.fingerprint === fingerprint);
 }
+
+export function hasCompletedPreAuditLocally(): boolean {
+  if (loadLastResult()) return true;
+  const submissions = loadSubmissions();
+  return submissions.length > 0;
+}
+
+export async function checkUserPreAuditStatus(email?: string | null): Promise<{
+  completed: boolean;
+  recommendedAuditType?: string | null;
+  destinationType?: string | null;
+}> {
+  // Check local first
+  const lastResult = loadLastResult();
+  if (lastResult) {
+    return {
+      completed: true,
+      recommendedAuditType: lastResult.recommendedAudit,
+      destinationType: lastResult.destinationType,
+    };
+  }
+
+  const submissions = loadSubmissions();
+  if (submissions.length > 0) {
+    const latest = submissions[0];
+    return {
+      completed: true,
+      recommendedAuditType: latest.recommendedAudit,
+      destinationType: latest.destinationType,
+    };
+  }
+
+  // If email is available, check backend database
+  if (email && email.trim()) {
+    try {
+      const { API_BASE_URL } = await import("@/lib/api");
+      const res = await fetch(`${API_BASE_URL}/pre-audit/status?email=${encodeURIComponent(email.trim())}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.hasCompletedPreAudit) {
+          return {
+            completed: true,
+            recommendedAuditType: data.latestSession?.recommendedAuditType ?? null,
+            destinationType: data.latestSession?.destinationType ?? null,
+          };
+        }
+      }
+    } catch {
+      // Backend probe failure: fall back to not completed
+    }
+  }
+
+  return { completed: false };
+}

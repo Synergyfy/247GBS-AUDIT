@@ -13,8 +13,12 @@ export function PublicNavbar() {
     const router = useRouter();
     const { user: ctxUser, isAuthenticated: ctxAuth, signOut } = useAuth();
     const { user: storeUser, token: storeToken, logout } = useAuthStore();
-    const user = ctxUser || (storeUser ? { email: storeUser.email, name: `${storeUser.firstName} ${storeUser.lastName}`, avatar: `https://api.dicebear.com/7.x/shapes/svg?seed=${storeUser.email}`, role: storeUser.role } : null);
-    const isAuthenticated = ctxAuth || !!storeToken;
+    const user = ctxUser || (storeUser ? { email: storeUser.email, name: `${storeUser.firstName} ${storeUser.lastName}`, avatar: `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(storeUser.email)}`, role: storeUser.role } : null);
+    const isAuthenticated = Boolean(user) && (ctxAuth || !!storeToken);
+    const avatarUrl = user?.avatar?.trim()
+        ? user.avatar
+        : `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(user?.email || "guest")}`;
+    const avatarInitial = (user?.name?.trim()?.[0] || user?.email?.trim()?.[0] || "A").toUpperCase();
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -65,7 +69,7 @@ export function PublicNavbar() {
 
                 {/* Desktop Navigation */}
                 <div className="hidden md:flex items-center gap-8 text-sm font-semibold">
-                    <a href="audit/pre-audit " className="hover:text-orange-500 transition-colors">Triage Audits</a>
+                    <Link href="/audit/triage" className="hover:text-orange-500 transition-colors">Triage Audit</Link>
                     <a href="/#why" className="hover:text-orange-500 transition-colors">Why Seasonal?</a>
                     <Link href="/pricing" className="hover:text-orange-500 transition-colors">Pricing</Link>
 
@@ -77,7 +81,11 @@ export function PublicNavbar() {
                                 className="flex items-center gap-2 group cursor-pointer"
                             >
                                 <div className="w-10 h-10 bg-slate-100 rounded-xl overflow-hidden border-2 border-orange-200 group-hover:border-orange-500 transition-colors">
-                                    <img src={user.avatar} alt="Avatar" />
+                                    {avatarUrl ? (
+                                        <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                                    ) : (
+                                        <span className="w-full h-full flex items-center justify-center font-bold text-slate-500">{avatarInitial}</span>
+                                    )}
                                 </div>
                                 <ChevronDown
                                     size={16}
@@ -98,7 +106,11 @@ export function PublicNavbar() {
                                     <div className="px-4 py-3 bg-gradient-to-br from-slate-50 to-orange-50 border-b border-slate-100">
                                         <div className="flex items-center gap-3">
                                             <div className="w-10 h-10 bg-slate-100 rounded-xl overflow-hidden border-2 border-orange-200">
-                                                <img src={user.avatar} alt="Avatar" />
+                                                {avatarUrl ? (
+                                                    <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <span className="w-full h-full flex items-center justify-center font-bold text-slate-500">{avatarInitial}</span>
+                                                )}
                                             </div>
                                             <div>
                                                 <div className="text-sm font-bold text-slate-900">{user.name}</div>
@@ -185,7 +197,7 @@ export function PublicNavbar() {
                   className="md:hidden bg-white border-t border-orange-100 px-6 overflow-hidden"
                 >
                   <div className="py-4 space-y-4">
-                    <a href="audit/pre-audit " className="block py-2 text-sm font-semibold hover:text-orange-500 transition-colors">Triage Audits</a>
+                    <Link href="/audit/triage" className="block py-2 text-sm font-semibold hover:text-orange-500 transition-colors">Triage Audit</Link>
                     <a href="/#why" className="block py-2 text-sm font-semibold hover:text-orange-500 transition-colors">Why Seasonal?</a>
                     <Link href="/pricing" className="block py-2 text-sm font-semibold hover:text-orange-500 transition-colors">Pricing</Link>
 
@@ -193,7 +205,11 @@ export function PublicNavbar() {
                         <div className="pt-4 border-t border-slate-100 space-y-3">
                             <div className="flex items-center gap-3 py-2">
                                 <div className="w-10 h-10 bg-slate-100 rounded-xl overflow-hidden border-2 border-orange-200">
-                                    <img src={user.avatar} alt="Avatar" />
+                                    {avatarUrl ? (
+                                        <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                                    ) : (
+                                        <span className="w-full h-full flex items-center justify-center font-bold text-slate-500">{avatarInitial}</span>
+                                    )}
                                 </div>
                                 <div>
                                     <div className="text-sm font-bold text-slate-900">{user.name}</div>

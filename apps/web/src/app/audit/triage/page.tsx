@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     ChevronLeft,
@@ -24,6 +24,8 @@ import type { TriagePublicAnswer, TriagePublicQuestion } from "@/services/triage
 import { isChoiceType, isMultiSelectType } from "@/services/triage/types";
 import { QuestionInput } from "@/components/preAudit/QuestionInput";
 import { validateAnswer } from "@/lib/preAudit/validation";
+import { TriageEmailOtpStep } from "@/components/preAudit/TriageEmailOtpStep";
+import { submitPreAuditSteps } from "@/services/preAudit/submit";
 
 type TriageAuditType = "SHORT_FORM" | "LONG_FORM";
 
@@ -35,10 +37,8 @@ interface TriageResponse {
     auditType: TriageAuditType | null;
 }
 
-type Phase = "loading" | "question" | "result" | "error";
+type Phase = "loading" | "question" | "email-verification" | "result" | "error";
 
-const PROGRESS_KEY = "247gbs_triage_progress";
-const RESULT_KEY = "247gbs_triage_result";
 const MAX_STEPS = 50;
 
 function getAuditTitle(auditType: TriageAuditType): string {
@@ -52,8 +52,13 @@ function getExplanation(auditType: TriageAuditType): string {
     return "Based on your responses, a focused assessment will effectively identify your key opportunities. A Short Business Audit will deliver clear, actionable insights efficiently.";
 }
 
-export default function AuditTriagePage() {
+function AuditTriageContent() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const formId = searchParams.get("formId") || undefined;
+    const progressKey = `247gbs_triage_progress_${formId || "default"}`;
+    const resultKey = `247gbs_triage_result_${formId || "default"}`;
+
     const { user, isAuthenticated } = useAuth();
 
     const [phase, setPhase] = useState<Phase>("loading");
@@ -62,6 +67,12 @@ export default function AuditTriagePage() {
     const [visitedIds, setVisitedIds] = useState<string[]>([]);
     const [assignedAudit, setAssignedAudit] = useState<TriageAuditType | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+    const [pendingCompletion, setPendingCompletion] = useState<{
+        auditType: TriageAuditType;
+        stepResponses: TriageResponse[];
+    } | null>(null);
+    const [resultSentToEmail, setResultSentToEmail] = useState<string | null>(null);
 
     const [hydrated, setHydrated] = useState(false);
     const [showAuthModal, setShowAuthModal] = useState(false);
@@ -88,14 +99,14 @@ export default function AuditTriagePage() {
         setIsSelecting(false);
         resetDraft();
         try {
-            const first = await fetchTriageStart();
+            const first = await fetchTriageStart(formId);
             setQuestion(first);
             setPhase("question");
         } catch (err: any) {
             setErrorMessage(err?.message ?? "Failed to load the Business Triage. Please try again.");
             setPhase("error");
         }
-    }, [resetDraft]);
+    }, [formId, resetDraft]);
 
     const goToQuestion = useCallback(async (targetQuestion: TriagePublicQuestion) => {
         setQuestion(targetQuestion);
@@ -106,7 +117,7 @@ export default function AuditTriagePage() {
 
     // Restore progress on mount
     useEffect(() => {
-        const saved = localStorage.getItem(PROGRESS_KEY);
+        const saved = localStorage.getItem(progressKey);
         if (saved) {
             try {
                 const parsed = JSON.parse(saved);
@@ -133,14 +144,14 @@ export default function AuditTriagePage() {
             startFlow();
         }
         setHydrated(true);
-    }, [startFlow]);
+    }, [startFlow, progressKey]);
 
     // Save progress whenever the current step changes
     useEffect(() => {
         if (!hydrated) return;
         if (phase === "loading" || phase === "result" || phase === "error") return;
         localStorage.setItem(
-            PROGRESS_KEY,
+            progressKey,
             JSON.stringify({
                 type: "triage_dynamic",
                 question,
@@ -148,13 +159,13 @@ export default function AuditTriagePage() {
                 responses,
             })
         );
-    }, [hydrated, phase, question, visitedIds, responses]);
+    }, [hydrated, phase, question, visitedIds, responses, progressKey]);
 
     // Completes the triage: writes the result and shows the result screen.
     const finalize = (auditType: TriageAuditType, stepResponses: TriageResponse[]) => {
-        localStorage.removeItem(PROGRESS_KEY);
+        localStorage.removeItem(progressKey);
         localStorage.setItem(
-            RESULT_KEY,
+            resultKey,
             JSON.stringify({
                 assignedAudit: auditType,
                 completedAt: new Date().toISOString(),
@@ -175,7 +186,24 @@ export default function AuditTriagePage() {
         setResponses(stepResponses);
 
         if (auditType) {
-            finalize(auditType, stepResponses);
+            setIsSelecting(false);
+            if (isAuthenticated && user?.email) {
+                // If logged in: immediately use their email and send results without OTP part
+                const rawSteps = stepResponses.map((r) => ({
+                    questionId: r.questionId,
+                    optionIds: r.answerId ? r.answerId.split("|").filter(Boolean) : undefined,
+                    value: !r.answerId ? r.answerText : undefined,
+                }));
+                submitPreAuditSteps(user.email, rawSteps).catch((err) => {
+                    console.warn("Could not email pre-audit results to user:", err);
+                });
+                setResultSentToEmail(user.email);
+                finalize(auditType, stepResponses);
+            } else {
+                // Unauthenticated: require email + OTP verification before end/submit
+                setPendingCompletion({ auditType, stepResponses });
+                setPhase("email-verification");
+            }
             return;
         }
 
@@ -316,6 +344,39 @@ export default function AuditTriagePage() {
         }, 1200);
     };
 
+    // ==================== EMAIL VERIFICATION SCREEN ====================
+    if (phase === "email-verification" && pendingCompletion) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/30 flex items-center justify-center p-4 pt-24 sm:pt-28 pb-12">
+                <main className="w-full max-w-2xl">
+                    <TriageEmailOtpStep
+                        isAuthenticated={isAuthenticated}
+                        userEmail={user?.email}
+                        title="Nearly Done! Receive Your Results"
+                        subtitle="Verify your email to receive your pre-audit summary, full answer breakdown, and tailored roadmap directly to your inbox."
+                        onVerified={async (verifiedEmail) => {
+                            const rawSteps = pendingCompletion.stepResponses.map((r) => ({
+                                questionId: r.questionId,
+                                optionIds: r.answerId ? r.answerId.split("|").filter(Boolean) : undefined,
+                                value: !r.answerId ? r.answerText : undefined,
+                            }));
+                            try {
+                                await submitPreAuditSteps(verifiedEmail, rawSteps);
+                            } catch (err) {
+                                console.warn("Could not email pre-audit results to user:", err);
+                            }
+                            setResultSentToEmail(verifiedEmail);
+                            finalize(pendingCompletion.auditType, pendingCompletion.stepResponses);
+                        }}
+                        onBack={() => {
+                            setPhase("question");
+                        }}
+                    />
+                </main>
+            </div>
+        );
+    }
+
     // ==================== RESULT SCREEN ====================
     if (phase === "result") {
         const auditType = assignedAudit ?? "SHORT_FORM";
@@ -343,6 +404,17 @@ export default function AuditTriagePage() {
                         </div>
 
                         <div className="px-6 sm:px-10 py-8 sm:py-10">
+                            {resultSentToEmail && (
+                                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-6 flex items-center gap-3">
+                                    <div className="w-8 h-8 bg-emerald-500 rounded-xl flex items-center justify-center text-white shrink-0">
+                                        <Check size={16} />
+                                    </div>
+                                    <p className="text-xs sm:text-sm text-emerald-800 font-medium">
+                                        A summary of your answers and diagnostic recommendations has been sent to <strong>{resultSentToEmail}</strong> via Resend.
+                                    </p>
+                                </div>
+                            )}
+
                             <p className="text-slate-600 text-sm sm:text-base text-center mb-8">
                                 Based on your responses, we have identified the most appropriate audit for your business.
                             </p>
@@ -761,6 +833,21 @@ export default function AuditTriagePage() {
                 </AnimatePresence>
             </main>
         </div>
+    );
+}
+
+export default function AuditTriagePage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/30 flex items-center justify-center p-4">
+                <div className="flex flex-col items-center gap-3">
+                    <Loader2 size={32} className="text-orange-500 animate-spin" />
+                    <p className="text-sm font-bold text-slate-500">Preparing Business Triage...</p>
+                </div>
+            </div>
+        }>
+            <AuditTriageContent />
+        </Suspense>
     );
 }
 

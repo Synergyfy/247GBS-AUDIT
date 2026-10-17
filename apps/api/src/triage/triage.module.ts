@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
+import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt.guard';
 import { TriageService } from './triage.service';
 import { TriageController } from './triage.controller';
 import { TriageFlowValidatorService } from './triage-flow-validator.service';
@@ -17,12 +19,15 @@ import { PreAuditSession } from './entities/pre-audit-session.entity';
 import { TriageForm } from './entities/triage-form.entity';
 import { PreAuditService } from './pre-audit.service';
 import { PreAuditController } from './pre-audit.controller';
+import { TriageOtpService } from './triage-otp.service';
 import { AuditModule } from '../audit/audit.module';
 import { AdminModule } from '../admin/admin.module';
 import { MailModule } from '../mail/mail.module';
+import { RedisModule } from '../redis/redis.module';
 
 @Module({
   imports: [
+    JwtModule.register({}),
     TypeOrmModule.forFeature([
       AuditTriage,
       TriageQuestion,
@@ -33,6 +38,7 @@ import { MailModule } from '../mail/mail.module';
     AuditModule,
     AdminModule,
     MailModule,
+    RedisModule,
   ],
   controllers: [
     TriageController,
@@ -50,6 +56,8 @@ import { MailModule } from '../mail/mail.module';
     TriageFormService,
     TriageReportService,
     PreAuditService,
+    TriageOtpService,
+    OptionalJwtAuthGuard,
   ],
   exports: [
     TriageService,
@@ -60,6 +68,7 @@ import { MailModule } from '../mail/mail.module';
     TriageFormService,
     TriageReportService,
     PreAuditService,
+    TriageOtpService,
   ],
 })
 export class TriageModule {}

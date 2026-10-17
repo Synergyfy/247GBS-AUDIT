@@ -1,10 +1,9 @@
 'use client';
 
 import apiClient from '@/lib/apiClient';
+import { API_BASE_URL as API_URL } from '@/lib/api';
 
 type ApiResponse<T> = { data: T };
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export interface SsoConfig {
   membershipUrl: string;

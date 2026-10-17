@@ -29,8 +29,8 @@ export class BusinessTriageService {
   // Public flow delegation
   // ============================================================
 
-  async getStartQuestion(): Promise<TriageQuestionItemDto> {
-    return this.questionService.getStartQuestion();
+  async getStartQuestion(formId?: string): Promise<TriageQuestionItemDto> {
+    return this.questionService.getStartQuestion(formId);
   }
 
   async getQuestion(id: string): Promise<TriageQuestionItemDto> {
@@ -41,8 +41,8 @@ export class BusinessTriageService {
   // Admin: Question CRUD delegation
   // ============================================================
 
-  async listQuestions(): Promise<AdminTriageQuestionDto[]> {
-    return this.questionService.listQuestions();
+  async listQuestions(formId?: string): Promise<AdminTriageQuestionDto[]> {
+    return this.questionService.listQuestions(formId);
   }
 
   async createQuestion(dto: CreateTriageQuestionDto): Promise<TriageQuestion> {
@@ -83,7 +83,7 @@ export class BusinessTriageService {
   // Flow Validation delegation
   // ============================================================
 
-  async validateFlowForPublish(): Promise<FlowValidationResult> {
-    return this.validatorService.validateFlowForPublish();
+  async validateFlowForPublish(formId?: string): Promise<FlowValidationResult> {
+    return this.validatorService.validateFlowForPublish(formId);
   }
 }

@@ -6,6 +6,7 @@ import { TriageQuestion } from './entities/triage-question.entity';
 import { TriageAnswer } from './entities/triage-answer.entity';
 import { PreAuditSession } from './entities/pre-audit-session.entity';
 import { PreAuditMailer } from '../mail/pre-audit-mailer';
+import { TriageOtpService } from './triage-otp.service';
 import { SubmitPreAuditDto } from './dto/pre-audit.dto';
 
 interface AnswerFixture {
@@ -84,10 +85,14 @@ describe('PreAuditService', () => {
   const mailer = {
     sendPostSubmission: jest.fn(),
   };
+  const otpService = {
+    isVerified: jest.fn().mockResolvedValue(true),
+  };
 
   beforeEach(async () => {
     savedSessions = [];
     jest.clearAllMocks();
+    otpService.isVerified.mockResolvedValue(true);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -96,6 +101,7 @@ describe('PreAuditService', () => {
         { provide: getRepositoryToken(TriageAnswer), useValue: answerRepository },
         { provide: getRepositoryToken(PreAuditSession), useValue: sessionRepository },
         { provide: PreAuditMailer, useValue: mailer },
+        { provide: TriageOtpService, useValue: otpService },
       ],
     }).compile();
 
@@ -160,8 +166,10 @@ describe('PreAuditService', () => {
     answers = ans;
   };
 
-  const submit = (dto: Partial<SubmitPreAuditDto> & Record<string, any>) =>
-    service.evaluateAndSave(dto as SubmitPreAuditDto);
+  const submit = (
+    dto: Partial<SubmitPreAuditDto> & Record<string, any>,
+    authEmail?: string | null,
+  ) => service.evaluateAndSave(dto as SubmitPreAuditDto, authEmail);
 
   // ==================== Linear flow ====================
 
@@ -224,6 +232,7 @@ describe('PreAuditService', () => {
     );
 
     const result = await submit({
+      email: 'guest@example.com',
       steps: [{ questionId: 'q1', optionIds: ['a1'] }],
       consentGranted: true,
     });
@@ -249,6 +258,7 @@ describe('PreAuditService', () => {
     // because q2 is not the expected successor of the q1 -> q3 route.
     await expect(
       submit({
+        email: 'guest@example.com',
         steps: [
           { questionId: 'q1', optionIds: ['a2'] },
           { questionId: 'q2', optionIds: ['b1'] },
@@ -273,6 +283,7 @@ describe('PreAuditService', () => {
     );
 
     const result = await submit({
+      email: 'guest@example.com',
       steps: [
         { questionId: 'q1', optionIds: ['a1'] },
         { questionId: 'q2', optionIds: ['b1'] },
@@ -307,6 +318,7 @@ describe('PreAuditService', () => {
     );
 
     const result = await submit({
+      email: 'guest@example.com',
       steps: [
         { questionId: 'q1', optionIds: ['a1', 'a2', 'a3'] },
         { questionId: 'q2', optionIds: ['b1'] },
@@ -346,6 +358,7 @@ describe('PreAuditService', () => {
     );
 
     const result = await submit({
+      email: 'guest@example.com',
       steps: [
         { questionId: 'q1', optionIds: ['a1', 'a2'] },
         { questionId: 'q2', optionIds: ['b1'] },
@@ -378,6 +391,7 @@ describe('PreAuditService', () => {
     // line, so the server rejects the hop to q3.
     await expect(
       submit({
+        email: 'guest@example.com',
         steps: [
           { questionId: 'q1', optionIds: ['a1', 'a2'] },
           { questionId: 'q3', optionIds: ['c1'] },
@@ -415,5 +429,61 @@ describe('PreAuditService', () => {
     const second = await submit(dto);
     expect(second.isDuplicate).toBe(true);
     expect(second.recommendedAuditType).toBe('LONG_FORM');
+  });
+
+  // ==================== Authenticated vs guest email rules ====================
+
+  it('should reject a guest submission without an email', async () => {
+    build(
+      [makeQuestion('q1', 'Q1', 'single_choice', 0)],
+      [
+        makeAnswer({ id: 'a1', questionId: 'q1', text: 'Do short', destinationType: 'SHORT_FORM', sortOrder: 0 }),
+      ],
+    );
+    await expect(
+      submit({
+        steps: [{ questionId: 'q1', optionIds: ['a1'] }],
+        consentGranted: true,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('should accept an authenticated submission without an email and skip OTP', async () => {
+    build(
+      [makeQuestion('q1', 'Q1', 'single_choice', 0)],
+      [
+        makeAnswer({ id: 'a1', questionId: 'q1', text: 'Do short', destinationType: 'SHORT_FORM', sortOrder: 0 }),
+      ],
+    );
+    otpService.isVerified.mockResolvedValue(false);
+    const result = await submit(
+      {
+        steps: [{ questionId: 'q1', optionIds: ['a1'] }],
+        consentGranted: true,
+      },
+      'member@example.com',
+    );
+    expect(result.recommendedAuditType).toBe('SHORT_FORM');
+    expect(result.email).toBe('member@example.com');
+    expect(otpService.isVerified).not.toHaveBeenCalled();
+  });
+
+  it('should reject an authenticated submission that still includes an email', async () => {
+    build(
+      [makeQuestion('q1', 'Q1', 'single_choice', 0)],
+      [
+        makeAnswer({ id: 'a1', questionId: 'q1', text: 'Do short', destinationType: 'SHORT_FORM', sortOrder: 0 }),
+      ],
+    );
+    await expect(
+      submit(
+        {
+          email: 'other@example.com',
+          steps: [{ questionId: 'q1', optionIds: ['a1'] }],
+          consentGranted: true,
+        },
+        'member@example.com',
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

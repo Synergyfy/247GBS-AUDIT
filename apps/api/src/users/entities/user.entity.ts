@@ -59,6 +59,9 @@ export class User {
   @Column({ default: false })
   isMfaEnabled: boolean;
 
+  @Column({ type: 'timestamptz', nullable: true })
+  lastLoginAt: Date | null;
+
   // MCOM SSO fields
   @Column({ nullable: true })
   mcomUserId: string;

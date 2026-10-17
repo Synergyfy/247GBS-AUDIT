@@ -32,6 +32,11 @@ export class TriageForm {
   @Index()
   slug: string | null;
 
+  // Exactly one triage form can and must be the default
+  @Column({ type: 'boolean', default: false })
+  @Index()
+  isDefault: boolean;
+
   // draft | published — the form is public only when published.
   @Column({ type: 'varchar', length: 20, default: 'draft' })
   status: string;

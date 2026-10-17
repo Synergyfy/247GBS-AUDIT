@@ -69,6 +69,12 @@ export default function ForensicIntelligencePage() {
                         <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold leading-tight">
                             {loading ? 'Loading insight…' : strategicInsight.replace('forensic audit', 'business review')}
                         </h2>
+                        {data?.aiAvailable === false && !loading && (
+                            <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-300 text-xs font-bold">
+                                <Bot size={14} />
+                                AI engine unavailable — showing fallback insight. Check GEMINI_API_KEY.
+                            </div>
+                        )}
                         <div className="flex flex-col sm:flex-row gap-4">
                             <button className="w-full sm:w-auto px-8 py-4 bg-orange-500 text-white rounded-[1.2rem] md:rounded-[1.5rem] font-bold hover:bg-orange-600 transition-all shadow-xl shadow-orange-500/20 active:scale-95">
                                 View Deep Analysis

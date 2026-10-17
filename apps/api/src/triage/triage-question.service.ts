@@ -35,8 +35,8 @@ export class TriageQuestionService {
   // Public flow
   // ============================================================
 
-  async getStartQuestion(): Promise<TriageQuestionItemDto> {
-    const ordered = await this.linearOrder();
+  async getStartQuestion(formId?: string): Promise<TriageQuestionItemDto> {
+    const ordered = await this.linearOrder(formId);
     const question = ordered[0];
     if (!question) {
       throw new NotFoundException('No active triage questions are configured yet.');
@@ -49,7 +49,7 @@ export class TriageQuestionService {
     if (!question || !question.isActive) {
       throw new NotFoundException('Triage question not found.');
     }
-    const ordered = await this.linearOrder();
+    const ordered = await this.linearOrder(question.formId ?? undefined);
     return this.toPublicQuestion(question, ordered);
   }
 
@@ -59,11 +59,25 @@ export class TriageQuestionService {
    * advances to the next active question, or ends the form ("End / Submit")
    * when it is last.
    */
-  async linearOrder(): Promise<TriageQuestion[]> {
-    return this.questionRepository.find({
-      where: { isActive: true },
-      order: { order: 'ASC', createdAt: 'ASC' },
-    });
+  async linearOrder(formId?: string): Promise<TriageQuestion[]> {
+    const qb = this.questionRepository
+      .createQueryBuilder('q')
+      .where('q.isActive = :active', { active: true });
+
+    if (formId) {
+      qb.andWhere('q.formId = :formId', { formId });
+    }
+
+    qb.orderBy('q.order', 'ASC').addOrderBy('q.createdAt', 'ASC');
+    let results = await qb.getMany();
+    // Fallback if formId specified returned nothing: try all active questions if form has no questions
+    if (results.length === 0 && formId) {
+      results = await this.questionRepository.find({
+        where: { isActive: true },
+        order: { order: 'ASC', createdAt: 'ASC' },
+      });
+    }
+    return results;
   }
 
   private nextLinearQuestionId(
@@ -155,11 +169,28 @@ export class TriageQuestionService {
   // Admin: questions
   // ============================================================
 
-  async listQuestions(): Promise<AdminTriageQuestionDto[]> {
-    const [questions, answers] = await Promise.all([
-      this.questionRepository.find({ order: { order: 'ASC', createdAt: 'ASC' } }),
+  async listQuestions(formId?: string): Promise<AdminTriageQuestionDto[]> {
+    const qb = this.questionRepository.createQueryBuilder('q');
+    if (formId) {
+      qb.where('q.formId = :formId', { formId });
+    }
+    qb.orderBy('q.order', 'ASC').addOrderBy('q.createdAt', 'ASC');
+
+    let [questions, answers] = await Promise.all([
+      qb.getMany(),
       this.answerRepository.find({ order: { sortOrder: 'ASC', createdAt: 'ASC' } }),
     ]);
+
+    // Fallback: if formId was specified but has no questions yet, check if there are legacy questions with no formId
+    if (questions.length === 0 && formId) {
+      const legacyQuestions = await this.questionRepository.find({
+        where: { formId: null as any },
+        order: { order: 'ASC', createdAt: 'ASC' },
+      });
+      if (legacyQuestions.length > 0) {
+        questions = legacyQuestions;
+      }
+    }
 
     const answersByQuestion = new Map<string, TriageAnswer[]>();
     for (const answer of answers) {
@@ -172,6 +203,7 @@ export class TriageQuestionService {
 
     return questions.map((question) => ({
       id: question.id,
+      formId: question.formId ?? null,
       text: question.text,
       type: normalizeQuestionType(question.type),
       description: question.description,
@@ -210,6 +242,7 @@ export class TriageQuestionService {
     await this.validatorService.validateQuestionDestination(dto, null);
 
     const question = this.questionRepository.create({
+      formId: dto.formId ?? null,
       text: dto.text.trim(),
       type,
       description: dto.description ?? null,

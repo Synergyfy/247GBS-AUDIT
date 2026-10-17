@@ -18,8 +18,9 @@ async function request<T>(path: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export async function fetchTriageStart(): Promise<TriagePublicQuestion> {
-  return request<TriagePublicQuestion>("/triage/questions/start");
+export async function fetchTriageStart(formId?: string): Promise<TriagePublicQuestion> {
+  const query = formId ? `?formId=${encodeURIComponent(formId)}` : "";
+  return request<TriagePublicQuestion>(`/triage/questions/start${query}`);
 }
 
 export async function fetchTriageQuestion(id: string): Promise<TriagePublicQuestion> {

@@ -8,6 +8,7 @@ import type {
   PreAuditSubmission,
   PreAuditVisitedEntry,
 } from "./types";
+import { calculatePreAuditDiagnosis } from "./calculator";
 
 /**
  * Hard cap guarding against misconfigured question graphs that loop forever.
@@ -312,21 +313,31 @@ export function buildSubmission(input: {
   existingId?: string;
   destinationType?: PreAuditSubmission["destinationType"];
   destinationTarget?: PreAuditSubmission["destinationTarget"];
+  recommendedAudit?: PreAuditSubmission["recommendedAudit"];
   serverAuthoritative?: boolean;
   consentGrantedAt?: string | null;
+  diagnosticSummary?: PreAuditSubmission["diagnosticSummary"];
 }): PreAuditSubmission {
   const local = recommendedDestinationOf(input.visited);
+  const diagnostic = input.diagnosticSummary || calculatePreAuditDiagnosis(input.visited);
+  const recommendedAudit =
+    input.recommendedAudit ??
+    (diagnostic.recommendation.auditType === 'LONG_FORM'
+      ? 'LONG_FORM'
+      : recommendedAuditOf(input.visited));
+
   return {
     version: PRE_AUDIT_VERSION,
     id: input.existingId || createRecordId(),
     email: input.email.trim(),
     fingerprint: fingerprintOf(input.email, input.visited),
-    recommendedAudit: recommendedAuditOf(input.visited),
-    destinationType: input.destinationType ?? local.destinationType,
+    recommendedAudit,
+    destinationType: input.destinationType ?? (diagnostic.recommendation.auditType === 'LONG_FORM' && local.destinationType === 'SHORT_FORM' ? 'LONG_FORM' : local.destinationType),
     destinationTarget: input.destinationTarget ?? local.destinationTarget,
     answeredCount: input.visited.length,
     answers: answerRecordsOf(input.visited),
     completedAt: new Date().toISOString(),
+    diagnosticSummary: diagnostic,
     ...(input.serverAuthoritative !== undefined ? { serverAuthoritative: input.serverAuthoritative } : {}),
     ...(input.consentGrantedAt !== undefined ? { consentGrantedAt: input.consentGrantedAt } : {}),
   };

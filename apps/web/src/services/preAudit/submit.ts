@@ -14,6 +14,22 @@ export interface PreAuditSubmitResult {
   consentGrantedAt: string | null;
   answeredCount: number;
   isDuplicate: boolean;
+  diagnosticSummary?: any;
+}
+
+function authHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  };
+  if (typeof window !== "undefined") {
+    const token =
+      localStorage.getItem("247gbs_token") || localStorage.getItem("auth_token");
+    if (token && token.trim()) {
+      headers.Authorization = `Bearer ${token.trim()}`;
+    }
+  }
+  return headers;
 }
 
 /**
@@ -22,8 +38,8 @@ export interface PreAuditSubmitResult {
  * destination itself. The client never sends destinations; consent is
  * required and recorded server-authoritatively.
  *
- * @param email Address when the form collects one; pass null to submit
- *              without an email (forms with "collect email" disabled).
+ * Authenticated callers pass null (email is derived from their session and
+ * must NOT be sent). Guests pass their OTP-verified email (required).
  */
 export async function submitPreAudit(
   email: string | null,
@@ -39,7 +55,8 @@ export async function submitPreAudit(
   };
   const res = await fetch(`${API_BASE_URL}/pre-audit/submit`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    headers: authHeaders(),
+    credentials: "include",
     body: JSON.stringify(body),
   });
 
@@ -54,3 +71,40 @@ export async function submitPreAudit(
 
   return res.json() as Promise<PreAuditSubmitResult>;
 }
+
+export interface RawPreAuditStep {
+  questionId: string;
+  optionIds?: string[];
+  value?: any;
+}
+
+export async function submitPreAuditSteps(
+  email: string | null,
+  steps: RawPreAuditStep[],
+  consentGranted = true,
+  consentVersion = PRE_AUDIT_CONSENT_VERSION
+): Promise<PreAuditSubmitResult> {
+  const body = {
+    email: email && email.trim() ? email.trim() : null,
+    steps,
+    consentGranted,
+    consentVersion,
+  };
+  const res = await fetch(`${API_BASE_URL}/pre-audit/submit`, {
+    method: "POST",
+    headers: authHeaders(),
+    credentials: "include",
+    body: JSON.stringify(body),
+  });
+
+  const errJson = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const error = new Error(
+      errJson.message || `The pre-audit could not be submitted (${res.status}).`
+    ) as Error & { status?: number };
+    error.status = res.status;
+    throw error;
+  }
+
+  return res.json() as Promise<PreAuditSubmitResult>;
+}

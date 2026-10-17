@@ -1,4 +1,4 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Public } from '../auth/decorators/public.decorator';
 import { BusinessTriageService } from './business-triage.service';
@@ -18,8 +18,8 @@ export class BusinessTriageController {
   @ApiOperation({ summary: 'Get first Business Triage question', description: 'Returns the first active triage question with its answer options. No authentication required.' })
   @ApiResponse({ status: 200, type: TriageQuestionItemDto })
   @ApiResponse({ status: 404, description: 'No active triage questions are configured.' })
-  getStart() {
-    return this.businessTriageService.getStartQuestion();
+  getStart(@Query('formId') formId?: string) {
+    return this.businessTriageService.getStartQuestion(formId);
   }
 
   @Public()
@@ -39,8 +39,17 @@ export class PublicTriageFormController {
   constructor(private readonly triageFormService: TriageFormService) {}
 
   @Public()
+  @Get('default')
+  @ApiOperation({ summary: 'Get the default published Business Triage form' })
+  @ApiResponse({ status: 200, type: PublicTriageFormDto })
+  @ApiResponse({ status: 404, description: 'Published default form not found.' })
+  getDefaultForm() {
+    return this.triageFormService.getPublicForm('default');
+  }
+
+  @Public()
   @Get(':slug')
-  @ApiOperation({ summary: 'Get a published Business Triage form by its public slug', description: 'Returns the form title/description, the responder settings and the first question. Only published forms are served.' })
+  @ApiOperation({ summary: 'Get a published Business Triage form by its public slug or ID', description: 'Returns the form title/description, the responder settings and the first question. Only published forms are served.' })
   @ApiResponse({ status: 200, type: PublicTriageFormDto })
   @ApiResponse({ status: 404, description: 'Published form not found.' })
   getForm(@Param('slug') slug: string) {

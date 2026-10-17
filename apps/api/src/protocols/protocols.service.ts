@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SecurityStatusDto, BillingInfoDto, NotificationSettingDto } from './dto/protocols.dto';
@@ -23,15 +23,16 @@ export class ProtocolsService {
     const user = await this.usersService.findById(userId);
     return {
       is2FAEnabled: user?.isMfaEnabled ?? false,
-      passwordStrength: user?.password ? 'High' : 'Unknown',
-      lastLogin: new Date().toISOString(),
+      passwordStrength: 'Unknown',
+      lastLogin: user?.lastLoginAt ? user.lastLoginAt.toISOString() : 'Never',
       masterKeyActive: user?.isMfaEnabled ?? false,
     };
   }
 
   async rotateMasterKey(userId: string): Promise<{ success: boolean; message: string }> {
-    // Logic for rotating key would go here
-    return { success: true, message: 'Master Key Rotated Successfully' };
+    // TODO: implement real key rotation (re-derive AES key for MCOM token
+    // storage and re-encrypt all stored tokens). Disabled until implemented.
+    throw new HttpException('Master key rotation is not implemented yet', HttpStatus.NOT_IMPLEMENTED);
   }
 
   async getBillingInfo(userId: string): Promise<BillingInfoDto> {
@@ -85,17 +86,22 @@ export class ProtocolsService {
     if (setting) {
       setting.isActive = active;
       await this.notificationRepository.save(setting);
+    } else {
+      await this.notificationRepository.save(
+        this.notificationRepository.create({
+          userId,
+          title,
+          description: title,
+          isActive: active,
+        }),
+      );
     }
     return this.getNotifications(userId);
   }
 
   async purchaseTokens(amount: number, userId: string): Promise<{ balance: number }> {
-    const user = await this.usersService.findById(userId);
-    if (user) {
-      const newBalance = (user.tokens || 0) + amount;
-      await this.usersService.update(userId, { tokens: newBalance });
-      return { balance: newBalance };
-    }
-    return { balance: 0 };
+    // No payment provider is integrated. Disable until Stripe (or equivalent)
+    // verification exists to prevent free infinite credit minting.
+    throw new HttpException('Token purchase is not available yet', HttpStatus.NOT_IMPLEMENTED);
   }
 }

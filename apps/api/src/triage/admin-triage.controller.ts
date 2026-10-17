@@ -11,6 +11,7 @@ import {
   HttpStatus,
   UseGuards,
   ForbiddenException,
+  Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AccessTokenGuard } from '../auth/guards/accessToken.guard';
@@ -27,6 +28,7 @@ import {
   DeleteMessageDto,
 } from './dto/triage-question.dto';
 import {
+  CreateTriageFormDto,
   PublishTriageFormResultDto,
   TriageFormDto,
   TriageResponseDetailDto,
@@ -60,9 +62,9 @@ export class AdminTriageController {
   @Get('questions')
   @ApiOperation({ summary: 'List all questions with their answers', description: 'Returns all questions (active and inactive) in display order, including answer counts and target routing.' })
   @ApiResponse({ status: 200, type: [AdminTriageQuestionDto] })
-  async listQuestions(@Req() req: Request) {
+  async listQuestions(@Req() req: Request, @Query('formId') formId?: string) {
     await this.verifyAdmin(req);
-    return this.businessTriageService.listQuestions();
+    return this.businessTriageService.listQuestions(formId);
   }
 
   @Post('questions')
@@ -125,40 +127,112 @@ export class AdminTriageController {
     return this.businessTriageService.removeAnswer(id);
   }
 
-  // --- Form / publish state ---
+  // --- Multi-Form Management ---
+
+  @Get('forms')
+  @ApiOperation({ summary: 'List all Business Triage forms', description: 'Returns all pre-audit forms with default status and question counts.' })
+  @ApiResponse({ status: 200, type: [TriageFormDto] })
+  async listForms(@Req() req: Request) {
+    await this.verifyAdmin(req);
+    return this.triageFormService.listForms();
+  }
+
+  @Post('forms')
+  @ApiOperation({ summary: 'Create a new Business Triage form' })
+  @ApiResponse({ status: 201, type: TriageFormDto })
+  async createForm(@Req() req: Request, @Body() dto: CreateTriageFormDto) {
+    await this.verifyAdmin(req);
+    return this.triageFormService.createForm(dto);
+  }
+
+  @Get('forms/:id')
+  @ApiOperation({ summary: 'Get a specific Business Triage form' })
+  @ApiResponse({ status: 200, type: TriageFormDto })
+  async getFormById(@Req() req: Request, @Param('id') id: string) {
+    await this.verifyAdmin(req);
+    return this.triageFormService.getForm(id);
+  }
+
+  @Patch('forms/:id')
+  @ApiOperation({ summary: 'Update a Business Triage form' })
+  @ApiResponse({ status: 200, type: TriageFormDto })
+  async updateFormById(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() dto: UpdateTriageFormDto,
+  ) {
+    await this.verifyAdmin(req);
+    return this.triageFormService.updateForm(id, dto);
+  }
+
+  @Post('forms/:id/default')
+  @ApiOperation({ summary: 'Set this Business Triage form as the system default' })
+  @ApiResponse({ status: 200, type: TriageFormDto })
+  async setDefaultForm(@Req() req: Request, @Param('id') id: string) {
+    await this.verifyAdmin(req);
+    return this.triageFormService.setDefault(id);
+  }
+
+  @Delete('forms/:id')
+  @ApiOperation({ summary: 'Delete a Business Triage form' })
+  async deleteForm(@Req() req: Request, @Param('id') id: string) {
+    await this.verifyAdmin(req);
+    return this.triageFormService.deleteForm(id);
+  }
+
+  @Post('forms/:id/publish')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Validate and publish a specific Business Triage form' })
+  @ApiResponse({ status: 200, type: PublishTriageFormResultDto })
+  async publishFormById(@Req() req: Request, @Param('id') id: string) {
+    await this.verifyAdmin(req);
+    return this.triageFormService.publish(id);
+  }
+
+  @Post('forms/:id/unpublish')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Unpublish a specific Business Triage form' })
+  @ApiResponse({ status: 200, type: PublishTriageFormResultDto })
+  async unpublishFormById(@Req() req: Request, @Param('id') id: string) {
+    await this.verifyAdmin(req);
+    return this.triageFormService.unpublish(id);
+  }
+
+  // --- Form / publish state (Legacy single-form compatibility) ---
 
   @Get('form')
-  @ApiOperation({ summary: 'Get the Business Triage form definition', description: 'Title, description, publish state, public slug and responder settings.' })
+  @ApiOperation({ summary: 'Get default or active Business Triage form definition' })
   @ApiResponse({ status: 200, type: TriageFormDto })
-  async getForm(@Req() req: Request) {
+  async getForm(@Req() req: Request, @Query('id') id?: string) {
     await this.verifyAdmin(req);
-    return this.triageFormService.getForm();
+    return this.triageFormService.getForm(id);
   }
 
   @Patch('form')
-  @ApiOperation({ summary: 'Update the Business Triage form definition', description: 'Update title/description/settings. Publish state is managed via publish/unpublish.' })
+  @ApiOperation({ summary: 'Update default Business Triage form definition' })
   @ApiResponse({ status: 200, type: TriageFormDto })
-  async updateForm(@Req() req: Request, @Body() dto: UpdateTriageFormDto) {
+  async updateForm(@Req() req: Request, @Body() dto: UpdateTriageFormDto, @Query('id') id?: string) {
     await this.verifyAdmin(req);
-    return this.triageFormService.updateForm(dto);
+    const form = await this.triageFormService.getForm(id);
+    return this.triageFormService.updateForm(form.id, dto);
   }
 
   @Post('publish')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Validate and publish the Business Triage', description: 'Runs the full flow-health check; fails with the validation issues when the flow cannot reach an audit.' })
+  @ApiOperation({ summary: 'Validate and publish the default Business Triage' })
   @ApiResponse({ status: 200, type: PublishTriageFormResultDto })
-  async publish(@Req() req: Request) {
+  async publish(@Req() req: Request, @Query('id') id?: string) {
     await this.verifyAdmin(req);
-    return this.triageFormService.publish();
+    return this.triageFormService.publish(id);
   }
 
   @Post('unpublish')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Unpublish the Business Triage', description: 'Takes the form offline. The public slug is retained for a future re-publish.' })
+  @ApiOperation({ summary: 'Unpublish the default Business Triage' })
   @ApiResponse({ status: 200, type: PublishTriageFormResultDto })
-  async unpublish(@Req() req: Request) {
+  async unpublish(@Req() req: Request, @Query('id') id?: string) {
     await this.verifyAdmin(req);
-    return this.triageFormService.unpublish();
+    return this.triageFormService.unpublish(id);
   }
 
   // --- Responses ---

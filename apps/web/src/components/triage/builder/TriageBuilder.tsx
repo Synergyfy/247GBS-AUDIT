@@ -8,13 +8,18 @@ import {
   ListChecks,
   PencilLine,
   Plus,
+  QrCode,
   RotateCcw,
   Save,
   Send,
   Settings2,
+  Star,
   Upload,
 } from "lucide-react";
 import { useAdminTriageQuestions, triageApi, formApi } from "@/services/triage/hooks";
+import { CreateTriageModal } from "./CreateTriageModal";
+import { ManageFlowsModal } from "./ManageFlowsModal";
+import { ShareQrModal } from "@/components/common/ShareQrModal";
 import type { AnswerPayload, FormApiError, QuestionPayload, UpdateFormPayload } from "@/services/triage/hooks";
 import type {
   AdminTriageAnswer,
@@ -60,8 +65,30 @@ interface Toast {
   type: "success" | "error";
 }
 
-export function TriageBuilder() {
-  const { data: serverQuestions, loading, error, refresh } = useAdminTriageQuestions();
+export interface TriageBuilderProps {
+  initialFormId?: string;
+  initialTab?: "questions" | "responses" | "settings";
+  onDraftChange?: (draft: AdminTriageQuestion[]) => void;
+  onFormChange?: (form: TriageForm | null) => void;
+  onFocusedQuestionChange?: (id: string | null) => void;
+}
+
+export function TriageBuilder({
+  initialFormId,
+  initialTab,
+  onDraftChange,
+  onFormChange,
+  onFocusedQuestionChange,
+}: TriageBuilderProps = {}) {
+  const [forms, setForms] = useState<TriageForm[]>([]);
+  const [selectedFormId, setSelectedFormId] = useState<string | null>(initialFormId ?? null);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [manageFlowsOpen, setManageFlowsOpen] = useState(false);
+  const [shareQrOpen, setShareQrOpen] = useState(false);
+
+  const { data: serverQuestions, loading, error, refresh } = useAdminTriageQuestions(
+    selectedFormId || undefined
+  );
 
   /* ---- Local-first draft state -------------------------------------------------
    * `draft` is the working copy the admin edits. Nothing touches the API until an
@@ -76,13 +103,17 @@ export function TriageBuilder() {
   const baseRef = useRef<AdminTriageQuestion[]>([]);
   const baseFormRef = useRef<TriageForm | null>(null);
 
-  const [tab, setTab] = useState<Tab>("questions");
+  const [tab, setTab] = useState<Tab>(initialTab ?? "questions");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [questionPendingDelete, setQuestionPendingDelete] = useState<AdminTriageQuestion | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (initialTab) setTab(initialTab);
+  }, [initialTab]);
 
   /* ---- Collapsed cards: purely UI state, never touches the draft ---------------
    * Long flows would otherwise render as a wall of open editors. Only the
@@ -91,6 +122,83 @@ export function TriageBuilder() {
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
   const seenIds = useRef<Set<string>>(new Set());
   const collapseInit = useRef(false);
+
+  // Load all triage forms on mount
+  const loadForms = useCallback(async () => {
+    try {
+      setFormLoading(true);
+      const list = await formApi.listForms();
+      setForms(list);
+      if (list.length > 0) {
+        setSelectedFormId((prev) => {
+          const candidate = initialFormId || prev;
+          if (candidate && list.some((f) => f.id === candidate)) return candidate;
+          const def = list.find((f) => f.isDefault) || list[0];
+          return def.id;
+        });
+      }
+    } catch {
+      const single = await formApi.getForm(initialFormId).catch(() => null);
+      if (single) {
+        setForms([single]);
+        setSelectedFormId(single.id);
+        setForm(single);
+      }
+    } finally {
+      setFormLoading(false);
+    }
+  }, [initialFormId]);
+
+  useEffect(() => {
+    if (initialFormId) {
+      setSelectedFormId(initialFormId);
+      // Fast-path the active form so the phone preview has metadata instantly.
+      formApi
+        .getForm(initialFormId)
+        .then((single) => {
+          if (single) {
+            setForm(single);
+            baseFormRef.current = single;
+            setForms((prev) => (prev.some((f) => f.id === single.id) ? prev : [...prev, single]));
+          }
+        })
+        .catch(() => {
+          /* list load below will surface errors */
+        });
+    }
+    void loadForms();
+  }, [loadForms, initialFormId]);
+
+  // Sync when initialFormId changes from outside
+  useEffect(() => {
+    if (initialFormId && initialFormId !== selectedFormId) {
+      setSelectedFormId(initialFormId);
+      setDraft([]);
+      setSeeded(false);
+      setDirty(false);
+      collapseInit.current = false;
+    }
+  }, [initialFormId, selectedFormId]);
+
+  // Sync active form when selectedFormId changes
+  useEffect(() => {
+    if (!selectedFormId || forms.length === 0) return;
+    const current = forms.find((f) => f.id === selectedFormId);
+    if (current) {
+      setForm(current);
+      baseFormRef.current = current;
+    }
+  }, [selectedFormId, forms]);
+
+  // Handle switching form
+  const handleSwitchForm = useCallback((id: string) => {
+    if (id === selectedFormId) return;
+    setSelectedFormId(id);
+    setDraft([]);
+    setSeeded(false);
+    setDirty(false);
+    collapseInit.current = false;
+  }, [selectedFormId]);
 
   // Seed the draft once from the server list; refetches afterwards never touch it.
   useEffect(() => {
@@ -105,17 +213,6 @@ export function TriageBuilder() {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [seeded, serverQuestions]);
-
-  useEffect(() => {
-    formApi
-      .getForm()
-      .then((next) => {
-        setForm(next);
-        baseFormRef.current = next;
-      })
-      .catch(() => setForm(null))
-      .finally(() => setFormLoading(false));
-  }, []);
 
   useEffect(() => () => clearTimeout(toastTimer.current ?? undefined), []);
 
@@ -185,15 +282,101 @@ export function TriageBuilder() {
     toastTimer.current = setTimeout(() => setToast(null), 4000);
   }, []);
 
+  /* ---- Live phone-preview sync ------------------------------------------------
+   * Surface the local-first draft + form metadata to the parent wrapper so the
+   * PhoneSimulator updates in real time as the admin edits. */
+
+  useEffect(() => {
+    onDraftChange?.(draft);
+  }, [draft, onDraftChange]);
+
+  useEffect(() => {
+    onFormChange?.(form);
+  }, [form, onFormChange]);
+
+  const focusedQuestionId = useMemo(() => {
+    const first = draft.find((q) => !collapsedIds.has(q.id));
+    return first?.id ?? draft[0]?.id ?? null;
+  }, [draft, collapsedIds]);
+
+  useEffect(() => {
+    onFocusedQuestionChange?.(focusedQuestionId);
+  }, [focusedQuestionId, onFocusedQuestionChange]);
+
   const refreshForm = useCallback(async () => {
     try {
-      const next = await formApi.getForm();
-      setForm(next);
-      baseFormRef.current = next;
+      const list = await formApi.listForms();
+      setForms(list);
+      if (selectedFormId) {
+        const next = list.find((f) => f.id === selectedFormId);
+        if (next) {
+          setForm(next);
+          baseFormRef.current = next;
+        }
+      }
     } catch {
       /* keep last known form */
     }
-  }, []);
+  }, [selectedFormId]);
+
+  const handleSetDefault = useCallback(
+    async (formIdToSet?: string) => {
+      const targetId = formIdToSet || form?.id;
+      if (!targetId) return;
+      const target = forms.find((f) => f.id === targetId);
+      try {
+        setBusy(true);
+        await formApi.setDefault(targetId);
+        setForms((prev) =>
+          prev.map((f) => ({ ...f, isDefault: f.id === targetId }))
+        );
+        setForm((prev) =>
+          prev
+            ? { ...prev, isDefault: prev.id === targetId }
+            : prev
+        );
+        showToast(
+          `"${target?.title || "Flow"}" is now the system default public pre-audit triage.`
+        );
+      } catch (err) {
+        showToast(
+          err instanceof Error ? err.message : "Failed to set default triage",
+          "error"
+        );
+      } finally {
+        setBusy(false);
+      }
+    },
+    [form?.id, forms, showToast]
+  );
+
+  const handleDeleteFlow = useCallback(
+    async (id: string) => {
+      const target = forms.find((f) => f.id === id);
+      if (!target) return;
+      if (target.isDefault) {
+        showToast("Cannot delete the system default flow. Please set another flow as default first.", "error");
+        return;
+      }
+      if (!confirm(`Are you sure you want to delete the flow "${target.title}"?`)) return;
+      try {
+        setBusy(true);
+        await formApi.deleteForm(id);
+        const list = await formApi.listForms();
+        setForms(list);
+        if (selectedFormId === id) {
+          const next = list.find((f) => f.isDefault) || list[0];
+          if (next) handleSwitchForm(next.id);
+        }
+        showToast("Triage flow deleted successfully.");
+      } catch (err) {
+        showToast(err instanceof Error ? err.message : "Failed to delete flow", "error");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [forms, selectedFormId, handleSwitchForm, showToast]
+  );
 
   const normalizeOrder = useCallback(
     (list: AdminTriageQuestion[]) => list.map((q, index) => ({ ...q, order: index + 1 })),
@@ -639,6 +822,7 @@ export function TriageBuilder() {
           config: q.config,
           order: q.order,
           isActive: q.isActive,
+          formId: form?.id,
           defaultNextQuestionId:
             q.defaultNextQuestionId && !isTempId(q.defaultNextQuestionId) ? q.defaultNextQuestionId : null,
           defaultAuditType: q.defaultAuditType,
@@ -729,7 +913,7 @@ export function TriageBuilder() {
     async (): Promise<PublishOutcome> => {
       try {
         if (dirty) await saveDraft();
-        const result = await formApi.publish();
+        const result = await formApi.publish(form?.id);
         await refreshForm();
         showToast("Form published.");
         return { ok: true, publicUrl: result.publicUrl ?? null };
@@ -742,13 +926,13 @@ export function TriageBuilder() {
         return { ok: false, issues, warnings };
       }
     },
-    [dirty, saveDraft, refreshForm, showToast]
+    [dirty, saveDraft, form?.id, refreshForm, showToast]
   );
 
   const unpublishNow = useCallback(async () => {
     setBusy(true);
     try {
-      await formApi.unpublish();
+      await formApi.unpublish(form?.id);
       await refreshForm();
       showToast("Form unpublished.");
     } catch (err) {
@@ -756,7 +940,7 @@ export function TriageBuilder() {
     } finally {
       setBusy(false);
     }
-  }, [refreshForm, showToast]);
+  }, [form?.id, refreshForm, showToast]);
 
   const copyLink = useCallback((url: string) => {
     const full = `${window.location.origin}${url}`;
@@ -767,8 +951,9 @@ export function TriageBuilder() {
   }, [showToast]);
 
   const openLiveForm = useCallback(() => {
-    if (!form?.slug) return;
-    window.open(`${window.location.origin}/audit/triage/${form.slug}`, "_blank", "noopener,noreferrer");
+    if (!form) return;
+    const url = form.isDefault ? `/audit/triage` : `/audit/triage?formId=${form.id}`;
+    window.open(`${window.location.origin}${url}`, "_blank", "noopener,noreferrer");
   }, [form]);
 
   /* ---- Local form/settings edits ---------------------------------------------- */
@@ -835,10 +1020,10 @@ export function TriageBuilder() {
       </AnimatePresence>
 
       {/* Header — pinned; the question list below is what scrolls */}
-      <div className="shrink-0 rounded-3xl border border-slate-100 bg-white p-4 sm:p-6">
+      <div className="shrink-0 rounded-3xl border border-slate-100 bg-white p-4 sm:p-6 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="min-w-0">
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <h2 className="truncate text-xl sm:text-2xl font-bold text-slate-900">
                 {formLoading ? "Business Triage" : form?.title ?? "Business Triage"}
               </h2>
@@ -855,12 +1040,35 @@ export function TriageBuilder() {
                 />
                 {form?.status === "published" ? "Published" : "Draft"}
               </span>
+
+              {form?.isDefault ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-700">
+                  <Star size={12} className="fill-amber-500 text-amber-500" /> Default Triage
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void handleSetDefault()}
+                  className="inline-flex items-center gap-1 rounded-full bg-slate-100 hover:bg-amber-50 hover:text-amber-700 px-2.5 py-1 text-[11px] font-bold text-slate-600 transition-colors"
+                  title="Make this the default triage for public visitors"
+                >
+                  <Star size={12} /> Set as Default
+                </button>
+              )}
             </div>
             <p className="mt-1 text-sm text-slate-400 font-medium">
               {form?.description || "Design how visitors are routed to the right audit or service."}
             </p>
           </div>
           <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap sm:justify-end">
+            <button
+              type="button"
+              onClick={() => setShareQrOpen(true)}
+              className="inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-2xl border-2 border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:border-slate-300 transition-all sm:px-4 sm:py-2.5 sm:text-sm"
+            >
+              <QrCode size={15} />
+              QR & Link
+            </button>
             {dirty && (
               <span className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-amber-50 text-amber-700 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest sm:px-3 sm:py-1.5 sm:text-xs">
                 <PencilLine size={13} /> Unsaved changes
@@ -973,6 +1181,7 @@ export function TriageBuilder() {
               onUpdateDescription={updateDescription}
               onUpdateSettings={updateSettings}
               onCopy={copyLink}
+              onSetDefault={() => void handleSetDefault()}
               busy={busy}
             />
           </div>
@@ -1020,6 +1229,51 @@ export function TriageBuilder() {
           onClose={() => setQuestionPendingDelete(null)}
         />
       )}
+
+      {shareQrOpen && form && (
+        <ShareQrModal
+          isOpen={shareQrOpen}
+          onClose={() => setShareQrOpen(false)}
+          title={form.title}
+          subtitle="Pre-Audit Triage Intake Flow"
+          badge={form.isDefault ? "Default Triage Flow" : undefined}
+          url={
+            typeof window !== "undefined"
+              ? form.isDefault
+                ? `${window.location.origin}/audit/triage`
+                : `${window.location.origin}/audit/triage?formId=${form.id}`
+              : `/audit/triage?formId=${form.id}`
+          }
+        />
+      )}
+
+      <CreateTriageModal
+        isOpen={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        onCreated={(newForm) => {
+          setForms((prev) => {
+            const list = newForm.isDefault ? prev.map((p) => ({ ...p, isDefault: false })) : prev;
+            return [newForm, ...list];
+          });
+          setSelectedFormId(newForm.id);
+          setForm(newForm);
+          setDraft([]);
+          setSeeded(false);
+          showToast(`Created triage "${newForm.title}".`);
+        }}
+      />
+
+      <ManageFlowsModal
+        isOpen={manageFlowsOpen}
+        onClose={() => setManageFlowsOpen(false)}
+        forms={forms}
+        currentFormId={selectedFormId}
+        onSelectForm={(id) => handleSwitchForm(id)}
+        onSetDefault={(id) => void handleSetDefault(id)}
+        onDeleteForm={(id) => void handleDeleteFlow(id)}
+        onCreateNew={() => setCreateModalOpen(true)}
+        busy={busy}
+      />
     </div>
   );
 }

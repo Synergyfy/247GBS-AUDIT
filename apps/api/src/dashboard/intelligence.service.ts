@@ -65,6 +65,7 @@ export class IntelligenceService {
 
     return {
       strategicInsight,
+      aiAvailable: this.aiService.isAvailable(),
       keyMetrics: [
         { label: "Audit Accuracy", value: "High", color: "green" },
         { label: "Data Points", value: audits.length.toString(), color: "blue" },

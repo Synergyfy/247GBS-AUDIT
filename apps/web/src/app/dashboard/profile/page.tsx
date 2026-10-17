@@ -19,7 +19,7 @@ import type { UserProfile } from "@/services/users/profile/types";
 import useProfile from "@/services/users/profile/hooks";
 
 export default function ProfilePage() {
-    const { user } = useAuth();
+    const { user, refreshUserFromProfile } = useAuth();
     const { data: profile, loading: profileLoading, updateProfile } = useProfile();
     const [isLoading, setIsLoading] = useState(false);
     const [isSaved, setIsSaved] = useState(false);
@@ -46,8 +46,11 @@ export default function ProfilePage() {
                 location: profile.location || "",
                 website: profile.website || ""
             });
+            // Push server profile into context so header name/avatar catch up
+            // even if the callback event was missed (context null + token valid).
+            refreshUserFromProfile(profile as unknown as Record<string, unknown>);
         }
-    }, [profile]);
+    }, [profile, refreshUserFromProfile]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;

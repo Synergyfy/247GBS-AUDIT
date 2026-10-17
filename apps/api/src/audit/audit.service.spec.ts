@@ -1,4 +1,8 @@
-import { ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  ConflictException,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { AuditService } from './audit.service';
 import { AuditStatus } from './entities/audit-session.entity';
 
@@ -17,29 +21,34 @@ describe('AuditService.createFromPreAudit', () => {
 
   beforeEach(() => {
     auditFindOne = jest.fn();
-    auditCreate = jest.fn((value) => value);
-    auditSave = jest.fn(async (value) => value);
+    auditCreate = jest.fn((value: unknown) => value);
+    auditSave = jest.fn((value: unknown) => Promise.resolve(value));
     preAuditFindOne = jest.fn();
 
     service = new AuditService(
       { findOne: auditFindOne, create: auditCreate, save: auditSave } as any,
       { findOne: preAuditFindOne } as any,
       {} as any,
+      { notifyAuditCompleted: jest.fn() } as any,
     );
   });
 
   it('refuses to start from an unknown pre-audit', async () => {
     preAuditFindOne.mockResolvedValue(null);
-    await expect(service.createFromPreAudit('user-1', 'pre-missing')).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    await expect(
+      service.createFromPreAudit('user-1', 'pre-missing'),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('refuses when the pre-audit has no audit recommendation', async () => {
-    preAuditFindOne.mockResolvedValue({ id: 'pre-1', recommendedAuditType: null, destinationType: null });
-    await expect(service.createFromPreAudit('user-1', 'pre-1')).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    preAuditFindOne.mockResolvedValue({
+      id: 'pre-1',
+      recommendedAuditType: null,
+      destinationType: null,
+    });
+    await expect(
+      service.createFromPreAudit('user-1', 'pre-1'),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('creates an audit session from the pre-audit recommendation', async () => {
@@ -65,7 +74,9 @@ describe('AuditService.createFromPreAudit', () => {
     auditFindOne.mockResolvedValue(null);
 
     await service.createFromPreAudit('user-1', 'pre-1', 'LONG_FORM');
-    expect(auditCreate).toHaveBeenCalledWith(expect.objectContaining({ auditType: 'LONG_FORM' }));
+    expect(auditCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ auditType: 'LONG_FORM' }),
+    );
   });
 
   it('is idempotent and returns the existing session for the same user', async () => {
@@ -86,10 +97,14 @@ describe('AuditService.createFromPreAudit', () => {
 
   it('rejects a pre-audit that is already linked to another account', async () => {
     preAuditFindOne.mockResolvedValue(preAudit);
-    auditFindOne.mockResolvedValue({ id: 'audit-1', userId: 'other-user', preAuditSessionId: 'pre-1' });
+    auditFindOne.mockResolvedValue({
+      id: 'audit-1',
+      userId: 'other-user',
+      preAuditSessionId: 'pre-1',
+    });
 
-    await expect(service.createFromPreAudit('user-1', 'pre-1')).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    await expect(
+      service.createFromPreAudit('user-1', 'pre-1'),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 });
