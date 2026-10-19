@@ -1,0 +1,33 @@
+{
+  "default_branch": "main",
+  "branches": [
+    "dev",
+    "feat/fundordonate-m2m-data-sharing",
+    "feat/pre-audit-and-sectors",
+    "feat/triage-audit-gallery-phone-preview",
+    "fix/audit-remediation-complete",
+    "fix/pre-audit-progress-resume",
+    "fix/triage-builder-ui",
+    "main"
+  ],
+  "parent": {
+    "dev": "main",
+    "feat/fundordonate-m2m-data-sharing": "main",
+    "feat/pre-audit-and-sectors": "main",
+    "feat/triage-audit-gallery-phone-preview": "main",
+    "fix/audit-remediation-complete": "main",
+    "fix/pre-audit-progress-resume": "main",
+    "fix/triage-builder-ui": "main",
+    "main": null
+  },
+  "order": [
+    "main",
+    "dev",
+    "feat/fundordonate-m2m-data-sharing",
+    "feat/pre-audit-and-sectors",
+    "feat/triage-audit-gallery-phone-preview",
+    "fix/audit-remediation-complete",
+    "fix/pre-audit-progress-resume",
+    "fix/triage-builder-ui"
+  ]
+}
