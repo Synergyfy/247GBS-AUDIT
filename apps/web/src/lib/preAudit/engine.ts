@@ -164,36 +164,86 @@ export function makeTypedVisitedEntry(
 }
 
 /**
- * Re-derives the active path from the persisted entries, walking the chain
- * from the first question and stopping as soon as an entry is inconsistent
- * (a prior branch answer no longer leads to the next entry). Used to
- * self-heal stored progress after back-navigation, question edits, or stale
- * branch answers — the "back navigation recalculates the branch path"
+ * Rebuilds a persisted visited entry from the LIVE question definition so its
+ * routing (next question / destination) reflects the current question bank
+ * rather than whatever it was when the answer was first recorded. Returns null
+ * when the entry is no longer valid for this question — e.g. it is a choice
+ * question whose selected options were deleted.
+ *
+ * This is what lets a stale in-progress walk (saved before an admin edited the
+ * flow) be re-validated instead of blindly resubmitted, which is what caused
+ * the server to reject it with "Step N does not match the expected question".
+ */
+export function rebuildEntryFromQuestion(
+  question: TriagePublicQuestion,
+  entry: PreAuditVisitedEntry
+): PreAuditVisitedEntry | null {
+  const type = resolveQuestionType(question);
+  let rebuilt: PreAuditVisitedEntry;
+
+  if (isChoiceType(type)) {
+    const answerIds = entry.answerIds ?? [];
+    if (answerIds.length === 0) return null;
+    const allValid = answerIds.every((id) =>
+      question.answers.some((a) => a.id === id)
+    );
+    if (!allValid) return null;
+    const built = makeChoiceAnswer(question, answerIds).entry;
+    if (!built) return null;
+    rebuilt = built;
+  } else {
+    rebuilt = makeTypedVisitedEntry(question, entry.value);
+  }
+
+  return entry.branchStart ? { ...rebuilt, branchStart: true } : rebuilt;
+}
+
+/**
+ * Re-derives the active path from the persisted entries against the live
+ * question cache, walking the chain from the first question and stopping as
+ * soon as an entry is inconsistent (its question is gone/edited, or a prior
+ * answer no longer leads to it under the CURRENT bank). Used to self-heal
+ * stored progress after back-navigation, question edits, or a redeployed /
+ * reseeded question bank — the "back navigation recalculates the branch path"
  * requirement.
+ *
+ * When `strict` is set, an entry whose question is missing from the cache
+ * terminates the walk (used when rehydrating from localStorage, where a stale
+ * walk must be truncated rather than trusted). Otherwise a missing cache entry
+ * is tolerated and the stored entry is kept, preserving the lenient behaviour
+ * relied on by in-session callers.
  */
 export function recomputeActiveVisited(
   visited: PreAuditVisitedEntry[],
-  cache: Record<string, TriagePublicQuestion>
+  cache: Record<string, TriagePublicQuestion>,
+  strict = false
 ): PreAuditVisitedEntry[] {
   const active: PreAuditVisitedEntry[] = [];
   const seen = new Set<string>();
 
   for (const entry of visited) {
     if (seen.has(entry.questionId)) break;
-    seen.add(entry.questionId);
-
-    const previous = active[active.length - 1];
-    if (previous && !entry.branchStart && previous.nextQuestionId !== entry.questionId) break;
 
     const question = cache[entry.questionId];
-    if (question && isChoiceType(resolveQuestionType(question))) {
-      const validSelection = entry.answerIds.every((answerId) =>
-        question.answers.some((a) => a.id === answerId)
-      );
-      if (!validSelection) break;
+    let candidate = entry;
+    if (question) {
+      const rebuilt = rebuildEntryFromQuestion(question, entry);
+      if (!rebuilt) break;
+      candidate = rebuilt;
+    } else if (strict) {
+      // Stale walk: the question no longer exists in the live bank.
+      break;
     }
 
-    active.push(entry);
+    const previous = active[active.length - 1];
+    // Non-branch entries must sit exactly where the (rebuilt) previous entry
+    // routes under the current bank.
+    if (previous && !candidate.branchStart && previous.nextQuestionId !== candidate.questionId) {
+      break;
+    }
+
+    seen.add(candidate.questionId);
+    active.push(candidate);
     if (active.length >= PRE_AUDIT_MAX_STEPS) break;
   }
 
