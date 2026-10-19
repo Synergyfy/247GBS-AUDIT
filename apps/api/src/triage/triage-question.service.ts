@@ -36,10 +36,20 @@ export class TriageQuestionService {
   // ============================================================
 
   async getStartQuestion(formId?: string): Promise<TriageQuestionItemDto> {
-    const ordered = await this.linearOrder(formId);
+    let ordered = await this.linearOrder(formId);
     const question = ordered[0];
     if (!question) {
       throw new NotFoundException('No active triage questions are configured yet.');
+    }
+    // When no form was requested, the question was picked from the GLOBAL
+    // active order. Its routing must still be scoped to the question's OWN
+    // form: otherwise an answer with no explicit destination advances to the
+    // next question across the global list (i.e. into a different form), and
+    // the server's form-scoped re-evaluation rejects the submission with
+    // "Step N does not match the expected question". Re-scope the ordered list
+    // so the public payload mirrors getQuestion()/evaluateAndSave().
+    if (!formId && question.formId) {
+      ordered = await this.linearOrder(question.formId);
     }
     return this.toPublicQuestion(question, ordered);
   }

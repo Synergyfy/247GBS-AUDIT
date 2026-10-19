@@ -11,7 +11,6 @@ import {
   ensureQuestion,
   ensureStartQuestion,
   getCachedQuestion,
-  hydrateCache,
 } from "@/services/preAudit/data";
 import type {
   PreAuditEngineOptions,
@@ -165,36 +164,103 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
   useEffect(() => {
     let cancelled = false;
 
+    // Resume after a valid prefix: advance to the question the last answered
+    // step routes to, or move to review when the line has concluded.
+    const resumeAfterPrefix = async (entries: PreAuditVisitedEntry[]) => {
+      const last = entries[entries.length - 1];
+      if (last?.nextQuestionId) {
+        const next = await ensureQuestion(last.nextQuestionId).catch(() => null);
+        if (cancelled) return;
+        if (next) {
+          setCurrentQuestion(next);
+          setPhase("question");
+          return;
+        }
+      }
+      setConsentGranted(false);
+      setPhase("review");
+    };
+
     const initialize = async () => {
       const saved = loadProgress();
-      if (
-        saved &&
+      const resumable =
+        !!saved &&
         saved.visited.length > 0 &&
-        (saved.phase === "question" || saved.phase === "email" || saved.phase === "review")
-      ) {
-        const healed = recomputeActiveVisited(saved.visited, {});
-        if (cancelled) return;
-        if (healed.length === 0) {
-          await startFresh();
-        } else {
-          setVisited(healed);
-          setPendingBranches(saved.pendingBranches ?? []);
-          setCurrentBranch(saved.currentBranch ?? null);
-          setEmail(saved.email ?? "");
-          if (saved.currentQuestion) {
-            setCurrentQuestion(saved.currentQuestion);
-            hydrateCache([saved.currentQuestion]);
-          }
-          if (saved.phase === "question" && saved.currentQuestion) {
-            setPhase("question");
-          } else if (saved.phase === "email") {
-            setPhase("email");
-          } else {
-            setPhase("review");
-          }
-        }
-      } else {
+        (saved.phase === "question" || saved.phase === "email" || saved.phase === "review");
+
+      if (!resumable || !saved) {
         await startFresh();
+        if (!cancelled) setHydrated(true);
+        return;
+      }
+
+      // Re-validate the saved walk against the LIVE question bank before
+      // trusting it. Progress saved before the flow was edited (or from an
+      // older/reseeded bank) must never be resubmitted as-is: the server
+      // recomputes routing itself and rejects mismatched steps with
+      // "Step N does not match the expected question". Here we rebuild the
+      // walk from the current definitions and truncate at the first mismatch.
+      let healed: PreAuditVisitedEntry[] = [];
+      try {
+        const start = await ensureStartQuestion(options.startOverride);
+        if (saved.visited[0].questionId === start.id) {
+          const cache: Record<string, TriagePublicQuestion> = { [start.id]: start };
+          await Promise.all(
+            saved.visited.map(async (entry) => {
+              try {
+                cache[entry.questionId] = await ensureQuestion(entry.questionId);
+              } catch {
+                // Missing/removed question — the strict walk truncates here.
+              }
+            })
+          );
+          healed = recomputeActiveVisited(saved.visited, cache, true);
+        }
+      } catch {
+        healed = [];
+      }
+
+      if (cancelled) return;
+
+      if (healed.length === 0) {
+        // Nothing in the saved walk survives the current bank — restart clean.
+        clearProgress();
+        await startFresh();
+        if (!cancelled) setHydrated(true);
+        return;
+      }
+
+      const truncated = healed.length < saved.visited.length;
+      setVisited(healed);
+      // Branch bookkeeping is only trustworthy when the whole walk is intact;
+      // on truncation we drop it and continue from the divergence point (any
+      // remaining branches are regenerated as the user answers).
+      setPendingBranches(truncated ? [] : saved.pendingBranches ?? []);
+      setCurrentBranch(truncated ? null : saved.currentBranch ?? null);
+      setEmail(saved.email ?? "");
+
+      if (!truncated && saved.currentQuestion) {
+        // Whole walk intact: resume exactly where the user left off.
+        const live =
+          getCachedQuestion(saved.currentQuestion.id) ??
+          (await ensureQuestion(saved.currentQuestion.id).catch(() => null));
+        if (cancelled) return;
+        if (live) {
+          setCurrentQuestion(live);
+          if (saved.phase === "email") setPhase("email");
+          else if (saved.phase === "review") setPhase("review");
+          else setPhase("question");
+          if (!cancelled) setHydrated(true);
+          return;
+        }
+      }
+
+      const last = healed[healed.length - 1];
+      if (truncated && last && isTerminal(last)) {
+        setConsentGranted(false);
+        setPhase("review");
+      } else {
+        await resumeAfterPrefix(healed);
       }
       if (!cancelled) setHydrated(true);
     };
@@ -203,7 +269,7 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
     return () => {
       cancelled = true;
     };
-  }, [startFresh]);
+  }, [startFresh, options.startOverride]);
 
   // ==================== PERSISTENCE ====================
 
@@ -446,7 +512,16 @@ export function QuestionEngine(options: PreAuditEngineOptions) {
       const entry = visited[index];
       if (!entry) return;
 
-      const retained = recomputeActiveVisited(visited.slice(0, index), {});
+      const prefix = visited.slice(0, index);
+      // Re-validate the retained prefix against the live questions so a stale
+      // branch (edited/removed since it was answered) is dropped rather than
+      // carried forward.
+      const cache: Record<string, TriagePublicQuestion> = {};
+      for (const item of prefix) {
+        const cached = getCachedQuestion(item.questionId);
+        if (cached) cache[item.questionId] = cached;
+      }
+      const retained = recomputeActiveVisited(prefix, cache);
       setVisited(retained);
       setPendingBranches([]);
       setCurrentBranch(null);
