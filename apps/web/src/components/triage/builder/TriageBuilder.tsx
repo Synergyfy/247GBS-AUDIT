@@ -817,7 +817,7 @@ export function TriageBuilder() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex h-full min-h-0 min-w-0 flex-col gap-5">
       {/* Toast */}
       <AnimatePresence>
         {toast && (
@@ -834,8 +834,8 @@ export function TriageBuilder() {
         )}
       </AnimatePresence>
 
-      {/* Header */}
-      <div className="rounded-3xl border border-slate-100 bg-white p-4 sm:p-6">
+      {/* Header — pinned; the question list below is what scrolls */}
+      <div className="shrink-0 rounded-3xl border border-slate-100 bg-white p-4 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="min-w-0">
             <div className="flex items-center gap-3">
@@ -860,9 +860,9 @@ export function TriageBuilder() {
               {form?.description || "Design how visitors are routed to the right audit or service."}
             </p>
           </div>
-          <div className="flex w-full min-w-0 items-center gap-2 overflow-x-auto overscroll-x-contain sm:w-auto">
+          <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap sm:justify-end">
             {dirty && (
-              <span className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-amber-50 text-amber-700 px-3 py-1.5 text-xs font-bold uppercase tracking-widest">
+              <span className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-amber-50 text-amber-700 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest sm:px-3 sm:py-1.5 sm:text-xs">
                 <PencilLine size={13} /> Unsaved changes
               </span>
             )}
@@ -871,7 +871,7 @@ export function TriageBuilder() {
                 type="button"
                 disabled={busy}
                 onClick={discard}
-                className="inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-white border-2 border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600 hover:border-slate-300 transition-all disabled:opacity-50"
+                className="inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-white border-2 border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:border-slate-300 transition-all sm:px-4 sm:py-2.5 sm:text-sm disabled:opacity-50"
               >
                 <RotateCcw size={14} /> Discard
               </button>
@@ -880,7 +880,7 @@ export function TriageBuilder() {
               type="button"
               disabled={!dirty || busy}
               onClick={() => void saveDraft()}
-              className="inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-black transition-all disabled:opacity-50"
+              className="inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-black transition-all sm:px-4 sm:py-2.5 sm:text-sm disabled:opacity-50"
             >
               <Save size={15} />
               Save
@@ -888,7 +888,7 @@ export function TriageBuilder() {
             <button
               type="button"
               onClick={localAddQuestion}
-              className="inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-2xl border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:border-slate-300 transition-all"
+              className="inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-2xl border-2 border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:border-slate-300 transition-all sm:px-4 sm:py-2.5 sm:text-sm"
             >
               <Plus size={15} />
               Add Question
@@ -896,7 +896,7 @@ export function TriageBuilder() {
             <button
               type="button"
               onClick={() => setImportOpen(true)}
-              className="inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-2xl border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:border-slate-300 transition-all"
+              className="inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-2xl border-2 border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:border-slate-300 transition-all sm:px-4 sm:py-2.5 sm:text-sm"
             >
               <Upload size={15} />
               Import
@@ -904,7 +904,7 @@ export function TriageBuilder() {
             <button
               type="button"
               onClick={() => setPreviewOpen(true)}
-              className="inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-slate-100 px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 transition-all"
+              className="inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 transition-all sm:px-4 sm:py-2.5 sm:text-sm"
             >
               <Eye size={15} />
               Preview
@@ -913,7 +913,7 @@ export function TriageBuilder() {
               type="button"
               disabled={busy}
               onClick={() => setPublishOpen(true)}
-              className="inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-orange-500 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-orange-500/25 hover:bg-orange-600 transition-all disabled:opacity-50"
+              className="inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-orange-500 px-3 py-2 text-xs font-bold text-white shadow-lg shadow-orange-500/25 hover:bg-orange-600 transition-all sm:px-4 sm:py-2.5 sm:text-sm disabled:opacity-50"
             >
               <Send size={15} />
               Publish
@@ -922,7 +922,7 @@ export function TriageBuilder() {
         </div>
 
         {/* Tabs */}
-        <div className="mt-5 flex items-center gap-1 overflow-x-auto overflow-y-hidden border-b border-slate-100">
+        <div className="mt-4 flex items-center gap-1 overflow-x-auto overflow-y-hidden border-b border-slate-100 sm:mt-5">
           {tabMeta.map((meta) => {
             const Icon = meta.icon;
             return (
@@ -944,8 +944,9 @@ export function TriageBuilder() {
         </div>
       </div>
 
-      {/* Body: full-width tabbed content */}
-      <div className="min-w-0 space-y-6">
+      {/* Body: full-width tabbed content. The active tab owns the remaining
+          height and scrolls on its own, so the header above never leaves. */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {tab === "questions" && (
           <QuestionsTab
             questions={draft}
@@ -959,16 +960,22 @@ export function TriageBuilder() {
             onJump={jumpToQuestion}
           />
         )}
-        {tab === "responses" && <ResponsesTab />}
+        {tab === "responses" && (
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <ResponsesTab />
+          </div>
+        )}
         {tab === "settings" && (
-          <SettingsTab
-            form={form ?? { title: "", description: null, settings: {} as TriageFormSettings } as TriageForm}
-            onUpdateTitle={updateTitle}
-            onUpdateDescription={updateDescription}
-            onUpdateSettings={updateSettings}
-            onCopy={copyLink}
-            busy={busy}
-          />
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <SettingsTab
+              form={form ?? { title: "", description: null, settings: {} as TriageFormSettings } as TriageForm}
+              onUpdateTitle={updateTitle}
+              onUpdateDescription={updateDescription}
+              onUpdateSettings={updateSettings}
+              onCopy={copyLink}
+              busy={busy}
+            />
+          </div>
         )}
       </div>
 
