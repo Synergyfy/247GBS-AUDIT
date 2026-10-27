@@ -147,8 +147,34 @@ function ConfigText({
   );
 }
 
-/** Inline config editor for option-less question types. */
-function ConfigEditor({
+/**
+ * Input types whose respondent-facing control renders a native `placeholder`.
+ * Every other type shows a fixed affordance (options, a picker, a scale) and
+ * has nothing to hint at.
+ */
+const PLACEHOLDER_TYPES: ReadonlySet<QuestionType> = new Set<QuestionType>([
+  "short_text",
+  "long_text",
+  "number",
+]);
+
+/** Types that expose at least one type-specific option in the settings panel. */
+const TYPE_CONFIG_TYPES: ReadonlySet<QuestionType> = new Set<QuestionType>([
+  "short_text",
+  "long_text",
+  "number",
+  "date",
+  "file",
+  "rating",
+  "linear_scale",
+]);
+
+/**
+ * Type-specific options: the input placeholder plus the constraints a given
+ * input genuinely needs (number range, date range, upload rules, scale labels).
+ * Returns nothing for types that have none, so the panel never renders gaps.
+ */
+function TypeConfigFields({
   type,
   config,
   onPatch,
@@ -158,37 +184,19 @@ function ConfigEditor({
   onPatch: (cfg: QuestionConfig) => void;
 }) {
   const cfg = config ?? {};
+  if (!TYPE_CONFIG_TYPES.has(type)) return null;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, height: 0 }}
-      animate={{ opacity: 1, height: "auto" }}
-      exit={{ opacity: 0, height: 0 }}
-      className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3"
-    >
-      {(type === "short_text" || type === "long_text" || type === "number") && (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {PLACEHOLDER_TYPES.has(type) && (
         <div>
-          <FieldLabel>Placeholder</FieldLabel>
+          <FieldLabel hint="Appears inside the field before anything is typed.">
+            Placeholder
+          </FieldLabel>
           <ConfigText
             value={cfg.placeholder ?? ""}
-            placeholder="Helper text inside the field"
+            placeholder="e.g. Your company name"
             onCommit={(v) => onPatch({ ...cfg, placeholder: v || undefined })}
-          />
-        </div>
-      )}
-      {(type === "short_text" || type === "long_text") && (
-        <div>
-          <FieldLabel>Max length</FieldLabel>
-          <ConfigText
-            value={cfg.maxLength !== undefined ? String(cfg.maxLength) : ""}
-            inputMode="decimal"
-            placeholder="No limit"
-            onCommit={(v) =>
-              onPatch({
-                ...cfg,
-                maxLength: v === "" ? undefined : Math.max(1, Number(v)),
-              })
-            }
           />
         </div>
       )}
@@ -236,31 +244,31 @@ function ConfigEditor({
       )}
       {type === "file" && (
         <>
-          <div className="flex items-end gap-3">
-            <div className="flex-1">
-              <FieldLabel>Multiple files</FieldLabel>
-              <Toggle
-                checked={cfg.multipleFiles ?? false}
-                onChange={(v) => void onPatch({ ...cfg, multipleFiles: v })}
-                label="Multiple files"
-              />
-            </div>
-            <div className="flex-1">
-              <FieldLabel>Allowed types</FieldLabel>
-              <ConfigText
-                value={(cfg.allowedTypes ?? []).join(", ")}
-                placeholder="pdf, image, zip"
-                onCommit={(v) =>
-                  onPatch({
-                    ...cfg,
-                    allowedTypes: v
-                      .split(",")
-                      .map((s) => s.trim().toLowerCase())
-                      .filter(Boolean),
-                  })
-                }
-              />
-            </div>
+          <div className="flex items-center justify-between gap-4 rounded-xl border-2 border-slate-200 bg-white px-3.5 py-2.5">
+            <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
+              Multiple files
+            </span>
+            <Toggle
+              checked={cfg.multipleFiles ?? false}
+              onChange={(v) => void onPatch({ ...cfg, multipleFiles: v })}
+              label="Multiple files"
+            />
+          </div>
+          <div>
+            <FieldLabel>Allowed types</FieldLabel>
+            <ConfigText
+              value={(cfg.allowedTypes ?? []).join(", ")}
+              placeholder="pdf, image, zip"
+              onCommit={(v) =>
+                onPatch({
+                  ...cfg,
+                  allowedTypes: v
+                    .split(",")
+                    .map((s) => s.trim().toLowerCase())
+                    .filter(Boolean),
+                })
+              }
+            />
           </div>
           <div>
             <FieldLabel>Max size (MB)</FieldLabel>
@@ -295,6 +303,71 @@ function ConfigEditor({
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * The one settings panel for a question. Holds the settings that apply to the
+ * question builder generally — placeholder, helper text and whether the
+ * question is shown to respondents — plus the options a specific input type
+ * genuinely requires.
+ */
+function QuestionSettings({
+  question,
+  onUpdate,
+}: {
+  question: AdminTriageQuestion;
+  onUpdate: (patch: Partial<QuestionPayload>) => void;
+}) {
+  const hasTypeConfig = TYPE_CONFIG_TYPES.has(question.type);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: "auto" }}
+      exit={{ opacity: 0, height: 0 }}
+      className="mt-3 rounded-2xl bg-slate-50/70 p-4"
+    >
+      <TypeConfigFields
+        type={question.type}
+        config={question.config}
+        onPatch={(config) => onUpdate({ config })}
+      />
+
+      <div
+        className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${
+          hasTypeConfig ? "mt-4 border-t border-slate-200 pt-4" : ""
+        }`}
+      >
+        <div>
+          <FieldLabel hint="A short line of guidance shown under the question.">
+            Helper text
+          </FieldLabel>
+          <ConfigText
+            value={question.hint ?? ""}
+            placeholder="e.g. Use the name on your latest invoice"
+            onCommit={(v) => onUpdate({ hint: v.trim() || null })}
+          />
+        </div>
+        <div className="flex items-center justify-between gap-4 self-start rounded-xl border-2 border-slate-200 bg-white px-3.5 py-2.5 sm:py-0">
+          <span className="min-w-0">
+            <span className="block text-xs font-bold uppercase tracking-widest text-slate-500">
+              Show to respondent
+            </span>
+            <span className="mt-0.5 block text-[11px] leading-snug text-slate-400">
+              {question.isActive
+                ? "Included in the published form."
+                : "Hidden — respondents skip this question."}
+            </span>
+          </span>
+          <Toggle
+            checked={question.isActive}
+            onChange={(v) => onUpdate({ isActive: v })}
+            label="Show to respondent"
+          />
+        </div>
+      </div>
     </motion.div>
   );
 }
@@ -748,8 +821,7 @@ export function QuestionCard({
   anchorId: string;
 }) {
   const [descDraft, setDescDraft] = useSyncedString(question.description ?? "");
-  const [showConfig, setShowConfig] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const cardControls = useDragControls();
 
   const type = question.type;
@@ -805,7 +877,7 @@ export function QuestionCard({
       dragControls={cardControls}
       className="rounded-3xl border border-slate-200/80 bg-white shadow-sm"
     >
-      <div className="scroll-mt-20 p-4 sm:p-6 sm:scroll-mt-72" id={anchorId}>
+      <div className="scroll-mt-3 p-4 sm:scroll-mt-4 sm:p-6" id={anchorId}>
         {/* Card header: number + title + actions */}
         <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
           <button
@@ -988,8 +1060,8 @@ export function QuestionCard({
           />
         </div>
 
-        {/* Row: required + active */}
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        {/* Required */}
+        <div className="mt-4">
           <label className="flex items-center gap-2 text-sm font-bold text-slate-600">
             Required
             <Toggle
@@ -998,19 +1070,6 @@ export function QuestionCard({
               label="Required"
             />
           </label>
-          <button
-            type="button"
-            onClick={() => handlers.update(question.id, { isActive: !question.isActive })}
-            className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors"
-            style={
-              question.isActive
-                ? { backgroundColor: "#ecfdf5", color: "#059669" }
-                : { backgroundColor: "#f1f5f9", color: "#64748b" }
-            }
-          >
-            <span className="h-2 w-2 rounded-full" style={{ background: question.isActive ? "#10b981" : "#94a3b8" }} />
-            {question.isActive ? "Active" : "Inactive"}
-          </button>
         </div>
 
         {/* Choice questions: answer options */}
@@ -1113,60 +1172,32 @@ export function QuestionCard({
           />
         )}
 
-        {/* Config / advanced toggles for option-less types */}
-        {!isChoice && (
-          <div className="mt-3 flex gap-2">
-            <button
-              type="button"
-              onClick={() => setShowConfig((v) => !v)}
-              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors"
-            >
-              <Settings2 size={13} />
-              {showConfig ? "Hide config" : "Config"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowAdvanced((v) => !v)}
-              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors"
-            >
-              <ChevronDown size={13} />
-              {showAdvanced ? "Hide advanced" : "Advanced"}
-            </button>
-          </div>
-        )}
-
-        {!isChoice && showConfig && (
-          <ConfigEditor
-            type={type}
-            config={question.config}
-            onPatch={(cfg) => handlers.update(question.id, { config: cfg })}
-          />
-        )}
-        {!isChoice && showAdvanced && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 rounded-2xl bg-slate-50/70 p-4"
+        {/* Per-question settings: placeholder, helper text, show to respondent */}
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => setShowSettings((v) => !v)}
+            aria-expanded={showSettings}
+            aria-label="Question settings"
+            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors"
           >
-            <div>
-              <FieldLabel>Icon (lucide name)</FieldLabel>
-              <TextInput
-                value={question.icon ?? ""}
-                placeholder="e.g. Building2"
-                onChange={(v) => void handlers.update(question.id, { icon: v.trim() || null })}
-              />
-            </div>
-            <div>
-              <FieldLabel>Hint shown to respondents</FieldLabel>
-              <TextInput
-                value={question.hint ?? ""}
-                placeholder="Optional helper line"
-                onChange={(v) => void handlers.update(question.id, { hint: v.trim() || null })}
-              />
-            </div>
-          </motion.div>
-        )}
+            <Settings2 size={13} />
+            Settings
+            <ChevronDown
+              size={13}
+              className={`transition-transform ${showSettings ? "rotate-180" : ""}`}
+            />
+          </button>
+        </div>
+
+        <AnimatePresence initial={false}>
+          {showSettings && (
+            <QuestionSettings
+              question={question}
+              onUpdate={(patch) => handlers.update(question.id, patch)}
+            />
+          )}
+        </AnimatePresence>
           </>
         )}
       </div>
