@@ -60,6 +60,8 @@ export interface PreAuditDiagnosticSummary {
     rationale: string;
     keyTakeaway: string;
   };
+  /** Admin-configured diagnosis + MCOM recommendations from the server. */
+  diagnosis?: any;
 }
 
 export interface GenericAnswerStep {

@@ -64,4 +64,10 @@ export class PreAuditSubmissionResultDto {
   @ApiProperty({ description: 'True when this submission is a duplicate of an earlier one.' }) isDuplicate: boolean;
   @ApiPropertyOptional({ description: 'Synthesized pre-audit diagnostic summary including funding gap and operational analysis.' })
   diagnosticSummary?: any;
+
+  @ApiPropertyOptional({
+    description:
+      'Admin-configured diagnosis: category scores, strengths/challenges and MCOM-mapped recommendations.',
+  })
+  diagnosis?: any;
 }

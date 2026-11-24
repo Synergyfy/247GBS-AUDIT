@@ -1,3 +1,5 @@
+import type { DiagnosisConfig } from "@/services/diagnosis/types";
+
 export type TriageAuditType = "SHORT_FORM" | "LONG_FORM";
 
 /**
@@ -199,6 +201,8 @@ export interface TriageFormSettings {
   showProgressBar: boolean;
   showConfirmation: boolean;
   confirmationMessage: string;
+  /** Admin-configured diagnosis + recommendation model. */
+  diagnosis?: DiagnosisConfig;
 }
 
 export interface TriageForm {

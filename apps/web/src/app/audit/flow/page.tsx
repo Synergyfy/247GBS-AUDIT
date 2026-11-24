@@ -599,6 +599,8 @@ export default function AuditFlowPage() {
     const handleSubmit = async () => {
         setState(prev => ({ ...prev, currentScreen: "processing" }));
 
+        let persistedSessionId = serverSessionId;
+
         try {
             const token = localStorage.getItem("247gbs_token");
             if (token) {
@@ -618,6 +620,7 @@ export default function AuditFlowPage() {
                         body: JSON.stringify({
                             auditType,
                             scopes: Object.keys(state.answers),
+                            formId: auditFormId,
                         }),
                     });
 
@@ -660,6 +663,7 @@ export default function AuditFlowPage() {
                         headers,
                         body: JSON.stringify(state.answers),
                     });
+                    persistedSessionId = sessionId;
                 }
             }
         } catch {
@@ -670,6 +674,8 @@ export default function AuditFlowPage() {
             completedAt: new Date().toISOString(),
             auditType,
             sectorId,
+            formId: auditFormId,
+            sessionId: persistedSessionId,
             answers: state.answers
         }));
         localStorage.removeItem(STORAGE_KEY);
@@ -1091,12 +1097,23 @@ export default function AuditFlowPage() {
                         <button
                             onClick={() => {
                                 localStorage.removeItem(STORAGE_KEY);
+                                router.push("/audit/results");
+                            }}
+                            className="w-full bg-orange-500 hover:bg-orange-600 text-white px-6 py-4 rounded-2xl font-bold text-base flex items-center justify-center gap-3 shadow-xl shadow-orange-500/25 transition-all hover:-translate-y-1 active:translate-y-0"
+                        >
+                            View Business Diagnosis
+                            <ArrowRight size={18} />
+                        </button>
+
+                        <button
+                            onClick={() => {
+                                localStorage.removeItem(STORAGE_KEY);
                                 router.push("/dashboard");
                             }}
-                            className="w-full bg-slate-900 hover:bg-black text-white px-6 py-4 rounded-2xl font-bold text-base flex items-center justify-center gap-3 shadow-xl transition-all hover:-translate-y-1 active:translate-y-0"
+                            className="mt-3 w-full bg-slate-100 hover:bg-slate-200 text-slate-700 px-6 py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-3 transition-all"
                         >
                             Return to Dashboard
-                            <ArrowRight size={18} />
+                            <ArrowRight size={16} />
                         </button>
                     </div>
                 </motion.div>

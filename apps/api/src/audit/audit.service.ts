@@ -5,13 +5,17 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { AuditSession, AuditStatus } from './entities/audit-session.entity';
+import { AuditForm } from './entities/audit-form.entity';
+import { AuditFormQuestion } from './entities/audit-form-question.entity';
+import { AuditFormAnswer } from './entities/audit-form-answer.entity';
 import { User } from '../users/entities/user.entity';
 import { PreAuditSession } from '../triage/entities/pre-audit-session.entity';
 import { CalculationFactory } from './calculators/calculation.factory';
 import { AIService } from '../ai/ai.service';
 import { AuditPartnerNotifier } from '../partner/audit-partner-notifier.service';
+import { DiagnosisService } from '../diagnosis/diagnosis.service';
 
 @Injectable()
 export class AuditService {
@@ -20,14 +24,22 @@ export class AuditService {
     private auditRepository: Repository<AuditSession>,
     @InjectRepository(PreAuditSession)
     private preAuditRepository: Repository<PreAuditSession>,
+    @InjectRepository(AuditForm)
+    private auditFormRepository: Repository<AuditForm>,
+    @InjectRepository(AuditFormQuestion)
+    private auditQuestionRepository: Repository<AuditFormQuestion>,
+    @InjectRepository(AuditFormAnswer)
+    private auditAnswerRepository: Repository<AuditFormAnswer>,
     private aiService: AIService,
     private auditNotifier: AuditPartnerNotifier,
+    private diagnosisService: DiagnosisService,
   ) {}
 
   async createFromTriage(
     user: User,
     auditType: string,
     scopes: string[],
+    auditFormId?: string | null,
   ): Promise<AuditSession> {
     const session = this.auditRepository.create({
       userId: user.id,
@@ -35,8 +47,159 @@ export class AuditService {
       auditType,
       scopes,
       answers: {},
+      auditFormId: auditFormId ?? null,
     });
     return this.auditRepository.save(session);
+  }
+
+  /**
+   * Runs the admin-configured diagnosis + recommendation engine against the
+   * session's answers and persists the result on the session.
+   */
+  async diagnose(
+    id: string,
+    userId: string,
+    formId?: string | null,
+  ): Promise<Record<string, any>> {
+    const session = await this.findOne(id, userId);
+    if (!session) throw new NotFoundException('Audit session not found');
+
+    const resolvedFormId = formId || session.auditFormId || null;
+    let form: AuditForm | null = null;
+
+    if (resolvedFormId) {
+      form = await this.auditFormRepository.findOne({ where: { id: resolvedFormId } });
+    }
+    if (!form && session.auditType) {
+      form =
+        (await this.auditFormRepository.findOne({
+          where: { auditType: session.auditType as any, isDefault: true },
+          order: { updatedAt: 'DESC' },
+        })) ??
+        (await this.auditFormRepository.findOne({
+          where: { auditType: session.auditType as any },
+          order: { updatedAt: 'DESC' },
+        }));
+    }
+
+    const inputs: Array<{
+      questionId: string;
+      questionText?: string;
+      category?: string | null;
+      value?: unknown;
+      optionTexts?: string[];
+      selectedTexts?: string[];
+      scoreMax?: number;
+      scoreDirection?: 'higher' | 'lower';
+    }> = [];
+
+    if (form) {
+      session.auditFormId = form.id;
+      const questions = await this.auditQuestionRepository.find({
+        where: { formId: form.id, isActive: true },
+        order: { order: 'ASC', createdAt: 'ASC' },
+      });
+      const questionIds = questions.map((q) => q.id);
+      const answers = questionIds.length
+        ? await this.auditAnswerRepository.find({
+            where: { questionId: In(questionIds), isActive: true },
+            order: { sortOrder: 'ASC' },
+          })
+        : [];
+      const byQuestion = new Map<string, AuditFormAnswer[]>();
+      for (const answer of answers) {
+        const bucket = byQuestion.get(answer.questionId) ?? [];
+        bucket.push(answer);
+        byQuestion.set(answer.questionId, bucket);
+      }
+
+      for (const question of questions) {
+        const rawValue = session.answers?.[question.id];
+        if (rawValue === undefined || rawValue === null || rawValue === '') continue;
+        const questionAnswers = byQuestion.get(question.id) ?? [];
+        const scoreMax = questionAnswers.reduce(
+          (max, answer) => Math.max(max, answer.scoreImpact ?? 0),
+          0,
+        );
+
+        // The public flow stores the selected option id (or ids), while the
+        // API accepts raw score numbers. Resolve ids to their scoreImpact so
+        // both paths feed the engine the same numeric value.
+        let value: unknown = rawValue;
+        let selectedTexts: string[] | undefined;
+        if (Array.isArray(rawValue)) {
+          const scores: number[] = [];
+          const texts: string[] = [];
+          for (const entry of rawValue) {
+            const match = questionAnswers.find(
+              (answer) => answer.id === entry || answer.text === entry,
+            );
+            if (match) {
+              if (match.scoreImpact !== null && match.scoreImpact !== undefined) {
+                scores.push(match.scoreImpact);
+              }
+              texts.push(match.text);
+            } else if (typeof entry === 'number') {
+              scores.push(entry);
+            }
+          }
+          if (scores.length > 0) {
+            value = scores.reduce((sum, score) => sum + score, 0) / scores.length;
+          }
+          if (texts.length > 0) selectedTexts = texts;
+        } else {
+          const match = questionAnswers.find(
+            (answer) => answer.id === rawValue || answer.text === rawValue,
+          );
+          if (match) {
+            value = match.scoreImpact ?? rawValue;
+            selectedTexts = [match.text];
+          }
+        }
+        // New templates use 10 = optimal (higher is better). Legacy seeded
+        // short-form questions use a 1-3 risk scale (higher is worse); if an
+        // explicit direction is not set, infer it from the small scale.
+        const configuredDirection = question.config?.scoreDirection;
+        const scoreDirection: 'higher' | 'lower' =
+          configuredDirection === 'lower_is_better' ||
+          (!configuredDirection && scoreMax > 0 && scoreMax <= 3)
+            ? 'lower'
+            : 'higher';
+
+        inputs.push({
+          questionId: question.id,
+          questionText: question.text,
+          category: question.category,
+          value,
+          optionTexts: questionAnswers.map((a) => a.text),
+          selectedTexts,
+          scoreMax: scoreMax > 0 ? scoreMax : undefined,
+          scoreDirection,
+        });
+      }
+    }
+
+    // Fallback for legacy sessions whose answers are not tied to a form.
+    if (inputs.length === 0) {
+      for (const [questionId, value] of Object.entries(session.answers ?? {})) {
+        inputs.push({ questionId, value });
+      }
+    }
+
+    const diagnosis = this.diagnosisService.build({
+      answers: inputs,
+      config: form?.settings?.diagnosis,
+    });
+
+    session.diagnosis = diagnosis as unknown as Record<string, any>;
+    await this.auditRepository.save(session);
+    return session.diagnosis;
+  }
+
+  async getDiagnosis(id: string, userId: string): Promise<Record<string, any>> {
+    const session = await this.findOne(id, userId);
+    if (!session) throw new NotFoundException('Audit session not found');
+    return session.diagnosis ?? (await this.diagnose(id, userId));
   }
 
   /**

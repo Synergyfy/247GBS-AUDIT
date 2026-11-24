@@ -24,6 +24,7 @@ import { AuditModule } from '../audit/audit.module';
 import { AdminModule } from '../admin/admin.module';
 import { MailModule } from '../mail/mail.module';
 import { RedisModule } from '../redis/redis.module';
+import { DiagnosisModule } from '../diagnosis/diagnosis.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { RedisModule } from '../redis/redis.module';
     AdminModule,
     MailModule,
     RedisModule,
+    DiagnosisModule,
   ],
   controllers: [
     TriageController,

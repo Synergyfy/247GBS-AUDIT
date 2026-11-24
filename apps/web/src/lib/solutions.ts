@@ -16,7 +16,40 @@ export function generateSolutionPlan(
 ): SolutionPlan {
   const recommendations: RecommendationCard[] = [];
   const issueSolutionMap: { issue: string; solution: string }[] = [];
+  const serverRecommendations = diagnosis.recommendations ?? [];
 
+  if (serverRecommendations.length > 0) {
+    // --- Admin-configured recommendations from the server engine ---
+    for (const rec of serverRecommendations) {
+      const serviceNames = (rec.services ?? []).map((service) => service.name);
+      const priority: RecommendationCard['implementationPriority'] =
+        rec.priority === 'high' ? 'high' : rec.priority === 'medium' ? 'medium' : 'future';
+      const phase: 1 | 2 | 3 = priority === 'high' ? 1 : priority === 'medium' ? 2 : 3;
+      recommendations.push({
+        id: `rec-${rec.id}`,
+        businessIssue: rec.businessIssue,
+        severity: rec.priority.charAt(0).toUpperCase() + rec.priority.slice(1),
+        evidence: rec.summary ?? '',
+        businessImpact: serviceNames.length
+          ? [`Mapped MCOM capability: ${serviceNames.join(', ')}`]
+          : [],
+        recommendedSolution: serviceNames.join(' + ') || rec.businessIssue,
+        solutionId: rec.serviceIds?.[0] ?? rec.id,
+        whyThisSolution: rec.summary ?? '',
+        expectedOutcomes: serviceNames,
+        implementationPriority: priority,
+        estimatedTimeline: '30-90 Days',
+        estimatedInvestment: getBudgetAdjustedInvestment('£500-£2,000', budget.budgetRange),
+        expectedBusinessImpact:
+          rec.priority === 'high' ? 'high' : rec.priority === 'medium' ? 'medium' : 'low',
+        phase,
+      });
+      issueSolutionMap.push({
+        issue: rec.businessIssue,
+        solution: serviceNames.join(' + ') || rec.businessIssue,
+      });
+    }
+  } else {
   // --- Map challenges to solutions ---
   for (const challenge of diagnosis.challenges) {
     let solutionId: string | undefined;
@@ -95,6 +128,7 @@ export function generateSolutionPlan(
     });
 
     issueSolutionMap.push({ issue: opp.title, solution: solution.solutionName });
+  }
   }
 
   // --- Add growth/expansion solutions based on priorities ---

@@ -10,6 +10,7 @@ import { PreAuditSession } from '../triage/entities/pre-audit-session.entity';
 import { AIModule } from '../ai/ai.module';
 import { AdminModule } from '../admin/admin.module';
 import { PartnerModule } from '../partner/partner.module';
+import { DiagnosisModule } from '../diagnosis/diagnosis.module';
 import { AuditFormService } from './audit-form.service';
 import {
   AdminAuditFormsController,
@@ -28,6 +29,7 @@ import {
     AIModule,
     AdminModule,
     PartnerModule,
+    DiagnosisModule,
   ],
   controllers: [
     AuditController,

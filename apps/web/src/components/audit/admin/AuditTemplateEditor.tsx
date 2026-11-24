@@ -36,6 +36,9 @@ import {
 } from "@/services/ecosystem/catalog";
 import { EndActionModal } from "@/components/triage/builder/EndActionModal";
 import type { TriageDestinationType } from "@/services/triage/types";
+import { DiagnosisConfigEditor } from "@/components/admin/DiagnosisConfigEditor";
+import { fetchMcomServices } from "@/services/diagnosis/api";
+import type { DiagnosisConfig, McomService } from "@/services/diagnosis/types";
 import { AuditPhoneSimulator } from "./AuditPhoneSimulator";
 
 interface AuditTemplateEditorProps {
@@ -61,6 +64,11 @@ export function AuditTemplateEditor({ formId, onBack, onUpdated }: AuditTemplate
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
+  // Builder view: questions vs. the diagnosis/recommendation model.
+  const [editorTab, setEditorTab] = useState<"questions" | "diagnosis">("questions");
+  const [diagnosisConfig, setDiagnosisConfig] = useState<DiagnosisConfig | null>(null);
+  const [services, setServices] = useState<McomService[]>([]);
+
   // Live Phone Simulator State
   const [focusedQuestionId, setFocusedQuestionId] = useState<string | null>(null);
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
@@ -75,6 +83,7 @@ export function AuditTemplateEditor({ formId, onBack, onUpdated }: AuditTemplate
   // Load all sectors on mount
   useEffect(() => {
     fetchEcosystemSectors().then(setSectors);
+    fetchMcomServices().then(setServices).catch(() => setServices([]));
   }, []);
 
   // Update categories when sectorId changes
@@ -102,6 +111,9 @@ export function AuditTemplateEditor({ formId, onBack, onUpdated }: AuditTemplate
       setSectorId(serverForm.sectorId || "");
       setCategoryId(serverForm.categoryId || "");
       setSubcategoryId(serverForm.subcategoryId || "");
+      setDiagnosisConfig(
+        ((serverForm.settings as Record<string, any> | undefined)?.diagnosis as DiagnosisConfig) ?? null
+      );
       const loadedQuestions = serverForm.questions || [];
       setQuestions(loadedQuestions);
       if (loadedQuestions.length > 0 && !focusedQuestionId) {
@@ -288,6 +300,10 @@ export function AuditTemplateEditor({ formId, onBack, onUpdated }: AuditTemplate
         categoryName: categories.find((c) => c.id === categoryId)?.name || null,
         subcategoryId: subcategoryId || null,
         subcategoryName: subcategories.find((sc) => sc.id === subcategoryId)?.name || null,
+        settings: {
+          ...(serverForm?.settings ?? {}),
+          ...(diagnosisConfig ? { diagnosis: diagnosisConfig } : {}),
+        },
       });
 
       // 2. Sync questions: delete obsolete, create new, update existing
@@ -476,6 +492,30 @@ export function AuditTemplateEditor({ formId, onBack, onUpdated }: AuditTemplate
         </div>
       </div>
 
+      {/* Builder tabs */}
+      <div className="flex items-center gap-1 border-b border-slate-100">
+        {(
+          [
+            ["questions", "Questions"],
+            ["diagnosis", "Diagnosis & Recommendations"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setEditorTab(id)}
+            className={`-mb-px inline-flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-bold transition-colors ${
+              editorTab === id
+                ? "border-orange-500 text-slate-900"
+                : "border-transparent text-slate-400 hover:text-slate-700"
+            }`}
+          >
+            {id === "diagnosis" && <Sparkles size={15} />}
+            {label}
+          </button>
+        ))}
+      </div>
+
       {/* Two Column Layout: Left Column = Form Settings & Questions, Right Column = Live Phone Simulator */}
       <div className="flex flex-col lg:flex-row items-start gap-6">
         {/* Left Column (Builder Editor) */}
@@ -621,7 +661,25 @@ export function AuditTemplateEditor({ formId, onBack, onUpdated }: AuditTemplate
             </div>
           </div>
 
+          {editorTab === "diagnosis" && (
+            <DiagnosisConfigEditor
+              value={diagnosisConfig}
+              onChange={(next) => {
+                setDiagnosisConfig(next);
+                setDirty(true);
+              }}
+              questions={questions.map((q) => ({
+                id: q.id,
+                text: q.text,
+                category: q.category,
+              }))}
+              services={services}
+              disabled={busy}
+            />
+          )}
+
           {/* Questions List */}
+          {editorTab === "questions" && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-slate-900">
@@ -805,9 +863,11 @@ export function AuditTemplateEditor({ formId, onBack, onUpdated }: AuditTemplate
               })
             )}
           </div>
+          )}
         </div>
 
         {/* Right Column: Sticky Live Phone Simulator on Desktop */}
+        {editorTab === "questions" && (
         <div className="hidden lg:block w-[320px] shrink-0 sticky top-6">
           <AuditPhoneSimulator
             title={title}
@@ -818,6 +878,7 @@ export function AuditTemplateEditor({ formId, onBack, onUpdated }: AuditTemplate
             sectorName={sectors.find((s) => s.id === sectorId)?.name}
           />
         </div>
+        )}
       </div>
 
       {/* Mobile Floating Preview Button */}

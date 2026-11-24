@@ -15,6 +15,7 @@ export interface PreAuditSubmitResult {
   answeredCount: number;
   isDuplicate: boolean;
   diagnosticSummary?: any;
+  diagnosis?: any;
 }
 
 function authHeaders(): Record<string, string> {

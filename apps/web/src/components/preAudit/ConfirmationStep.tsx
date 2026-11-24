@@ -193,6 +193,20 @@ export function ConfirmationStep({
   const readiness = diagnostic.readiness;
   const accountant = diagnostic.accountant;
 
+  const diagnosisRecommendations = ((diagnostic.diagnosis?.recommendations ?? []) as Array<{
+    id: string;
+    businessIssue: string;
+    priority: "high" | "medium" | "low";
+    summary?: string;
+    action?: string;
+    services?: { id: string; name: string }[];
+  }>);
+  const diagnosisCategories = ((diagnostic.diagnosis?.healthCategories ?? []) as Array<{
+    id: string;
+    name: string;
+    score: number;
+  }>);
+
   return (
     <div className="bg-white rounded-3xl shadow-2xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
       {/* Header */}
@@ -404,7 +418,78 @@ export function ConfirmationStep({
           </div>
         )}
 
-        {/* 4. RECOMMENDED NEXT STEP */}
+        {/* 4. MCOM-MAPPED RECOMMENDATIONS */}
+        {(diagnosisRecommendations.length > 0 || diagnosisCategories.length > 0) && (
+          <div className="rounded-2xl border border-slate-200 bg-white p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Sparkles size={18} className="text-orange-500" />
+              <h3 className="font-bold text-slate-900 text-sm sm:text-base">
+                Personalised Recommendations
+              </h3>
+            </div>
+
+            {diagnosisCategories.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-4">
+                {diagnosisCategories.map((category) => (
+                  <span
+                    key={category.id}
+                    className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold text-slate-600"
+                  >
+                    {category.name}: {category.score}/100
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div className="space-y-2.5">
+              {diagnosisRecommendations.map((rec) => {
+                const badge =
+                  rec.priority === "high"
+                    ? "bg-red-50 border-red-200 text-red-700"
+                    : rec.priority === "medium"
+                    ? "bg-amber-50 border-amber-200 text-amber-700"
+                    : "bg-blue-50 border-blue-200 text-blue-700";
+                return (
+                  <div
+                    key={rec.id}
+                    className="rounded-xl border border-slate-100 bg-slate-50/60 p-3"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <h4 className="text-xs font-bold text-slate-800">{rec.businessIssue}</h4>
+                      <span
+                        className={`shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${badge}`}
+                      >
+                        {rec.priority}
+                      </span>
+                    </div>
+                    {rec.summary && (
+                      <p className="mt-1 text-[11px] leading-relaxed text-slate-600">{rec.summary}</p>
+                    )}
+                    {rec.action && (
+                      <p className="mt-1 text-[11px] leading-relaxed text-slate-700">
+                        <strong>Next:</strong> {rec.action}
+                      </p>
+                    )}
+                    {(rec.services?.length ?? 0) > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {rec.services?.map((service) => (
+                          <span
+                            key={service.id}
+                            className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-slate-600 border border-slate-200"
+                          >
+                            {service.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* 5. RECOMMENDED NEXT STEP */}
         <div className="border-2 border-orange-500 bg-orange-50/60 rounded-3xl p-6 sm:p-8 relative overflow-hidden">
           <div className="max-w-xl mx-auto text-center">
             <span className="text-[11px] sm:text-xs font-bold uppercase tracking-widest text-orange-600 bg-orange-100/80 px-3 py-1 rounded-full inline-block mb-3">

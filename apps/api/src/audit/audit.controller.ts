@@ -58,6 +58,36 @@ export class AuditController {
     );
   }
 
+  @Post()
+  @UseGuards(AccessTokenGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({
+    summary: 'Create Audit Session',
+    description:
+      'Creates an audit session for the authenticated user. Optionally links the audit template (formId) so the admin-configured diagnosis model can be applied.',
+  })
+  @ApiBody({
+    schema: {
+      example: {
+        auditType: 'LONG_FORM',
+        scopes: ['EXCESS_STOCK', 'SPARE_CAPACITY'],
+        formId: 'uuid-form-1',
+      },
+    },
+  })
+  async create(
+    @Body() body: { auditType: string; scopes?: string[]; formId?: string | null },
+    @Req() req: Request,
+  ) {
+    const user = (req as any).user;
+    return this.auditService.createFromTriage(
+      { id: user.sub } as any,
+      body.auditType,
+      body.scopes ?? [],
+      body.formId ?? null,
+    );
+  }
+
   @Get()
   @UseGuards(AccessTokenGuard)
   @ApiBearerAuth('access-token')
@@ -171,6 +201,40 @@ export class AuditController {
   ) {
     const user = (req as any).user;
     return this.auditService.updateAnswers(id, user.sub, answers);
+  }
+
+  @Post(':id/diagnose')
+  @UseGuards(AccessTokenGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({
+    summary: 'Run the diagnosis + recommendation engine',
+    description:
+      'Scores the audit answers using the audit template’s admin-configured diagnosis categories and rules, maps recommendations to MCOM capabilities, and persists the result on the session.',
+  })
+  @ApiBody({
+    schema: {
+      example: { formId: 'uuid-form-1' },
+    },
+  })
+  async diagnose(
+    @Param('id') id: string,
+    @Body() body: { formId?: string | null },
+    @Req() req: Request,
+  ) {
+    const user = (req as any).user;
+    return this.auditService.diagnose(id, user.sub, body?.formId ?? null);
+  }
+
+  @Get(':id/diagnosis')
+  @UseGuards(AccessTokenGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({
+    summary: 'Get the stored diagnosis',
+    description: 'Returns the persisted diagnosis, computing and storing it if it does not exist yet.',
+  })
+  async getDiagnosis(@Param('id') id: string, @Req() req: Request) {
+    const user = (req as any).user;
+    return this.auditService.getDiagnosis(id, user.sub);
   }
 
   @Post(':id/ai/generate-questions')

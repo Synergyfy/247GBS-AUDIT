@@ -13,6 +13,7 @@ import {
   Save,
   Send,
   Settings2,
+  Sparkles,
   Star,
   Upload,
 } from "lucide-react";
@@ -41,6 +42,9 @@ import {
 import { QuestionsTab } from "./QuestionsTab";
 import { ResponsesTab } from "./ResponsesTab";
 import { SettingsTab } from "./SettingsTab";
+import { DiagnosisConfigEditor } from "@/components/admin/DiagnosisConfigEditor";
+import { fetchMcomServices } from "@/services/diagnosis/api";
+import type { McomService } from "@/services/diagnosis/types";
 import type { PublishOutcome } from "./PublishPanel";
 import { PreviewModal } from "./PreviewModal";
 import { PublishModal } from "./PublishModal";
@@ -58,7 +62,7 @@ import {
   translateRefs,
 } from "./persist";
 
-type Tab = "questions" | "responses" | "settings";
+type Tab = "questions" | "responses" | "settings" | "diagnosis";
 
 interface Toast {
   message: string;
@@ -67,7 +71,7 @@ interface Toast {
 
 export interface TriageBuilderProps {
   initialFormId?: string;
-  initialTab?: "questions" | "responses" | "settings";
+  initialTab?: "questions" | "responses" | "settings" | "diagnosis";
   onDraftChange?: (draft: AdminTriageQuestion[]) => void;
   onFormChange?: (form: TriageForm | null) => void;
   onFocusedQuestionChange?: (id: string | null) => void;
@@ -100,6 +104,7 @@ export function TriageBuilder({
 
   const [form, setForm] = useState<TriageForm | null>(null);
   const [formLoading, setFormLoading] = useState(true);
+  const [diagnosisServices, setDiagnosisServices] = useState<McomService[]>([]);
   const baseRef = useRef<AdminTriageQuestion[]>([]);
   const baseFormRef = useRef<TriageForm | null>(null);
 
@@ -114,6 +119,12 @@ export function TriageBuilder({
   useEffect(() => {
     if (initialTab) setTab(initialTab);
   }, [initialTab]);
+
+  useEffect(() => {
+    fetchMcomServices()
+      .then(setDiagnosisServices)
+      .catch(() => setDiagnosisServices([]));
+  }, []);
 
   /* ---- Collapsed cards: purely UI state, never touches the draft ---------------
    * Long flows would otherwise render as a wall of open editors. Only the
@@ -980,6 +991,7 @@ export function TriageBuilder({
       { id: "questions", label: "Questions", icon: ListChecks },
       { id: "responses", label: "Responses", icon: Inbox },
       { id: "settings", label: "Settings", icon: Settings2 },
+      { id: "diagnosis", label: "Diagnosis", icon: Sparkles },
     ],
     []
   );
@@ -1183,6 +1195,17 @@ export function TriageBuilder({
               onCopy={copyLink}
               onSetDefault={() => void handleSetDefault()}
               busy={busy}
+            />
+          </div>
+        )}
+        {tab === "diagnosis" && (
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <DiagnosisConfigEditor
+              value={form?.settings?.diagnosis ?? null}
+              onChange={(next) => updateSettings({ diagnosis: next })}
+              questions={draft.map((q) => ({ id: q.id, text: q.text }))}
+              services={diagnosisServices}
+              disabled={busy}
             />
           </div>
         )}

@@ -8,7 +8,7 @@ import type { AdminTriageQuestion, TriageForm } from "@/services/triage/types";
 
 interface TriageBuilderWithPreviewProps {
   formId: string;
-  initialTab?: "questions" | "responses" | "settings";
+  initialTab?: "questions" | "responses" | "settings" | "diagnosis";
   onBack: () => void;
 }
 

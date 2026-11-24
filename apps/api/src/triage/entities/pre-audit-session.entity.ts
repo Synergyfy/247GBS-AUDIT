@@ -31,6 +31,11 @@ export class PreAuditSession {
   @Column({ type: 'varchar', length: 255, nullable: true })
   destinationTarget: string | null;
 
+  // Server-computed diagnosis + recommendations from the triage form's
+  // admin-configured diagnosis model.
+  @Column({ type: 'jsonb', nullable: true })
+  diagnosis: Record<string, any> | null;
+
   // Consent is recorded server-authoritatively at submission time.
   @Column({ type: 'timestamptz', nullable: true })
   consentGrantedAt: Date | null;

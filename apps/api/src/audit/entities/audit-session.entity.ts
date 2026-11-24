@@ -46,6 +46,16 @@ export class AuditSession {
   @Column({ nullable: true })
   dueDate: Date;
 
+  // The audit template (form) this session was created from. Used to load the
+  // admin-configured diagnosis model when producing recommendations.
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  @Index()
+  auditFormId: string | null;
+
+  // Server-computed, admin-configurable diagnosis + recommendation output.
+  @Column({ type: 'jsonb', nullable: true })
+  diagnosis: Record<string, any> | null;
+
   // Dynamic Answers Store
   @Column({ type: 'jsonb', default: {} })
   answers: Record<string, any>;

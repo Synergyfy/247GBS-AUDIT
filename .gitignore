@@ -30,6 +30,7 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # Env files
+.env*
 !.env.example
 
 # pnpm workspace — ignore npm-only lockfiles
@@ -55,4 +56,3 @@ next-env.d.ts
 # Turbo
 .turbo/
 apps/web/web.log
-config.bat

@@ -7,7 +7,9 @@ import { TriageBuilderWithPreview } from "@/components/triage/builder/TriageBuil
 
 export default function AdminTriagePage() {
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
-  const [selectedTab, setSelectedTab] = useState<"questions" | "responses" | "settings">("questions");
+  const [selectedTab, setSelectedTab] = useState<
+    "questions" | "responses" | "settings" | "diagnosis"
+  >("questions");
 
   // Support ?form=<id>&tab=<tab> deep links + browser back/forward.
   useEffect(() => {
@@ -15,7 +17,12 @@ export default function AdminTriagePage() {
       const params = new URLSearchParams(window.location.search);
       setSelectedFormId(params.get("form"));
       const tabParam = params.get("tab");
-      if (tabParam === "responses" || tabParam === "settings" || tabParam === "questions") {
+      if (
+        tabParam === "responses" ||
+        tabParam === "settings" ||
+        tabParam === "questions" ||
+        tabParam === "diagnosis"
+      ) {
         setSelectedTab(tabParam);
       }
     };
@@ -25,7 +32,10 @@ export default function AdminTriagePage() {
   }, []);
 
   const handleSelectForm = useCallback(
-    (formId: string, initialTab: "questions" | "responses" | "settings" = "questions") => {
+    (
+      formId: string,
+      initialTab: "questions" | "responses" | "settings" | "diagnosis" = "questions"
+    ) => {
       setSelectedFormId(formId);
       setSelectedTab(initialTab);
       try {

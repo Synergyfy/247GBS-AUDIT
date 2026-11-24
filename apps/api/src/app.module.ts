@@ -17,6 +17,7 @@ import { McomModule } from './mcom/mcom.module';
 import { PartnerModule } from './partner/partner.module';
 import { PublicModule } from './public/public.module';
 import { RedisModule } from './redis/redis.module';
+import { DiagnosisModule } from './diagnosis/diagnosis.module';
 
 @Module({
   imports: [
@@ -85,6 +86,7 @@ import { RedisModule } from './redis/redis.module';
     PartnerModule,
     PublicModule,
     RedisModule,
+    DiagnosisModule,
   ],
   controllers: [AppController],
   providers: [AppService],

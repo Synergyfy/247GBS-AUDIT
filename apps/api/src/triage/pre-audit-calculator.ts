@@ -1,3 +1,5 @@
+import type { DiagnosisResult } from '../diagnosis/diagnosis.types';
+
 /**
  * Pre-Audit Financial Gap & Diagnostic Calculator.
  *
@@ -61,6 +63,8 @@ export interface PreAuditDiagnosticSummary {
     rationale: string;
     keyTakeaway: string;
   };
+  /** Admin-configurable diagnosis + MCOM recommendations (when configured). */
+  diagnosis?: DiagnosisResult;
 }
 
 export interface GenericAnswerStep {

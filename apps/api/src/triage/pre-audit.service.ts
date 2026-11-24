@@ -9,6 +9,8 @@ import { createHash } from 'node:crypto';
 import { TriageQuestion } from './entities/triage-question.entity';
 import { TriageAnswer } from './entities/triage-answer.entity';
 import { PreAuditSession } from './entities/pre-audit-session.entity';
+import { TriageForm } from './entities/triage-form.entity';
+import { DiagnosisService } from '../diagnosis/diagnosis.service';
 import {
   SubmitPreAuditDto,
   PreAuditStepDto,
@@ -75,8 +77,11 @@ export class PreAuditService {
     private readonly answerRepository: Repository<TriageAnswer>,
     @InjectRepository(PreAuditSession)
     private readonly sessionRepository: Repository<PreAuditSession>,
+    @InjectRepository(TriageForm)
+    private readonly formRepository: Repository<TriageForm>,
     private readonly mailer: PreAuditMailer,
     private readonly otpService: TriageOtpService,
+    private readonly diagnosisService: DiagnosisService,
   ) {}
 
   /**
@@ -253,6 +258,21 @@ export class PreAuditService {
 
     const diagnosticSummary = calculatePreAuditDiagnosis(evaluated);
 
+    // Admin-configurable diagnosis + MCOM recommendation mapping.
+    const form = startQuestion.formId
+      ? await this.formRepository.findOne({ where: { id: startQuestion.formId } })
+      : await this.formRepository.findOne({ where: { isDefault: true } });
+    const diagnosis = this.diagnosisService.build({
+      answers: evaluated.map((step) => ({
+        questionId: step.questionId,
+        questionText: step.questionText,
+        value: step.value,
+        optionTexts: step.optionTexts,
+      })),
+      config: form?.settings?.diagnosis,
+    });
+    diagnosticSummary.diagnosis = diagnosis;
+
     // Multi-factor triage logic: If routing to an audit, ensure complex/unmet need
     // promotes to LONG_FORM rather than assuming budget == correct solution.
     if (
@@ -282,6 +302,7 @@ export class PreAuditService {
       recommendedAuditType,
       destinationType,
       destinationTarget,
+      diagnosis: diagnosis as unknown as Record<string, any>,
       consentGrantedAt: new Date(),
       consentVersion: dto.consentVersion ?? '1',
       completedAt: new Date(),
@@ -762,6 +783,9 @@ export class PreAuditService {
   ): PreAuditSubmissionResultDto {
     const summary =
       diagnosticSummary || calculatePreAuditDiagnosis(session.answers || []);
+    if (!summary.diagnosis && session.diagnosis) {
+      summary.diagnosis = session.diagnosis as any;
+    }
     return {
       id: session.id,
       email: session.email,
@@ -776,6 +800,7 @@ export class PreAuditService {
         : 0,
       isDuplicate,
       diagnosticSummary: summary,
+      diagnosis: summary.diagnosis ?? null,
     };
   }
 
@@ -810,6 +835,9 @@ export class PreAuditService {
     }
 
     const diagnosticSummary = calculatePreAuditDiagnosis(session.answers || []);
+    if (session.diagnosis) {
+      diagnosticSummary.diagnosis = session.diagnosis as any;
+    }
 
     return {
       hasCompletedPreAudit: true,

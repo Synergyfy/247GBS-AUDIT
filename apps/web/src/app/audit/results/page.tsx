@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { generateDiagnosis, getReadinessLabel, getOverallStatusLabel, type BusinessDiagnosis, type HealthRating } from "@/lib/diagnosis";
+import { diagnoseAudit } from "@/services/diagnosis/api";
 
 function getRatingColor(rating: HealthRating): string {
     const colors: Record<HealthRating, string> = {
@@ -99,44 +100,82 @@ export default function DiagnosisPage() {
 
     // Load audit answers and generate diagnosis
     useEffect(() => {
-        const auditStr = localStorage.getItem("247gbs_audit_completed");
-        const triageStr = localStorage.getItem("247gbs_triage_result");
+        let cancelled = false;
 
-        if (!auditStr && !triageStr) {
-            setLoading(false);
-            setGenerating(false);
-            return;
-        }
+        const run = async () => {
+            const auditStr = localStorage.getItem("247gbs_audit_completed");
+            const triageStr = localStorage.getItem("247gbs_triage_result");
 
-        // Combine audit answers + triage answers for richer diagnosis
-        let allAnswers: Record<string, any> = {};
-        try {
-            if (auditStr) {
-                const audit = JSON.parse(auditStr);
-                allAnswers = { ...allAnswers, ...audit.answers };
+            if (!auditStr && !triageStr) {
+                setLoading(false);
+                setGenerating(false);
+                return;
             }
-            if (triageStr) {
-                const triage = JSON.parse(triageStr);
-                const triageData = localStorage.getItem("247gbs_triage_progress");
-                if (triageData) {
-                    const t = JSON.parse(triageData);
-                    if (t.data) allAnswers = { ...allAnswers, ...t.data };
+
+            // Combine audit answers + triage answers for richer diagnosis
+            let audit: any = null;
+            let allAnswers: Record<string, any> = {};
+            try {
+                if (auditStr) {
+                    audit = JSON.parse(auditStr);
+                    allAnswers = { ...allAnswers, ...audit.answers };
+                }
+                if (triageStr) {
+                    const triage = JSON.parse(triageStr);
+                    const triageData = localStorage.getItem("247gbs_triage_progress");
+                    if (triageData) {
+                        const t = JSON.parse(triageData);
+                        if (t.data) allAnswers = { ...allAnswers, ...t.data };
+                    }
+                }
+            } catch {}
+
+            // Prefer the server-side, admin-configured diagnosis when the audit
+            // session and template are available.
+            if (audit?.sessionId) {
+                try {
+                    const server = await diagnoseAudit(audit.sessionId, audit.formId);
+                    if (!cancelled) {
+                        setDiagnosis(server as unknown as BusinessDiagnosis);
+                        localStorage.setItem("247gbs_diagnosis", JSON.stringify(server));
+                        setGenerating(false);
+                        setLoading(false);
+                    }
+                    return;
+                } catch {
+                    // Fall through to the local heuristic engine.
                 }
             }
-        } catch {}
 
-        // Simulate generation delay
-        setTimeout(() => {
-            const result = generateDiagnosis(allAnswers);
-            setDiagnosis(result);
-            localStorage.setItem("247gbs_diagnosis", JSON.stringify(result));
-            setGenerating(false);
-            setLoading(false);
-        }, 2500);
+            // Simulate generation delay
+            setTimeout(() => {
+                if (cancelled) return;
+                const result = generateDiagnosis(allAnswers);
+                setDiagnosis(result);
+                localStorage.setItem("247gbs_diagnosis", JSON.stringify(result));
+                setGenerating(false);
+                setLoading(false);
+            }, 2500);
+        };
+
+        void run();
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
-    // Resume saved diagnosis
+    // Resume a saved diagnosis only when there is no server-backed audit
+    // session. Otherwise the async server diagnosis owns the page, which
+    // avoids briefly flashing an older cached result.
     useEffect(() => {
+        let hasAuditSession = false;
+        try {
+            hasAuditSession = Boolean(
+                JSON.parse(localStorage.getItem("247gbs_audit_completed") || "{}").sessionId
+            );
+        } catch {}
+        if (hasAuditSession) return;
+
         const saved = localStorage.getItem("247gbs_diagnosis");
         if (saved) {
             try {
@@ -156,6 +195,15 @@ export default function DiagnosisPage() {
 
     const statusBgColor = diagnosis?.overallScore && diagnosis.overallScore >= 60 ? 'bg-green-50 border-green-200' :
         diagnosis?.overallScore && diagnosis.overallScore >= 40 ? 'bg-orange-50 border-orange-200' : 'bg-red-50 border-red-200';
+
+    const recommendations = (((diagnosis as any)?.recommendations ?? []) as Array<{
+        id: string;
+        businessIssue: string;
+        priority: 'high' | 'medium' | 'low';
+        summary: string;
+        action: string;
+        services: { id: string; name: string }[];
+    }>);
 
     // ============== LOADING ==============
     if (generating && !diagnosis) {
@@ -235,7 +283,7 @@ export default function DiagnosisPage() {
                         <button onClick={handlePrint} className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors" title="Print">
                             <Printer size={16} />
                         </button>
-                        <button onClick={() => {}} className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors" title="Download PDF">
+                        <button onClick={handlePrint} className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors" title="Download / print PDF">
                             <Download size={16} />
                         </button>
                         <button onClick={() => {}} className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors" title="Share">
@@ -468,6 +516,77 @@ export default function DiagnosisPage() {
                             </div>
                         </div>
                     </motion.section>
+
+                    {/* ========== RECOMMENDED ACTIONS (MCOM-MAPPED) ========== */}
+                    {recommendations.length > 0 && (
+                        <motion.section
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.28 }}
+                            className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden"
+                        >
+                            <div className="px-6 sm:px-10 py-6 sm:py-8">
+                                <h2 className="text-lg font-bold text-slate-900 mb-2 flex items-center gap-2">
+                                    <Zap size={20} className="text-orange-500" />
+                                    Recommended Actions
+                                </h2>
+                                <p className="text-sm text-slate-500 mb-6">
+                                    Based on this diagnosis, these are the next steps and the MCOM
+                                    capabilities that support them.
+                                </p>
+                                <div className="grid md:grid-cols-2 gap-4">
+                                    {recommendations.map((rec) => {
+                                        const priorityClass =
+                                            rec.priority === 'high'
+                                                ? 'bg-red-50 border-red-200 text-red-700'
+                                                : rec.priority === 'medium'
+                                                ? 'bg-amber-50 border-amber-200 text-amber-700'
+                                                : 'bg-blue-50 border-blue-200 text-blue-700';
+                                        return (
+                                            <div
+                                                key={rec.id}
+                                                className="rounded-2xl border border-slate-200 p-5 hover:border-orange-200 hover:shadow-md transition-all"
+                                            >
+                                                <div className="flex items-start justify-between gap-3 mb-3">
+                                                    <h3 className="font-bold text-slate-900 text-sm">
+                                                        {rec.businessIssue}
+                                                    </h3>
+                                                    <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider ${priorityClass}`}>
+                                                        {rec.priority}
+                                                    </span>
+                                                </div>
+                                                {rec.summary && (
+                                                    <p className="text-xs text-slate-600 leading-relaxed mb-3">
+                                                        {rec.summary}
+                                                    </p>
+                                                )}
+                                                {rec.action && (
+                                                    <div className="mb-3">
+                                                        <span className="text-[10px] font-bold uppercase tracking-widest text-orange-600">
+                                                            What should happen next
+                                                        </span>
+                                                        <p className="text-xs text-slate-600 mt-0.5">{rec.action}</p>
+                                                    </div>
+                                                )}
+                                                {rec.services?.length > 0 && (
+                                                    <div className="flex flex-wrap gap-1.5 pt-3 border-t border-slate-100">
+                                                        {rec.services.map((service) => (
+                                                            <span
+                                                                key={service.id}
+                                                                className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-600"
+                                                            >
+                                                                {service.name}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </motion.section>
+                    )}
 
                     {/* ========== PRIORITY MATRIX ========== */}
                     <motion.section

@@ -10,6 +10,7 @@ export const TRIAGE_FORM_SETTINGS_KEYS = [
   'showProgressBar',
   'showConfirmation',
   'confirmationMessage',
+  'diagnosis',
 ] as const;
 
 export type TriageFormSettingsKey = (typeof TRIAGE_FORM_SETTINGS_KEYS)[number];
@@ -50,6 +51,15 @@ export class TriageFormSettingsDto {
   @IsString()
   @MaxLength(2000)
   confirmationMessage?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Admin-configured diagnosis categories, thresholds and recommendation rules mapped to MCOM capabilities.',
+    type: Object,
+  })
+  @IsOptional()
+  @IsObject()
+  diagnosis?: Record<string, any>;
 }
 
 export class CreateTriageFormDto {

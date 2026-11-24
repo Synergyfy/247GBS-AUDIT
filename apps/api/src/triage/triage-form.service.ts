@@ -19,6 +19,7 @@ import {
   TriageFormSettingsDto,
   UpdateTriageFormDto,
 } from './dto/triage-form.dto';
+import { normaliseDiagnosisConfig } from '../diagnosis/diagnosis.service';
 
 export const DEFAULT_TRIAGE_FORM_ID = '00000000-0000-0000-0000-000000000001';
 
@@ -122,7 +123,9 @@ export class TriageFormService implements OnModuleInit {
     for (const key of TRIAGE_FORM_SETTINGS_KEYS) {
       const value = (input as any)[key];
       if (value === undefined) continue;
-      if (key === 'confirmationMessage') {
+      if (key === 'diagnosis') {
+        settings[key] = normaliseDiagnosisConfig(value);
+      } else if (key === 'confirmationMessage') {
         settings[key] = typeof value === 'string' ? value.slice(0, 2000) : '';
       } else {
         settings[key] = booleanOr(value, DEFAULT_TRIAGE_FORM_SETTINGS[key]);

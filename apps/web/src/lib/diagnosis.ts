@@ -71,6 +71,18 @@ export interface BusinessDiagnosis {
     };
     whatWeFound: string;
     completedAt: string;
+    /** Present when the server-side, admin-configured engine produced the diagnosis. */
+    recommendations?: Array<{
+        id: string;
+        businessIssue: string;
+        priority: 'high' | 'medium' | 'low';
+        summary?: string;
+        action?: string;
+        serviceIds?: string[];
+        services?: { id: string; name: string; category?: string }[];
+    }>;
+    mcomServiceMapping?: { issue: string; serviceId: string; serviceName: string }[];
+    configSource?: 'admin' | 'default';
 }
 
 // ============================================================
