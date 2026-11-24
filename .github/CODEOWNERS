@@ -1,0 +1,11 @@
+# Sensitive files: enable "Require review from Code Owners" in branch
+# protection so changes here cannot be pushed without an owner review.
+/.github/                       @Synergyfy
+/.gitignore                     @Synergyfy
+/package.json                   @Synergyfy
+/pnpm-lock.yaml                 @Synergyfy
+/scripts/                       @Synergyfy
+/apps/api/package.json          @Synergyfy
+/apps/web/package.json          @Synergyfy
+/apps/web/postcss.config.mjs    @Synergyfy
+/apps/web/next.config.ts        @Synergyfy

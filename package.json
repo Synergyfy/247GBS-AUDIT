@@ -6,6 +6,7 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "lint": "turbo lint",
+    "security:check": "node scripts/security-guard.mjs",
     "clean": "turbo clean"
   },
   "devDependencies": {
